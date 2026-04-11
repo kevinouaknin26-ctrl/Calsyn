@@ -236,6 +236,8 @@ export default function ProspectModal({
   const [activeTab, setActiveTab] = useState('activite')
   const [showConfetti, setShowConfetti] = useState(false)
   const [showSnoozeMenu, setShowSnoozeMenu] = useState(false)
+  const [editingUrl, setEditingUrl] = useState<'linkedin' | 'website' | null>(null)
+  const [urlValue, setUrlValue] = useState('')
   const [localDoNotCall, setLocalDoNotCall] = useState(prospect.do_not_call)
   const [localSnoozedUntil, setLocalSnoozedUntil] = useState(prospect.snoozed_until)
   const queryClient = useQueryClient()
@@ -290,35 +292,53 @@ export default function ProspectModal({
               <h2 className="text-[15px] font-bold text-gray-800 flex-1 truncate">{prospect.name}</h2>
             </div>
 
-            {/* Icones LinkedIn + globe (cliquables pour remplir) */}
-            <div className="flex gap-1 ml-9 mb-3">
+            {/* Icones LinkedIn + globe — à gauche, avec popover inline pour ajouter */}
+            <div className="flex gap-1 mb-3 relative">
               {prospect.linkedin_url ? (
                 <a href={prospect.linkedin_url} target="_blank" rel="noopener noreferrer"
                   className="w-5 h-5 rounded flex items-center justify-center text-[8px] font-bold bg-blue-50 text-blue-500 cursor-pointer hover:bg-blue-100">in</a>
               ) : (
-                <button onClick={async () => {
-                  const url = window.prompt('URL LinkedIn :')
-                  if (url?.trim()) {
-                    await supabase.from('prospects').update({ linkedin_url: url.trim() }).eq('id', prospect.id)
-                    queryClient.invalidateQueries({ queryKey: ['prospects'] })
-                  }
-                }} className="w-5 h-5 rounded flex items-center justify-center text-[8px] font-bold bg-gray-50 text-gray-300 hover:text-blue-500 hover:bg-blue-50 cursor-pointer" title="Ajouter LinkedIn">in</button>
+                <button onClick={() => { setEditingUrl('linkedin'); setUrlValue('') }}
+                  className="w-5 h-5 rounded flex items-center justify-center text-[8px] font-bold bg-gray-50 text-gray-300 hover:text-blue-500 hover:bg-blue-50 cursor-pointer" title="Ajouter LinkedIn">in</button>
               )}
               {prospect.website_url ? (
                 <a href={prospect.website_url} target="_blank" rel="noopener noreferrer"
                   className="w-5 h-5 rounded flex items-center justify-center bg-gray-50 text-gray-500 cursor-pointer hover:bg-gray-100">
-                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3" /></svg>
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9" /></svg>
                 </a>
               ) : (
-                <button onClick={async () => {
-                  const url = window.prompt('URL site web :')
-                  if (url?.trim()) {
-                    await supabase.from('prospects').update({ website_url: url.trim() }).eq('id', prospect.id)
-                    queryClient.invalidateQueries({ queryKey: ['prospects'] })
-                  }
-                }} className="w-5 h-5 rounded flex items-center justify-center bg-gray-50 text-gray-300 hover:text-gray-500 hover:bg-gray-100 cursor-pointer" title="Ajouter site web">
-                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3" /></svg>
+                <button onClick={() => { setEditingUrl('website'); setUrlValue('') }}
+                  className="w-5 h-5 rounded flex items-center justify-center bg-gray-50 text-gray-300 hover:text-gray-500 hover:bg-gray-100 cursor-pointer" title="Ajouter site web">
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9" /></svg>
                 </button>
+              )}
+              {/* Popover inline pour ajouter URL */}
+              {editingUrl && (
+                <div className="absolute top-7 left-0 bg-white rounded-lg shadow-lg border border-gray-200 z-[60] p-2 w-56 animate-slide-down">
+                  <input autoFocus type="url" value={urlValue} onChange={e => setUrlValue(e.target.value)}
+                    placeholder={editingUrl === 'linkedin' ? 'https://linkedin.com/in/...' : 'https://...'}
+                    onKeyDown={async e => {
+                      if (e.key === 'Enter' && urlValue.trim()) {
+                        const field = editingUrl === 'linkedin' ? 'linkedin_url' : 'website_url'
+                        await supabase.from('prospects').update({ [field]: urlValue.trim() }).eq('id', prospect.id)
+                        queryClient.invalidateQueries({ queryKey: ['prospects'] })
+                        setEditingUrl(null)
+                      }
+                      if (e.key === 'Escape') setEditingUrl(null)
+                    }}
+                    className="w-full px-2 py-1.5 text-[12px] border border-gray-200 rounded outline-none focus:border-teal-400" />
+                  <div className="flex justify-end gap-1 mt-1.5">
+                    <button onClick={() => setEditingUrl(null)} className="px-2 py-1 text-[11px] text-gray-400 hover:text-gray-600">Annuler</button>
+                    <button onClick={async () => {
+                      if (urlValue.trim()) {
+                        const field = editingUrl === 'linkedin' ? 'linkedin_url' : 'website_url'
+                        await supabase.from('prospects').update({ [field]: urlValue.trim() }).eq('id', prospect.id)
+                        queryClient.invalidateQueries({ queryKey: ['prospects'] })
+                        setEditingUrl(null)
+                      }
+                    }} className="px-2 py-1 text-[11px] font-semibold text-teal-600 hover:text-teal-700">Ajouter</button>
+                  </div>
+                </div>
               )}
             </div>
 
