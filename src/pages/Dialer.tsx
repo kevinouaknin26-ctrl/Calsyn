@@ -208,10 +208,13 @@ const ProspectRow = memo(function ProspectRow({ prospect, isActive, liveStatus, 
         : 'hover:bg-gray-50/60'
 
   return (
-    <tr onClick={() => onSelect(prospect)}
-      className={`border-b border-gray-50 cursor-pointer transition-all duration-300 ${rowBg}`}>
-      {/* CALL STATUS — pill badge with icon + animation pendant appel */}
-      <td className="py-3.5 px-5">
+    <tr className={`border-b border-gray-50 transition-all duration-300 ${rowBg}`}>
+      {/* Checkbox */}
+      <td className="py-3.5 pl-4 pr-1 w-8">
+        <input type="checkbox" className="w-3.5 h-3.5 rounded border-gray-300 accent-teal-600" />
+      </td>
+      {/* CALL STATUS — pill badge with icon */}
+      <td className="py-3.5 px-3">
         <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-semibold whitespace-nowrap transition-all duration-300 ${liveStatus ? 'animate-pulse-soft' : ''}`}
           style={{ background: st.bg, color: st.text }}>
           {st.icon === 'group' && <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" /></svg>}
@@ -221,22 +224,31 @@ const ProspectRow = memo(function ProspectRow({ prospect, isActive, liveStatus, 
         </span>
       </td>
       {/* CALLS */}
-      <td className="py-3.5 px-3 text-[13px] text-gray-400 text-center">{prospect.call_count || 0}</td>
-      {/* NAME + icons */}
+      <td className="py-3.5 px-3 text-[13px] text-gray-400 text-center">
+        <span className="inline-flex items-center gap-1">
+          <svg className="w-3.5 h-3.5 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" /></svg>
+          {prospect.call_count || 0}
+        </span>
+      </td>
+      {/* NAME — chip cliquable (Minari exact) + icones après */}
       <td className="py-3.5 px-4">
         <div className="flex items-center gap-2">
-          {/* LinkedIn icon */}
-          <div className="w-5 h-5 rounded bg-blue-50 flex items-center justify-center flex-shrink-0">
-            <span className="text-[9px] font-bold text-blue-500">in</span>
-          </div>
-          {/* Contact/call icon */}
+          {/* Nom dans une bulle cliquable */}
+          <button onClick={() => onSelect(prospect)}
+            className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-gray-100 hover:bg-gray-200 transition-colors cursor-pointer">
+            <svg className="w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+            <span className="text-[13px] font-semibold text-gray-800">{prospect.name}</span>
+          </button>
+          {/* Icones après le nom (Minari exact) */}
           <button onClick={e => { e.stopPropagation(); onCall(prospect) }}
-            className="w-5 h-5 rounded bg-gray-50 flex items-center justify-center flex-shrink-0 hover:bg-emerald-50 group">
-            <svg className="w-3 h-3 text-gray-300 group-hover:text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+            className="w-7 h-7 rounded-lg bg-gray-100 flex items-center justify-center flex-shrink-0 hover:bg-emerald-50 group">
+            <svg className="w-3.5 h-3.5 text-gray-400 group-hover:text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
             </svg>
           </button>
-          <span className="text-[13px] font-medium text-gray-800">{prospect.name}</span>
+          <div className="w-7 h-7 rounded-lg bg-blue-50 flex items-center justify-center flex-shrink-0">
+            <span className="text-[9px] font-bold text-blue-500">in</span>
+          </div>
         </div>
       </td>
       {/* TITLE */}
@@ -578,7 +590,8 @@ export default function Dialer() {
           <table className="w-full">
             <thead>
               <tr className="border-b border-gray-100">
-                <th className="py-3 px-5 text-left text-[10px] font-bold text-gray-400 uppercase tracking-[0.08em]">Statut appel</th>
+                <th className="py-3 pl-4 pr-1 w-8"><input type="checkbox" className="w-3.5 h-3.5 rounded border-gray-300 accent-teal-600" /></th>
+                <th className="py-3 px-3 text-left text-[10px] font-bold text-gray-400 uppercase tracking-[0.08em]">Statut appel</th>
                 <th className="py-3 px-3 text-center text-[10px] font-bold text-gray-400 uppercase tracking-[0.08em]">Appels</th>
                 <th className="py-3 px-4 text-left text-[10px] font-bold text-gray-400 uppercase tracking-[0.08em]">Nom</th>
                 <th className="py-3 px-4 text-left text-[10px] font-bold text-gray-400 uppercase tracking-[0.08em]">Poste</th>
