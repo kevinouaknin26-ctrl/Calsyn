@@ -167,18 +167,25 @@ function AudioPlayer({ url, date, prospectName }: { url: string; date?: string; 
         </div>
         {/* Durée */}
         <span className="text-[11px] text-gray-400 font-mono flex-shrink-0">{fmt(currentTime)}/{fmt(duration)}</span>
-        {/* Download */}
-        <button onClick={async () => {
-          const res = await fetch(url)
-          const blob = await res.blob()
-          const a = document.createElement('a')
-          a.href = URL.createObjectURL(blob)
-          const d = date ? new Date(date) : new Date()
-          const dateStr = `${d.getFullYear()}-${(d.getMonth()+1).toString().padStart(2,'0')}-${d.getDate().toString().padStart(2,'0')}_${d.getHours().toString().padStart(2,'0')}h${d.getMinutes().toString().padStart(2,'0')}`
-          const name = (prospectName || 'inconnu').replace(/[^a-zA-Z0-9àâäéèêëïîôùûüçÀÂÄÉÈÊËÏÎÔÙÛÜÇ -]/g, '').replace(/\s+/g, '_')
-          a.download = `${name}_${dateStr}.mp3`
-          a.click()
-          URL.revokeObjectURL(a.href)
+        {/* Download — force téléchargement via XMLHttpRequest pour éviter redirect login */}
+        <button onClick={() => {
+          const xhr = new XMLHttpRequest()
+          xhr.open('GET', url, true)
+          xhr.responseType = 'blob'
+          xhr.onload = () => {
+            if (xhr.status === 200) {
+              const blob = xhr.response
+              const a = document.createElement('a')
+              a.href = URL.createObjectURL(blob)
+              const d = date ? new Date(date) : new Date()
+              const dateStr = `${d.getFullYear()}-${(d.getMonth()+1).toString().padStart(2,'0')}-${d.getDate().toString().padStart(2,'0')}_${d.getHours().toString().padStart(2,'0')}h${d.getMinutes().toString().padStart(2,'0')}`
+              const name = (prospectName || 'inconnu').replace(/[^a-zA-Z0-9àâäéèêëïîôùûüçÀÂÄÉÈÊËÏÎÔÙÛÜÇ -]/g, '').replace(/\s+/g, '_')
+              a.download = `${name}_${dateStr}.mp3`
+              a.click()
+              URL.revokeObjectURL(a.href)
+            }
+          }
+          xhr.send()
         }} className="text-gray-400 hover:text-gray-600 flex-shrink-0" title="Télécharger">
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
         </button>
