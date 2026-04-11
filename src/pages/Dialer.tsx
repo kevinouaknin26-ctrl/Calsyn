@@ -191,8 +191,8 @@ function CallSettingsDropdown({ open, onToggle }: { open: boolean; onToggle: () 
 }
 
 // ── Prospect Row (Minari exact : LinkedIn + contact icons) ────────
-const ProspectRow = memo(function ProspectRow({ prospect, isActive, liveStatus, onSelect, onCall }: {
-  prospect: Prospect; isActive: boolean; liveStatus?: string; onSelect: (p: Prospect) => void; onCall: (p: Prospect) => void
+const ProspectRow = memo(function ProspectRow({ prospect, isActive, liveStatus, selected, onToggleSelect, onSelect, onCall }: {
+  prospect: Prospect; isActive: boolean; liveStatus?: string; selected: boolean; onToggleSelect: (id: string) => void; onSelect: (p: Prospect) => void; onCall: (p: Prospect) => void
 }) {
   // Pendant un appel actif, le badge montre le statut live (Initié/En sonnerie/En cours)
   const statusKey = liveStatus || getCallStatusKey(prospect)
@@ -211,7 +211,8 @@ const ProspectRow = memo(function ProspectRow({ prospect, isActive, liveStatus, 
     <tr className={`border-b border-gray-50 transition-all duration-300 ${rowBg}`}>
       {/* Checkbox */}
       <td className="py-3.5 pl-4 pr-1 w-8">
-        <input type="checkbox" className="w-3.5 h-3.5 rounded border-gray-300 accent-teal-600" />
+        <input type="checkbox" checked={selected} onChange={() => onToggleSelect(prospect.id)}
+          className="w-3.5 h-3.5 rounded border-gray-300 accent-teal-600" />
       </td>
       {/* CALL STATUS — pill badge with icon */}
       <td className="py-3.5 px-3">
@@ -282,6 +283,7 @@ export default function Dialer() {
   const [renamingList, setRenamingList] = useState(false)
   const [renameValue, setRenameValue] = useState('')
   const [showAddProspect, setShowAddProspect] = useState(false)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [newProspect, setNewProspect] = useState({ name: '', phone: '', email: '', company: '', title: '' })
   const addProspect = useAddProspect()
 
@@ -593,7 +595,13 @@ export default function Dialer() {
           <table className="w-full">
             <thead>
               <tr className="border-b border-gray-100">
-                <th className="py-3 pl-4 pr-1 w-8"><input type="checkbox" className="w-3.5 h-3.5 rounded border-gray-300 accent-teal-600" /></th>
+                <th className="py-3 pl-4 pr-1 w-8"><input type="checkbox"
+                  checked={filtered ? filtered.length > 0 && selectedIds.size === filtered.length : false}
+                  onChange={e => {
+                    if (e.target.checked && filtered) setSelectedIds(new Set(filtered.map(p => p.id)))
+                    else setSelectedIds(new Set())
+                  }}
+                  className="w-3.5 h-3.5 rounded border-gray-300 accent-teal-600" /></th>
                 <th className="py-3 px-3 text-left text-[10px] font-bold text-gray-400 uppercase tracking-[0.08em]">Statut appel</th>
                 <th className="py-3 px-3 text-center text-[10px] font-bold text-gray-400 uppercase tracking-[0.08em]">Appels</th>
                 <th className="py-3 px-4 text-left text-[10px] font-bold text-gray-400 uppercase tracking-[0.08em]">Nom</th>
@@ -611,6 +619,13 @@ export default function Dialer() {
                   prospect={p}
                   isActive={selectedProspect?.id === p.id && isInCall}
                   liveStatus={getLiveCallStatus(p.id)}
+                  selected={selectedIds.has(p.id)}
+                  onToggleSelect={id => setSelectedIds(prev => {
+                    const next = new Set(prev)
+                    if (next.has(id)) next.delete(id)
+                    else next.add(id)
+                    return next
+                  })}
                   onSelect={setSelectedProspect}
                   onCall={handleCall}
                 />
