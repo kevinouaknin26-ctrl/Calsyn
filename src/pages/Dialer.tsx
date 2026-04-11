@@ -148,7 +148,7 @@ function CallSettingsDropdown({ open, onToggle }: { open: boolean; onToggle: () 
   // Toggle helper
   const Toggle = ({ value, onChange }: { value: boolean; onChange: (v: boolean) => void }) => (
     <button onClick={() => onChange(!value)}
-      className={`w-10 h-5 rounded-full relative transition-colors ${value ? 'bg-teal-500' : 'bg-gray-300'}`}>
+      className={`w-10 h-5 rounded-full relative transition-colors ${value ? 'bg-indigo-500' : 'bg-gray-300'}`}>
       <div className={`w-4 h-4 bg-white rounded-full shadow absolute top-0.5 transition-transform ${value ? 'translate-x-5' : 'translate-x-0.5'}`} />
     </button>
   )
@@ -217,7 +217,7 @@ function CallSettingsDropdown({ open, onToggle }: { open: boolean; onToggle: () 
               {[1, 2, 3, 4, 5].map(n => (
                 <button key={n} onClick={() => setParallel(n)}
                   className={`w-7 h-6 text-[11px] font-medium border-r border-gray-200 last:border-r-0 flex items-center justify-center ${
-                    parallel === n ? 'bg-teal-50 text-teal-700 font-semibold' : 'text-gray-500 hover:bg-gray-50'
+                    parallel === n ? 'bg-indigo-50 text-indigo-700 font-semibold' : 'text-gray-500 hover:bg-gray-50'
                   }`}>
                   {n}{parallel === n ? ' ✓' : ''}
                 </button>
@@ -237,7 +237,7 @@ function CallSettingsDropdown({ open, onToggle }: { open: boolean; onToggle: () 
               </select>
             </div>
             <div className="flex items-center gap-1 justify-end">
-              <span className="w-2 h-2 rounded-full bg-emerald-500" />
+              <span className="w-2 h-2 rounded-full bg-violet-500" />
               <span className="text-[11px] text-gray-400">Actif</span>
             </div>
           </div>
@@ -289,7 +289,7 @@ function CallSettingsDropdown({ open, onToggle }: { open: boolean; onToggle: () 
                     className="px-2 py-1 rounded-lg border border-gray-200 text-[11px] text-gray-500 hover:bg-white disabled:opacity-30">
                     ▶ Écouter
                   </button>
-                  {vmAudioUrl && <span className="text-[10px] text-emerald-500">✓ Enregistré</span>}
+                  {vmAudioUrl && <span className="text-[10px] text-violet-500">✓ Enregistré</span>}
                 </div>
               </div>
             )}
@@ -351,9 +351,9 @@ const ProspectRow = memo(function ProspectRow({ prospect, isActive, liveStatus, 
   const rowBg = liveStatus === 'initiated' || liveStatus === 'ringing'
     ? 'bg-red-50/60'
     : liveStatus === 'in-progress'
-      ? 'bg-emerald-50/60'
+      ? 'bg-violet-50/60'
       : isActive
-        ? 'bg-emerald-50/40'
+        ? 'bg-violet-50/40'
         : 'hover:bg-gray-50/60'
 
   return (
@@ -361,7 +361,7 @@ const ProspectRow = memo(function ProspectRow({ prospect, isActive, liveStatus, 
       {/* Checkbox */}
       <td className="py-3.5 pl-4 pr-1 w-8">
         <input type="checkbox" checked={selected} onChange={() => onToggleSelect(prospect.id)}
-          className="w-3.5 h-3.5 rounded border-gray-300 accent-teal-600" />
+          className="w-3.5 h-3.5 rounded border-gray-300 accent-indigo-600" />
       </td>
       {/* CALL STATUS — pill badge with icon */}
       <td className="py-3.5 px-3">
@@ -393,8 +393,8 @@ const ProspectRow = memo(function ProspectRow({ prospect, isActive, liveStatus, 
           <div className="flex-1" />
           {/* Icones appeler + LinkedIn — alignées à droite comme une colonne */}
           <button onClick={e => { e.stopPropagation(); onCall(prospect) }}
-            className="w-6 h-6 rounded bg-gray-100 flex items-center justify-center flex-shrink-0 hover:bg-emerald-50 group">
-            <svg className="w-3 h-3 text-gray-400 group-hover:text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            className="w-6 h-6 rounded bg-gray-100 flex items-center justify-center flex-shrink-0 hover:bg-violet-50 group">
+            <svg className="w-3 h-3 text-gray-400 group-hover:text-violet-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
             </svg>
           </button>
@@ -559,15 +559,15 @@ export default function Dialer() {
   }
 
   return (
-    <div className="min-h-screen bg-[#f0faf4] p-4 pl-2">
+    <div className="min-h-screen bg-[#f5f3ff] p-4 pl-2">
       {/* ── UN SEUL conteneur blanc arrondi (Minari exact) ── */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-200/50 min-h-[calc(100vh-2rem)] flex flex-col overflow-hidden">
 
       {/* ── Tabs listes ── */}
       <div className="border-b border-gray-100 flex items-center overflow-x-auto px-3">
         <button onClick={() => setShowSelectList(true)}
-          className="flex items-center gap-1 px-3 py-2.5 text-[12px] font-medium text-emerald-600 hover:text-emerald-700 whitespace-nowrap flex-shrink-0">
-          <span className="w-3.5 h-3.5 rounded-full bg-emerald-500 text-white flex items-center justify-center text-[9px] font-bold">+</span>
+          className="flex items-center gap-1 px-3 py-2.5 text-[12px] font-medium text-violet-600 hover:text-violet-700 whitespace-nowrap flex-shrink-0">
+          <span className="w-3.5 h-3.5 rounded-full bg-violet-500 text-white flex items-center justify-center text-[9px] font-bold">+</span>
           Nouvelle liste
         </button>
         {lists?.filter(l => openTabIds.includes(l.id)).map(l => (
@@ -618,13 +618,13 @@ export default function Dialer() {
                   }
                   setRenamingList(false)
                 }}
-                className="text-[17px] font-bold text-gray-800 outline-none border-b-2 border-teal-400 bg-transparent" />
+                className="text-[17px] font-bold text-gray-800 outline-none border-b-2 border-indigo-400 bg-transparent" />
             ) : (
               <h1 onClick={() => { if (isAdmin || isManager) { setRenameValue(activeList?.name || ''); setRenamingList(true) } }}
-                className={`text-[17px] font-bold text-gray-800 ${(isAdmin || isManager) ? 'cursor-pointer hover:text-teal-700' : ''} transition-colors`}>{activeList?.name || 'Prospects'}</h1>
+                className={`text-[17px] font-bold text-gray-800 ${(isAdmin || isManager) ? 'cursor-pointer hover:text-indigo-700' : ''} transition-colors`}>{activeList?.name || 'Prospects'}</h1>
             )}
             <span className="text-[13px] text-gray-400">{prospects?.length || 0} contacts</span>
-            <button onClick={() => setShowAddProspect(true)} className="text-[13px] text-gray-400 hover:text-teal-600 flex items-center gap-1">
+            <button onClick={() => setShowAddProspect(true)} className="text-[13px] text-gray-400 hover:text-indigo-600 flex items-center gap-1">
               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
               Contact
             </button>
@@ -662,17 +662,17 @@ export default function Dialer() {
           <div className="flex flex-col items-end gap-1">
             <div className="flex items-center gap-4 text-[13px]">
               <span className="text-gray-400 flex items-center gap-1">
-                <svg className="w-4 h-4 text-teal-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                <svg className="w-4 h-4 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
                 {meetings} RDV
               </span>
-              <span className="text-gray-500"><span className="inline-block w-2 h-2 rounded-full bg-emerald-500 mr-1" />Connectés {connected}</span>
+              <span className="text-gray-500"><span className="inline-block w-2 h-2 rounded-full bg-violet-500 mr-1" />Connectés {connected}</span>
               <span className="text-gray-500"><span className="inline-block w-2 h-2 rounded-full bg-orange-400 mr-1" />Tentatives {attempted}</span>
               <span className="text-gray-400">En attente {pending}</span>
             </div>
             {/* Barre de progression unique (Minari exact) */}
             {(prospects?.length || 0) > 0 && (
               <div className="h-[3px] rounded-full overflow-hidden flex w-full">
-                <div className="h-full bg-emerald-500" style={{ width: `${(connected / (prospects?.length || 1)) * 100}%` }} />
+                <div className="h-full bg-violet-500" style={{ width: `${(connected / (prospects?.length || 1)) * 100}%` }} />
                 <div className="h-full bg-orange-400" style={{ width: `${((attempted - connected) / (prospects?.length || 1)) * 100}%` }} />
                 <div className="h-full bg-gray-200 flex-1" />
               </div>
@@ -697,7 +697,7 @@ export default function Dialer() {
               if (next) handleCall(next)
             }}
               disabled={!cm.providerReady || !(cm.isIdle || cm.isDisconnected)}
-              className="px-4 py-2 rounded-full text-[13px] font-semibold bg-emerald-500 text-white hover:bg-emerald-600 disabled:opacity-40 transition-colors flex items-center gap-1.5">
+              className="px-4 py-2 rounded-full text-[13px] font-semibold bg-violet-500 text-white hover:bg-violet-600 disabled:opacity-40 transition-colors flex items-center gap-1.5">
               <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" /></svg>
               {cm.providerReady ? (attempted > 0 ? 'Reprendre les appels' : 'Démarrer les appels') : 'Connexion...'}
             </button>
@@ -723,20 +723,20 @@ export default function Dialer() {
           {/* Filter */}
           <div className="relative">
             <button onClick={() => setShowFilters(!showFilters)}
-              className={`flex items-center gap-1 text-[13px] px-3 py-1.5 rounded-lg border transition-colors ${filterStatus ? 'text-teal-600 font-medium border-teal-200 bg-teal-50' : 'text-gray-500 hover:text-gray-700 border-gray-200 bg-white'}`}>
+              className={`flex items-center gap-1 text-[13px] px-3 py-1.5 rounded-lg border transition-colors ${filterStatus ? 'text-indigo-600 font-medium border-indigo-200 bg-indigo-50' : 'text-gray-500 hover:text-gray-700 border-gray-200 bg-white'}`}>
               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" /></svg>
               Filtrer{filterStatus ? ' 1' : ''}
             </button>
             {showFilters && (
               <div className="absolute top-8 left-0 bg-white rounded-xl shadow-lg border border-gray-200 z-50 py-2 w-48 animate-slide-down">
                 <button onClick={() => { setFilterStatus(null); setShowFilters(false) }}
-                  className={`w-full text-left px-3 py-1.5 text-[12px] hover:bg-gray-50 ${!filterStatus ? 'text-teal-600 font-medium' : 'text-gray-600'}`}>Tous les statuts</button>
+                  className={`w-full text-left px-3 py-1.5 text-[12px] hover:bg-gray-50 ${!filterStatus ? 'text-indigo-600 font-medium' : 'text-gray-600'}`}>Tous les statuts</button>
                 {['pending', 'connected', 'meeting_booked', 'no_answer', 'voicemail', 'cancelled', 'failed', 'snoozed', 'disabled'].map(s => {
                   const badge = CALL_STATUS_BADGE[s]
                   if (!badge) return null
                   return (
                     <button key={s} onClick={() => { setFilterStatus(s); setShowFilters(false) }}
-                      className={`w-full text-left px-3 py-1.5 text-[12px] hover:bg-gray-50 flex items-center gap-2 ${filterStatus === s ? 'text-teal-600 font-medium' : 'text-gray-600'}`}>
+                      className={`w-full text-left px-3 py-1.5 text-[12px] hover:bg-gray-50 flex items-center gap-2 ${filterStatus === s ? 'text-indigo-600 font-medium' : 'text-gray-600'}`}>
                       <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: badge.text }} />
                       {badge.label}
                     </button>
@@ -762,9 +762,9 @@ export default function Dialer() {
 
       {/* ── Barre actions groupées (quand sélection active) ── */}
       {selectedIds.size > 0 && (
-        <div className="px-5 py-2 bg-teal-50 border-y border-teal-100 flex items-center gap-3 animate-fade-in">
-          <span className="text-[13px] font-semibold text-teal-700">{selectedIds.size} sélectionné{selectedIds.size > 1 ? 's' : ''}</span>
-          <div className="h-4 w-px bg-teal-200" />
+        <div className="px-5 py-2 bg-indigo-50 border-y border-indigo-100 flex items-center gap-3 animate-fade-in">
+          <span className="text-[13px] font-semibold text-indigo-700">{selectedIds.size} sélectionné{selectedIds.size > 1 ? 's' : ''}</span>
+          <div className="h-4 w-px bg-indigo-200" />
 
           {/* Supprimer */}
           <button onClick={async () => {
@@ -823,7 +823,7 @@ export default function Dialer() {
                     if (e.target.checked && filtered) setSelectedIds(new Set(filtered.map(p => p.id)))
                     else setSelectedIds(new Set())
                   }}
-                  className="w-3.5 h-3.5 rounded border-gray-300 accent-teal-600" /></th>
+                  className="w-3.5 h-3.5 rounded border-gray-300 accent-indigo-600" /></th>
                 <th className="py-3 px-3 text-left text-[10px] font-bold text-gray-400 uppercase tracking-[0.08em]">Statut appel</th>
                 <th className="py-3 px-3 text-center text-[10px] font-bold text-gray-400 uppercase tracking-[0.08em]">Appels</th>
                 <th className="py-3 px-4 text-left text-[10px] font-bold text-gray-400 uppercase tracking-[0.08em]">Nom</th>
@@ -857,7 +857,7 @@ export default function Dialer() {
           {!prospects?.length && (
             <div className="text-center py-20">
               <p className="text-[13px] text-gray-400">Aucun contact dans cette liste</p>
-              <button onClick={() => setShowCSVImport(true)} className="text-[13px] text-emerald-600 hover:text-emerald-700 mt-2 font-medium">Importer depuis un CSV</button>
+              <button onClick={() => setShowCSVImport(true)} className="text-[13px] text-violet-600 hover:text-violet-700 mt-2 font-medium">Importer depuis un CSV</button>
             </div>
           )}
       </div>
@@ -874,28 +874,28 @@ export default function Dialer() {
               <div>
                 <label className="text-[11px] font-bold text-gray-400 uppercase">Nom *</label>
                 <input autoFocus type="text" value={newProspect.name} onChange={e => setNewProspect({ ...newProspect, name: e.target.value })}
-                  placeholder="Nom complet" className="w-full mt-1 px-3 py-2 rounded-lg border border-gray-200 text-[13px] outline-none focus:border-teal-400" />
+                  placeholder="Nom complet" className="w-full mt-1 px-3 py-2 rounded-lg border border-gray-200 text-[13px] outline-none focus:border-indigo-400" />
               </div>
               <div>
                 <label className="text-[11px] font-bold text-gray-400 uppercase">Téléphone *</label>
                 <input type="tel" value={newProspect.phone} onChange={e => setNewProspect({ ...newProspect, phone: e.target.value })}
-                  placeholder="+33 6 12 34 56 78" className="w-full mt-1 px-3 py-2 rounded-lg border border-gray-200 text-[13px] outline-none focus:border-teal-400" />
+                  placeholder="+33 6 12 34 56 78" className="w-full mt-1 px-3 py-2 rounded-lg border border-gray-200 text-[13px] outline-none focus:border-indigo-400" />
               </div>
               <div>
                 <label className="text-[11px] font-bold text-gray-400 uppercase">Email</label>
                 <input type="email" value={newProspect.email} onChange={e => setNewProspect({ ...newProspect, email: e.target.value })}
-                  placeholder="email@exemple.fr" className="w-full mt-1 px-3 py-2 rounded-lg border border-gray-200 text-[13px] outline-none focus:border-teal-400" />
+                  placeholder="email@exemple.fr" className="w-full mt-1 px-3 py-2 rounded-lg border border-gray-200 text-[13px] outline-none focus:border-indigo-400" />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-[11px] font-bold text-gray-400 uppercase">Entreprise</label>
                   <input type="text" value={newProspect.company} onChange={e => setNewProspect({ ...newProspect, company: e.target.value })}
-                    placeholder="Société" className="w-full mt-1 px-3 py-2 rounded-lg border border-gray-200 text-[13px] outline-none focus:border-teal-400" />
+                    placeholder="Société" className="w-full mt-1 px-3 py-2 rounded-lg border border-gray-200 text-[13px] outline-none focus:border-indigo-400" />
                 </div>
                 <div>
                   <label className="text-[11px] font-bold text-gray-400 uppercase">Poste</label>
                   <input type="text" value={newProspect.title} onChange={e => setNewProspect({ ...newProspect, title: e.target.value })}
-                    placeholder="Fonction" className="w-full mt-1 px-3 py-2 rounded-lg border border-gray-200 text-[13px] outline-none focus:border-teal-400" />
+                    placeholder="Fonction" className="w-full mt-1 px-3 py-2 rounded-lg border border-gray-200 text-[13px] outline-none focus:border-indigo-400" />
                 </div>
               </div>
             </div>
@@ -918,7 +918,7 @@ export default function Dialer() {
                   setNewProspect({ name: '', phone: '', email: '', company: '', title: '' })
                 }
               }} disabled={!newProspect.name.trim() || !newProspect.phone.trim()}
-                className="px-5 py-2 rounded-lg text-[13px] font-semibold bg-teal-600 text-white hover:bg-teal-700 disabled:opacity-40">Ajouter</button>
+                className="px-5 py-2 rounded-lg text-[13px] font-semibold bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-40">Ajouter</button>
             </div>
           </div>
         </div>

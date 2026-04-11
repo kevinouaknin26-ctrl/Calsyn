@@ -39,7 +39,7 @@ export default function Team() {
         <input type="email" placeholder="Email du nouveau membre..."
           value={inviteEmail} onChange={e => setInviteEmail(e.target.value)}
           className="flex-1 px-4 py-2.5 rounded-lg bg-gray-50 text-sm text-gray-700 outline-none border border-gray-200" />
-        <button className="px-5 py-2.5 rounded-lg text-sm font-semibold bg-teal-600 text-white hover:bg-teal-700 transition-colors">Inviter</button>
+        <button className="px-5 py-2.5 rounded-lg text-sm font-semibold bg-indigo-600 text-white hover:bg-indigo-700 transition-colors">Inviter</button>
       </div>
 
       {isLoading ? <p className="text-sm text-gray-400">Chargement...</p> : (

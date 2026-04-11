@@ -49,7 +49,7 @@ export default function Settings() {
               <p className="text-[11px] text-gray-400 mt-0.5">Alterne entre les numéros assignés</p>
             </div>
             <button onClick={() => setAutoRotate(!autoRotate)}
-              className={`w-11 h-6 rounded-full transition-colors relative ${autoRotate ? 'bg-emerald-500' : 'bg-gray-300'}`}>
+              className={`w-11 h-6 rounded-full transition-colors relative ${autoRotate ? 'bg-violet-500' : 'bg-gray-300'}`}>
               <div className={`w-5 h-5 bg-white rounded-full shadow absolute top-0.5 transition-transform ${autoRotate ? 'translate-x-5' : 'translate-x-0.5'}`} />
             </button>
           </div>
@@ -83,7 +83,7 @@ export default function Settings() {
               <p className="text-[11px] text-gray-400 mt-0.5">Déposer un message vocal automatiquement sur les répondeurs</p>
             </div>
             <button onClick={() => setVoicemailDrop(!voicemailDrop)}
-              className={`w-11 h-6 rounded-full transition-colors relative ${voicemailDrop ? 'bg-emerald-500' : 'bg-gray-300'}`}>
+              className={`w-11 h-6 rounded-full transition-colors relative ${voicemailDrop ? 'bg-violet-500' : 'bg-gray-300'}`}>
               <div className={`w-5 h-5 bg-white rounded-full shadow absolute top-0.5 transition-transform ${voicemailDrop ? 'translate-x-5' : 'translate-x-0.5'}`} />
             </button>
           </div>
@@ -111,7 +111,7 @@ export default function Settings() {
             <p className="text-[10px] font-bold text-gray-400 uppercase mb-1">Prompt standard</p>
             <p className="text-xs text-gray-600">Resume, signaux cles, score de qualification</p>
           </div>
-          <button className="mt-3 text-xs text-teal-600 hover:text-teal-700 font-medium">+ Nouveau prompt personnalise</button>
+          <button className="mt-3 text-xs text-indigo-600 hover:text-indigo-700 font-medium">+ Nouveau prompt personnalise</button>
         </div>
 
         {/* ── Appels entrants (Callback) ── */}
@@ -119,21 +119,21 @@ export default function Settings() {
           <h2 className="text-sm font-bold text-gray-800 mb-4">Appels entrants</h2>
           <div className="space-y-3">
             <label className="flex items-start gap-3 p-3 rounded-lg border border-gray-200 cursor-pointer hover:bg-gray-50">
-              <input type="radio" name="callback" defaultChecked className="mt-0.5 accent-teal-600" />
+              <input type="radio" name="callback" defaultChecked className="mt-0.5 accent-indigo-600" />
               <div>
                 <p className="text-xs font-semibold text-gray-700">Callback dans Callio uniquement</p>
                 <p className="text-[11px] text-gray-400">Les appels sonnent si l'onglet est ouvert</p>
               </div>
             </label>
             <label className="flex items-start gap-3 p-3 rounded-lg border border-gray-200 cursor-pointer hover:bg-gray-50">
-              <input type="radio" name="callback" className="mt-0.5 accent-teal-600" />
+              <input type="radio" name="callback" className="mt-0.5 accent-indigo-600" />
               <div>
                 <p className="text-xs font-semibold text-gray-700">Callback + Redirection</p>
                 <p className="text-[11px] text-gray-400">Si Callio est ferme, redirige vers un numero externe</p>
               </div>
             </label>
             <label className="flex items-start gap-3 p-3 rounded-lg border border-gray-200 cursor-pointer hover:bg-gray-50">
-              <input type="radio" name="callback" className="mt-0.5 accent-teal-600" />
+              <input type="radio" name="callback" className="mt-0.5 accent-indigo-600" />
               <div>
                 <p className="text-xs font-semibold text-gray-700">Redirection forcee</p>
                 <p className="text-[11px] text-gray-400">Tous les callbacks redirigees vers un numero externe</p>
@@ -171,8 +171,8 @@ export default function Settings() {
             {['TWILIO_ACCOUNT_SID', 'TWILIO_API_KEY_SID', 'TWILIO_TWIML_APP_SID'].map(key => (
               <div key={key} className="flex items-center gap-3">
                 <span className="text-[11px] font-mono text-gray-400 w-48">{key}</span>
-                <span className="text-[11px] text-emerald-500 font-semibold flex items-center gap-1">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                <span className="text-[11px] text-violet-500 font-semibold flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-violet-500" />
                   Configuré
                 </span>
               </div>

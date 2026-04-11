@@ -37,7 +37,7 @@ export default function Sidebar() {
     return (
       <NavLink to={to} title={label} className={({ isActive }) =>
         `${expanded ? 'px-3' : ''} h-9 rounded-lg flex items-center gap-3 transition-all ${
-          isActive ? (green ? 'bg-emerald-50 text-emerald-600' : 'bg-gray-200/60 text-gray-800') : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'
+          isActive ? (green ? 'bg-violet-50 text-violet-600' : 'bg-gray-200/60 text-gray-800') : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'
         } ${expanded ? '' : 'w-9 justify-center'}`}>
         <span className="flex-shrink-0">{icon}</span>
         {expanded && <span className="text-[13px]">{label}</span>}
@@ -58,8 +58,11 @@ export default function Sidebar() {
             </svg>
           </button>
           {expanded && (
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-400 to-purple-500 flex items-center justify-center text-white">
-              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M13 3L4 14h7l-2 7 9-11h-7l2-7z" /></svg>
+            <div className="w-8 h-8 rounded-lg bg-white border border-gray-200 flex items-center justify-center">
+              <svg className="w-5 h-5" viewBox="0 0 24 24">
+                <defs><linearGradient id="boltGrad" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stopColor="#818cf8" /><stop offset="100%" stopColor="#7c3aed" /></linearGradient></defs>
+                <path d="M13 3L4 14h7l-2 7 9-11h-7l2-7z" fill="url(#boltGrad)" />
+              </svg>
             </div>
           )}
         </div>
@@ -115,7 +118,7 @@ export default function Sidebar() {
 
           {/* Compte */}
           <div className={`${expanded ? 'px-3' : ''} h-9 rounded-lg flex items-center gap-3 text-gray-400 ${expanded ? '' : 'w-9 justify-center'}`}>
-            <div className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center text-[8px] font-bold flex-shrink-0">
+            <div className="w-5 h-5 rounded-full bg-violet-100 text-violet-600 flex items-center justify-center text-[8px] font-bold flex-shrink-0">
               {(profile?.full_name || profile?.email || 'U').charAt(0).toUpperCase()}
             </div>
             {expanded && (

@@ -197,7 +197,7 @@ export default function CSVImport({ listId, onClose, onSuccess }: Props) {
             <div className="text-center py-12">
               <input ref={fileRef} type="file" accept=".csv,.txt" onChange={handleFile} className="hidden" />
               <button onClick={() => fileRef.current?.click()}
-                className="px-8 py-6 rounded-2xl bg-gray-50 border-2 border-dashed border-gray-200 hover:border-teal-300 hover:bg-teal-50/30 transition-colors">
+                className="px-8 py-6 rounded-2xl bg-gray-50 border-2 border-dashed border-gray-200 hover:border-indigo-300 hover:bg-indigo-50/30 transition-colors">
                 <svg className="w-10 h-10 mx-auto mb-3 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
                 </svg>
@@ -234,7 +234,7 @@ export default function CSVImport({ listId, onClose, onSuccess }: Props) {
                           setMapping(newMapping)
                           setError(null)
                         }} className={`text-[12px] px-2 py-1.5 rounded-lg border outline-none ${
-                          detected === 'ignore' ? 'border-gray-200 text-gray-400' : 'border-teal-200 text-teal-700 bg-teal-50'
+                          detected === 'ignore' ? 'border-gray-200 text-gray-400' : 'border-indigo-200 text-indigo-700 bg-indigo-50'
                         }`}>
                           {FIELD_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                         </select>
@@ -286,7 +286,7 @@ export default function CSVImport({ listId, onClose, onSuccess }: Props) {
           <div className="px-6 py-3 border-t border-gray-100 flex items-center justify-end gap-3">
             <button onClick={onClose} className="px-4 py-2 rounded-lg text-[13px] text-gray-500 hover:bg-gray-100">Annuler</button>
             <button onClick={handleImport} disabled={importing || !hasPhone || !prospects.length}
-              className="px-5 py-2 rounded-lg text-[13px] font-semibold bg-teal-600 text-white hover:bg-teal-700 disabled:opacity-40 transition-colors">
+              className="px-5 py-2 rounded-lg text-[13px] font-semibold bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-40 transition-colors">
               {importing ? 'Import en cours...' : `Importer ${prospects.length} contacts`}
             </button>
           </div>

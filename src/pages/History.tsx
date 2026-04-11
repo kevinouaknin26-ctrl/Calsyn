@@ -62,7 +62,7 @@ export default function History() {
             {FILTERS.map(f => (
               <button key={f.key} onClick={() => setFilter(f.key)}
                 className={`px-3 py-1 rounded-lg text-[11px] font-semibold transition-colors ${
-                  filter === f.key ? 'bg-teal-50 text-teal-600 border border-teal-200' : 'text-gray-400 hover:text-gray-600'
+                  filter === f.key ? 'bg-indigo-50 text-indigo-600 border border-indigo-200' : 'text-gray-400 hover:text-gray-600'
                 }`}>{f.label}</button>
             ))}
           </div>
@@ -97,7 +97,7 @@ export default function History() {
                   return (
                     <tr key={c.id} onClick={() => setSelectedCall(c)}
                       className={`border-b border-gray-50 hover:bg-gray-50 cursor-pointer transition-colors text-sm ${
-                        selectedCall?.id === c.id ? 'bg-teal-50/50' : ''
+                        selectedCall?.id === c.id ? 'bg-indigo-50/50' : ''
                       }`}>
                       <td className="py-3 px-4">
                         <p className="font-medium text-gray-800">{c.prospect_name || 'Inconnu'}</p>

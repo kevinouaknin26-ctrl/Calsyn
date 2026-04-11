@@ -106,7 +106,7 @@ export default function SelectListPage({ onSelect, onClose }: Props) {
   }
 
   return (
-    <div className="min-h-screen bg-[#f0faf4] p-8">
+    <div className="min-h-screen bg-[#f5f3ff] p-8">
       {/* Header */}
       <div className="text-center mb-6">
         <button onClick={onClose} className="absolute left-20 top-8 text-gray-400 hover:text-gray-600 text-sm flex items-center gap-1">
@@ -141,7 +141,7 @@ export default function SelectListPage({ onSelect, onClose }: Props) {
           <div className="space-y-1.5">
             {/* Créer une liste vide */}
             {creatingList ? (
-              <div className="px-3 py-2.5 rounded-xl bg-white border border-teal-200 animate-fade-in">
+              <div className="px-3 py-2.5 rounded-xl bg-white border border-indigo-200 animate-fade-in">
                 <input autoFocus type="text" placeholder="Nom de la liste..." value={newListName}
                   onChange={e => setNewListName(e.target.value)}
                   onKeyDown={async e => {
@@ -155,14 +155,14 @@ export default function SelectListPage({ onSelect, onClose }: Props) {
                 <div className="flex gap-1.5">
                   <button onClick={async () => {
                     if (newListName.trim()) { const l = await createList.mutateAsync(newListName.trim()); onSelect(l.id) }
-                  }} className="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-teal-600 text-white">Créer</button>
+                  }} className="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-indigo-600 text-white">Créer</button>
                   <button onClick={() => { setCreatingList(false); setNewListName('') }}
                     className="px-2.5 py-1 rounded-lg text-[11px] text-gray-400">Annuler</button>
                 </div>
               </div>
             ) : (
               <button onClick={() => setCreatingList(true)}
-                className="w-full text-left px-3 py-2.5 rounded-xl border border-dashed border-gray-300 hover:border-teal-400 hover:bg-teal-50/30 transition-colors flex items-center gap-2">
+                className="w-full text-left px-3 py-2.5 rounded-xl border border-dashed border-gray-300 hover:border-indigo-400 hover:bg-indigo-50/30 transition-colors flex items-center gap-2">
                 <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
                 <p className="text-[13px] text-gray-500">Créer une liste vide</p>
               </button>
@@ -171,7 +171,7 @@ export default function SelectListPage({ onSelect, onClose }: Props) {
             {filtered?.map(l => (
               <div key={l.id} className="flex items-center gap-1">
                 <button onClick={() => onSelect(l.id)}
-                  className="flex-1 text-left px-3 py-2.5 rounded-xl bg-white border border-gray-100 hover:border-teal-200 hover:bg-teal-50/30 transition-colors">
+                  className="flex-1 text-left px-3 py-2.5 rounded-xl bg-white border border-gray-100 hover:border-indigo-200 hover:bg-indigo-50/30 transition-colors">
                   <p className="text-[13px] font-medium text-gray-800">{l.name}</p>
                   <p className="text-[11px] text-gray-400">contacts</p>
                 </button>
@@ -195,22 +195,22 @@ export default function SelectListPage({ onSelect, onClose }: Props) {
         {/* ── Taches ── */}
         <div>
           <div className="flex items-center gap-2 mb-4">
-            <div className="w-7 h-7 rounded-lg bg-emerald-100 flex items-center justify-center">
-              <svg className="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" /></svg>
+            <div className="w-7 h-7 rounded-lg bg-violet-100 flex items-center justify-center">
+              <svg className="w-4 h-4 text-violet-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" /></svg>
             </div>
             <span className="text-[15px] font-bold text-gray-800">Taches</span>
           </div>
           <div className="space-y-1.5">
-            <button className="w-full text-left px-3 py-2.5 rounded-xl bg-white border border-gray-100 hover:border-teal-200 transition-colors">
+            <button className="w-full text-left px-3 py-2.5 rounded-xl bg-white border border-gray-100 hover:border-indigo-200 transition-colors">
               <p className="text-[13px] text-gray-600">Taches du jour</p>
             </button>
-            <button className="w-full text-left px-3 py-2.5 rounded-xl bg-white border border-gray-100 hover:border-teal-200 transition-colors">
+            <button className="w-full text-left px-3 py-2.5 rounded-xl bg-white border border-gray-100 hover:border-indigo-200 transition-colors">
               <p className="text-[13px] text-gray-600">Taches en retard</p>
             </button>
-            <button className="w-full text-left px-3 py-2.5 rounded-xl bg-white border border-gray-100 hover:border-teal-200 transition-colors">
+            <button className="w-full text-left px-3 py-2.5 rounded-xl bg-white border border-gray-100 hover:border-indigo-200 transition-colors">
               <p className="text-[13px] text-gray-600">Taches a venir</p>
             </button>
-            <button className="w-full text-left px-3 py-2.5 rounded-xl bg-white border border-gray-100 hover:border-teal-200 transition-colors">
+            <button className="w-full text-left px-3 py-2.5 rounded-xl bg-white border border-gray-100 hover:border-indigo-200 transition-colors">
               <p className="text-[13px] text-gray-600">Toutes les taches</p>
             </button>
           </div>
@@ -219,15 +219,15 @@ export default function SelectListPage({ onSelect, onClose }: Props) {
         {/* ── CSV ── */}
         <div>
           <div className="flex items-center gap-2 mb-4">
-            <div className="w-7 h-7 rounded-lg bg-teal-100 flex items-center justify-center">
-              <svg className="w-4 h-4 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+            <div className="w-7 h-7 rounded-lg bg-indigo-100 flex items-center justify-center">
+              <svg className="w-4 h-4 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
             </div>
             <span className="text-[15px] font-bold text-gray-800">CSV</span>
           </div>
           <div className="space-y-1.5">
             <input ref={fileRef} type="file" accept=".csv,.txt" onChange={handleCSVImport} className="hidden" />
             <button onClick={() => fileRef.current?.click()} disabled={importing}
-              className="w-full text-left px-3 py-2.5 rounded-xl bg-white border border-dashed border-gray-300 hover:border-teal-400 hover:bg-teal-50/30 transition-colors flex items-center gap-2">
+              className="w-full text-left px-3 py-2.5 rounded-xl bg-white border border-dashed border-gray-300 hover:border-indigo-400 hover:bg-indigo-50/30 transition-colors flex items-center gap-2">
               <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" /></svg>
               <p className="text-[13px] text-gray-500">{importing ? 'Import en cours...' : 'Importer un CSV'}</p>
             </button>
@@ -238,23 +238,23 @@ export default function SelectListPage({ onSelect, onClose }: Props) {
         {/* ── Listes intelligentes ── */}
         <div>
           <div className="flex items-center gap-2 mb-4">
-            <div className="w-7 h-7 rounded-lg bg-emerald-100 flex items-center justify-center">
-              <svg className="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" /></svg>
+            <div className="w-7 h-7 rounded-lg bg-violet-100 flex items-center justify-center">
+              <svg className="w-4 h-4 text-violet-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" /></svg>
             </div>
             <span className="text-[15px] font-bold text-gray-800">Listes intelligentes</span>
           </div>
           <div className="space-y-1.5">
-            <button className="w-full text-left px-3 py-2.5 rounded-xl bg-white border border-gray-100 hover:border-teal-200 transition-colors">
+            <button className="w-full text-left px-3 py-2.5 rounded-xl bg-white border border-gray-100 hover:border-indigo-200 transition-colors">
               <p className="text-[13px] text-gray-600">Appels manques</p>
               <p className="text-[11px] text-gray-400">Pas encore de donnees</p>
             </button>
-            <button className="w-full text-left px-3 py-2.5 rounded-xl bg-white border border-gray-100 hover:border-teal-200 transition-colors">
+            <button className="w-full text-left px-3 py-2.5 rounded-xl bg-white border border-gray-100 hover:border-indigo-200 transition-colors">
               <p className="text-[13px] text-gray-600">Contactes cette semaine</p>
             </button>
-            <button className="w-full text-left px-3 py-2.5 rounded-xl bg-white border border-gray-100 hover:border-teal-200 transition-colors">
+            <button className="w-full text-left px-3 py-2.5 rounded-xl bg-white border border-gray-100 hover:border-indigo-200 transition-colors">
               <p className="text-[13px] text-gray-600">Contactes ce mois</p>
             </button>
-            <button className="w-full text-left px-3 py-2.5 rounded-xl bg-white border border-gray-100 hover:border-teal-200 transition-colors">
+            <button className="w-full text-left px-3 py-2.5 rounded-xl bg-white border border-gray-100 hover:border-indigo-200 transition-colors">
               <p className="text-[13px] text-gray-600">Contactes les 30 derniers jours</p>
             </button>
           </div>

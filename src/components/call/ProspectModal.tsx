@@ -113,15 +113,15 @@ function Celebration() {
 
 // ── Badge outcome ───────────────────────────────────────────────
 function OutcomeBadge({ outcome, meeting }: { outcome: string | null; meeting: boolean }) {
-  if (meeting) return <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-teal-100 text-teal-600">RDV pris</span>
+  if (meeting) return <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-indigo-100 text-indigo-600">RDV pris</span>
   const map: Record<string, string> = {
-    connected: 'bg-emerald-100 text-emerald-600', rdv: 'bg-teal-100 text-teal-600',
+    connected: 'bg-violet-100 text-violet-600', rdv: 'bg-indigo-100 text-indigo-600',
     voicemail: 'bg-orange-100 text-orange-500', cancelled: 'bg-gray-100 text-gray-500',
     no_answer: 'bg-gray-100 text-gray-500', failed: 'bg-red-100 text-red-500',
-    meeting_booked: 'bg-teal-100 text-teal-600',
+    meeting_booked: 'bg-indigo-100 text-indigo-600',
   }
   const label = DISPOSITIONS.find(d => d.value === outcome)?.label || outcome || 'Connecté'
-  return <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-semibold ${map[outcome || ''] || 'bg-emerald-100 text-emerald-600'}`}>{label}</span>
+  return <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-semibold ${map[outcome || ''] || 'bg-violet-100 text-violet-600'}`}>{label}</span>
 }
 
 // ── Fiche appel accordéon (Minari exact) ────────────────────────
@@ -177,8 +177,8 @@ function CallCard({ call, defaultOpen, onUpdate, onCelebrate }: { call: Call; de
                   if (checked) onCelebrate()
                   onUpdate()
                 }}
-                className="w-3.5 h-3.5 rounded border-gray-300 accent-teal-600" />
-              <span className={`text-[13px] ${call.meeting_booked ? 'text-teal-600 font-semibold' : 'text-gray-600'}`}>RDV pris</span>
+                className="w-3.5 h-3.5 rounded border-gray-300 accent-indigo-600" />
+              <span className={`text-[13px] ${call.meeting_booked ? 'text-indigo-600 font-semibold' : 'text-gray-600'}`}>RDV pris</span>
             </label>
             <div>
               <p className="text-[11px] text-gray-400 mb-1">Durée</p>
@@ -208,7 +208,7 @@ function CallCard({ call, defaultOpen, onUpdate, onCelebrate }: { call: Call; de
                 className="text-[12px] text-gray-500 hover:text-gray-700 flex items-center gap-1.5 mb-2 underline decoration-dotted">
                 Voir la transcription complète
                 <svg className={`w-3 h-3 transition-transform ${showTranscript ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
-                <span className="px-1.5 py-0.5 rounded text-[8px] font-bold bg-emerald-100 text-emerald-600 uppercase no-underline">Beta</span>
+                <span className="px-1.5 py-0.5 rounded text-[8px] font-bold bg-violet-100 text-violet-600 uppercase no-underline">Beta</span>
               </button>
               {showTranscript && (
                 <div className="text-[12px] text-gray-600 bg-gray-50 rounded-lg p-3 mb-2 whitespace-pre-wrap animate-fade-in">{call.ai_transcript}</div>
@@ -267,7 +267,7 @@ function EditableField({ label, value, prospectId, field, copyable, mono }: {
         )}
         {copyable && localVal && (
           <button onClick={() => { navigator.clipboard.writeText(localVal); setCopied(true); setTimeout(() => setCopied(false), 1500) }}
-            className={`ml-1 transition-colors ${copied ? 'text-emerald-500' : 'text-gray-300 hover:text-gray-500'}`}>
+            className={`ml-1 transition-colors ${copied ? 'text-violet-500' : 'text-gray-300 hover:text-gray-500'}`}>
             {copied ? (
               <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
             ) : (
@@ -380,7 +380,7 @@ export default function ProspectModal({
                       }
                       if (e.key === 'Escape') setEditingUrl(null)
                     }}
-                    className="w-full px-2 py-1.5 text-[12px] border border-gray-200 rounded outline-none focus:border-teal-400" />
+                    className="w-full px-2 py-1.5 text-[12px] border border-gray-200 rounded outline-none focus:border-indigo-400" />
                   <div className="flex justify-end gap-1 mt-1.5">
                     <button onClick={() => setEditingUrl(null)} className="px-2 py-1 text-[11px] text-gray-400 hover:text-gray-600">Annuler</button>
                     <button onClick={async () => {
@@ -390,7 +390,7 @@ export default function ProspectModal({
                         queryClient.invalidateQueries({ queryKey: ['prospects'] })
                         setEditingUrl(null)
                       }
-                    }} className="px-2 py-1 text-[11px] font-semibold text-teal-600 hover:text-teal-700">Ajouter</button>
+                    }} className="px-2 py-1 text-[11px] font-semibold text-indigo-600 hover:text-indigo-700">Ajouter</button>
                   </div>
                 </div>
                 </>
@@ -416,7 +416,7 @@ export default function ProspectModal({
                   <svg className="w-4 h-4 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" /></svg>
                   <span className="text-[13px] font-semibold text-red-500">Appels désactivés</span>
                 </div>
-                <button onClick={handleToggleDNC} className="w-full py-2.5 rounded-xl text-[13px] font-semibold bg-teal-700 text-white hover:bg-teal-800 flex items-center justify-center gap-2">
+                <button onClick={handleToggleDNC} className="w-full py-2.5 rounded-xl text-[13px] font-semibold bg-indigo-700 text-white hover:bg-teal-800 flex items-center justify-center gap-2">
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" /></svg>
                   Activer les appels
                 </button>
@@ -430,11 +430,11 @@ export default function ProspectModal({
                   <div className="flex-1 py-2 rounded-lg text-[12px] font-medium bg-gray-100 text-gray-400 flex items-center justify-center gap-1.5 border border-gray-200">
                     <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" /></svg>
                     Appel en cours
-                    <svg className="w-3.5 h-3.5 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+                    <svg className="w-3.5 h-3.5 text-violet-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
                   </div>
                 ) : (
                   <button onClick={() => onCall(prospect)} disabled={!providerReady}
-                    className="flex-1 py-2 rounded-lg text-[12px] font-semibold bg-teal-600 text-white hover:bg-teal-700 disabled:opacity-40 flex items-center justify-center gap-1.5">
+                    className="flex-1 py-2 rounded-lg text-[12px] font-semibold bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-40 flex items-center justify-center gap-1.5">
                     <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" /></svg>
                     Call {formatPhone(prospect.phone)}
                     <span className="text-white/40 text-[10px]">▾</span>
@@ -531,9 +531,9 @@ export default function ProspectModal({
           <div className="flex-1 flex flex-col min-w-0">
             {/* Transcription live */}
             {isInCall && (
-              <div className="px-5 py-3 bg-emerald-50/80 border-b border-emerald-100">
+              <div className="px-5 py-3 bg-violet-50/80 border-b border-violet-100">
                 <div className="flex items-start gap-2">
-                  <div className="w-2 h-2 rounded-full bg-emerald-400 mt-1.5 animate-pulse flex-shrink-0" />
+                  <div className="w-2 h-2 rounded-full bg-violet-400 mt-1.5 animate-pulse flex-shrink-0" />
                   <p className="text-[13px] text-gray-600 italic">Transcription en cours...</p>
                 </div>
               </div>
@@ -563,11 +563,11 @@ export default function ProspectModal({
               <>
               {/* Card appel EN COURS */}
               {isInCall && (
-                <div className="border border-emerald-200 rounded-xl p-4 mb-2 bg-emerald-50/30">
+                <div className="border border-violet-200 rounded-xl p-4 mb-2 bg-violet-50/30">
                   <div className="flex items-center gap-2 mb-3">
-                    <svg className="w-3.5 h-3.5 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" /></svg>
+                    <svg className="w-3.5 h-3.5 text-violet-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" /></svg>
                     <span className="text-[13px] text-gray-600">Connecté</span>
-                    <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-100 text-emerald-600 animate-pulse-soft">En cours</span>
+                    <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-violet-100 text-violet-600 animate-pulse-soft">En cours</span>
                   </div>
                   <textarea placeholder="Écrire une note..." value={callContext?.notes || ''} onChange={e => onSetNotes(e.target.value)}
                     rows={2} className="w-full px-3 py-2 rounded-lg border border-gray-200 text-[13px] text-gray-700 outline-none resize-none placeholder:text-gray-400" />
@@ -596,8 +596,8 @@ export default function ProspectModal({
                     <label className="flex items-center gap-2 cursor-pointer">
                       <input type="checkbox" checked={callContext?.meetingBooked || false}
                         onChange={e => handleMeetingToggle(e.target.checked)}
-                        className="w-4 h-4 rounded border-gray-300 accent-teal-600" />
-                      <span className={`text-[13px] ${callContext?.meetingBooked ? 'text-teal-600 font-semibold' : 'text-gray-600'}`}>RDV pris</span>
+                        className="w-4 h-4 rounded border-gray-300 accent-indigo-600" />
+                      <span className={`text-[13px] ${callContext?.meetingBooked ? 'text-indigo-600 font-semibold' : 'text-gray-600'}`}>RDV pris</span>
                     </label>
                     <div>
                       <p className="text-[11px] text-gray-400 mb-1">Durée</p>
@@ -606,8 +606,8 @@ export default function ProspectModal({
                   </div>
 
                   {/* Recording status */}
-                  <div className="mb-3 px-3 py-2 rounded-lg bg-emerald-50 text-emerald-600 text-[12px] flex items-center gap-2">
-                    <div className="w-3 h-3 border-2 border-emerald-400 border-t-transparent rounded-full animate-spin" />
+                  <div className="mb-3 px-3 py-2 rounded-lg bg-violet-50 text-violet-600 text-[12px] flex items-center gap-2">
+                    <div className="w-3 h-3 border-2 border-violet-400 border-t-transparent rounded-full animate-spin" />
                     Enregistrement pas encore disponible...
                   </div>
 
@@ -618,7 +618,7 @@ export default function ProspectModal({
                   {/* Resume / Stop */}
                   <div className="flex gap-3">
                     <button onClick={() => { onReset(); onNextCall() }}
-                      className="flex-1 py-2 rounded-lg text-[13px] font-semibold bg-emerald-600 text-white hover:bg-emerald-700 transition-colors">
+                      className="flex-1 py-2 rounded-lg text-[13px] font-semibold bg-violet-600 text-white hover:bg-violet-700 transition-colors">
                       Reprendre les appels
                     </button>
                     <button onClick={() => { onReset(); onClose() }}
