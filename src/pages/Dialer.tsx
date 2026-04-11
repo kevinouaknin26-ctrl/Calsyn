@@ -263,9 +263,9 @@ export default function Dialer() {
         </button>
         {lists?.map(l => (
           <button key={l.id} onClick={() => setActiveListId(l.id)}
-            className={`flex items-center gap-2 px-3 py-2.5 text-[12px] whitespace-nowrap flex-shrink-0 transition-colors ${
+            className={`flex items-center gap-2 px-3 py-2 text-[12px] whitespace-nowrap flex-shrink-0 transition-colors rounded-t-lg ${
               activeListId === l.id
-                ? 'text-gray-800 font-semibold border-b-2 border-gray-800'
+                ? 'text-gray-800 font-semibold bg-white shadow-[0_-1px_3px_rgba(0,0,0,0.08)] border border-gray-200 border-b-white -mb-px relative z-10'
                 : 'text-gray-400 hover:text-gray-600'
             }`}>
             {l.name}
@@ -294,18 +294,19 @@ export default function Dialer() {
                 <svg className="w-4 h-4 text-teal-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
                 {meetings} meeting{meetings !== 1 ? 's' : ''}
               </span>
-              <span className="text-gray-500"><span className="inline-block w-2 h-2 rounded-full bg-emerald-500 mr-1" />Connected {connected}</span>
-              <span className="text-gray-500"><span className="inline-block w-2 h-2 rounded-full bg-orange-400 mr-1" />Attempted {attempted}</span>
-              <span className="text-gray-400">Pending {pending}</span>
-            </div>
-            {/* Progress bar — fine, sous les stats */}
-            {(prospects?.length || 0) > 0 && (
-              <div className="h-[3px] rounded-full overflow-hidden flex" style={{ width: 220 }}>
-                {connected > 0 && <div className="h-full bg-emerald-500" style={{ width: `${(connected / (prospects?.length || 1)) * 100}%` }} />}
-                {(attempted - connected) > 0 && <div className="h-full bg-orange-400" style={{ width: `${((attempted - connected) / (prospects?.length || 1)) * 100}%` }} />}
-                <div className="h-full bg-gray-200 flex-1" />
+              <div className="flex flex-col items-center">
+                <span className="text-gray-500"><span className="inline-block w-2 h-2 rounded-full bg-emerald-500 mr-1" />Connected {connected}</span>
+                {(prospects?.length || 0) > 0 && <div className="h-[3px] w-full rounded-full bg-emerald-500 mt-1" style={{ opacity: connected > 0 ? 1 : 0.2 }} />}
               </div>
-            )}
+              <div className="flex flex-col items-center">
+                <span className="text-gray-500"><span className="inline-block w-2 h-2 rounded-full bg-orange-400 mr-1" />Attempted {attempted}</span>
+                {(prospects?.length || 0) > 0 && <div className="h-[3px] w-full rounded-full bg-orange-400 mt-1" style={{ opacity: attempted > 0 ? 1 : 0.2 }} />}
+              </div>
+              <div className="flex flex-col items-center">
+                <span className="text-gray-400">Pending {pending}</span>
+                {(prospects?.length || 0) > 0 && <div className="h-[3px] w-full rounded-full bg-gray-300 mt-1" style={{ opacity: pending > 0 ? 1 : 0.2 }} />}
+              </div>
+            </div>
           </div>
         </div>
       </div>
