@@ -18,27 +18,50 @@ import type { Prospect } from '@/types/prospect'
 // Pending, Connected, Attempted, Voicemail, Meeting booked
 // + etats live pendant session : In-progress, Ringing
 const CALL_STATUS_BADGE: Record<string, { bg: string; text: string; label: string; icon: string }> = {
-  pending:        { bg: '#f3f4f6', text: '#6b7280', label: 'En attente', icon: 'group' },
-  connected:      { bg: '#d1fae5', text: '#059669', label: 'Connecte', icon: 'phone' },
-  attempted:      { bg: '#f3f4f6', text: '#6b7280', label: 'Tentative', icon: 'phone' },
-  voicemail:      { bg: '#f3f4f6', text: '#6b7280', label: 'Messagerie', icon: 'voicemail' },
-  meeting_booked: { bg: '#ccfbf1', text: '#0d9488', label: 'RDV pris', icon: 'phone' },
+  // Avant l'appel
+  pending:          { bg: '#f3f4f6', text: '#6b7280', label: 'En attente', icon: 'group' },
+  // Contact decroche
+  connected:        { bg: '#d1fae5', text: '#059669', label: 'Connecte', icon: 'phone' },
+  meeting_booked:   { bg: '#ccfbf1', text: '#0d9488', label: 'RDV pris', icon: 'phone' },
+  // Contact ne repond pas
+  no_answer:        { bg: '#f3f4f6', text: '#6b7280', label: 'Pas de reponse', icon: 'phone' },
+  voicemail:        { bg: '#f3f4f6', text: '#6b7280', label: 'Messagerie', icon: 'voicemail' },
+  voicemail_left:   { bg: '#e0e7ff', text: '#4f46e5', label: 'Message depose', icon: 'voicemail' },
+  // Lies a l'appel
+  cancelled:        { bg: '#f3f4f6', text: '#6b7280', label: 'Annule', icon: 'phone' },
+  failed:           { bg: '#fecaca', text: '#dc2626', label: 'Echoue', icon: 'phone' },
+  missed:           { bg: '#fef3c7', text: '#d97706', label: 'Manque', icon: 'phone' },
+  // Lies au numero
+  wrong_number:     { bg: '#fecaca', text: '#dc2626', label: 'Mauvais numero', icon: 'phone' },
+  invalid_number:   { bg: '#fecaca', text: '#dc2626', label: 'Numero invalide', icon: 'phone' },
+  country_mismatch: { bg: '#fecaca', text: '#dc2626', label: 'Indicatif incompatible', icon: 'phone' },
+  ios_filter:       { bg: '#fed7aa', text: '#ea580c', label: 'Filtre iOS', icon: 'phone' },
+  // Gestion contacts
+  snoozed:          { bg: '#e9d5ff', text: '#7c3aed', label: 'En pause', icon: 'group' },
+  disabled:         { bg: '#fecaca', text: '#dc2626', label: 'Desactive', icon: 'group' },
+  max_call:         { bg: '#f3f4f6', text: '#6b7280', label: 'Max atteint', icon: 'phone' },
   // Live pendant session
-  initiated:      { bg: '#fed7aa', text: '#ea580c', label: 'Initie', icon: 'phone' },
-  ringing:        { bg: '#fef3c7', text: '#d97706', label: 'En sonnerie', icon: 'phone' },
-  'in-progress':  { bg: '#d1fae5', text: '#059669', label: 'En cours', icon: 'phone' },
+  initiated:        { bg: '#fed7aa', text: '#ea580c', label: 'Initie', icon: 'phone' },
+  ringing:          { bg: '#fef3c7', text: '#d97706', label: 'En sonnerie', icon: 'phone' },
+  'in-progress':    { bg: '#d1fae5', text: '#059669', label: 'En cours', icon: 'phone' },
 }
 
 /** Mappe le last_call_outcome vers un badge CALL STATUS Minari */
 function getCallStatusKey(prospect: Prospect): string {
+  if (prospect.snoozed_until && new Date(prospect.snoozed_until) > new Date()) return 'snoozed'
+  if (prospect.do_not_call) return 'disabled'
   if (prospect.call_count === 0) return 'pending'
   const o = prospect.last_call_outcome
-  if (!o) return 'attempted'
+  if (!o) return 'no_answer'
+  // Mapping direct si le statut existe dans nos badges
+  if (o in CALL_STATUS_BADGE) return o
+  // Aliases
   if (o === 'rdv') return 'meeting_booked'
-  if (o === 'connected') return 'connected'
-  if (o === 'voicemail') return 'voicemail'
-  // Tout le reste (no_answer, busy, not_interested, callback, wrong_number, dnc) = attempted
-  return 'attempted'
+  if (o === 'busy') return 'no_answer'
+  if (o === 'not_interested') return 'connected'
+  if (o === 'callback') return 'connected'
+  if (o === 'dnc') return 'disabled'
+  return 'no_answer'
 }
 
 // ── Timer ──────────────────────────────────────────────────────────
