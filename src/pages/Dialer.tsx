@@ -535,12 +535,6 @@ export default function Dialer() {
             </button>
           )}
 
-          {/* Redial */}
-          {(prospects?.filter(p => p.last_call_outcome === 'no_answer' || p.last_call_outcome === 'voicemail').length || 0) > 0 && (
-            <button className="px-4 py-2 rounded-full text-[13px] font-semibold bg-emerald-600 text-white hover:bg-emerald-700 transition-colors">
-              Rappeler {prospects?.filter(p => p.last_call_outcome === 'no_answer' || p.last_call_outcome === 'voicemail').length} contacts
-            </button>
-          )}
 
           {/* Sorted by */}
           <div className="flex items-center gap-1.5 text-[13px] text-gray-500">
