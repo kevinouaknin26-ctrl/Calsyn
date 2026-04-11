@@ -188,6 +188,46 @@ function CallCard({ call, defaultOpen }: { call: Call; defaultOpen: boolean }) {
   )
 }
 
+// ── Champ éditable (clic pour modifier, blur pour sauvegarder) ──
+function EditableField({ label, value, prospectId, field, copyable, mono }: {
+  label: string; value: string; prospectId: string; field: string; copyable?: boolean; mono?: boolean
+}) {
+  const [editing, setEditing] = useState(false)
+  const [localVal, setLocalVal] = useState(value)
+  const qc = useQueryClient()
+
+  async function save() {
+    if (localVal !== value) {
+      await supabase.from('prospects').update({ [field]: localVal || null }).eq('id', prospectId)
+      qc.invalidateQueries({ queryKey: ['prospects'] })
+    }
+    setEditing(false)
+  }
+
+  return (
+    <div>
+      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">{label}</span>
+      <div className="flex items-center mt-1 border-b border-gray-200 pb-1">
+        {editing ? (
+          <input autoFocus type="text" value={localVal} onChange={e => setLocalVal(e.target.value)}
+            onBlur={save} onKeyDown={e => { if (e.key === 'Enter') save(); if (e.key === 'Escape') { setLocalVal(value); setEditing(false) } }}
+            className={`text-[13px] text-gray-600 flex-1 outline-none bg-transparent ${mono ? 'font-mono' : ''}`} />
+        ) : (
+          <p onClick={() => setEditing(true)}
+            className={`text-[13px] flex-1 truncate cursor-text ${localVal ? 'text-gray-600' : 'text-gray-300 italic'} ${mono ? 'font-mono' : ''}`}>
+            {localVal || 'Cliquer pour ajouter'}
+          </p>
+        )}
+        {copyable && localVal && (
+          <button onClick={() => navigator.clipboard.writeText(localVal)} className="text-gray-300 hover:text-gray-500 ml-1">
+            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
+          </button>
+        )}
+      </div>
+    </div>
+  )
+}
+
 // ── Modal ────────────────────────────────────────────────────────
 export default function ProspectModal({
   prospect, callContext, callHistory, isInCall, isDisconnected,
@@ -248,17 +288,38 @@ export default function ProspectModal({
                 <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
               </div>
               <h2 className="text-[15px] font-bold text-gray-800 flex-1 truncate">{prospect.name}</h2>
-              <button onClick={() => navigator.clipboard.writeText(prospect.name)} className="text-gray-300 hover:text-gray-500">
-                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
-              </button>
             </div>
 
-            {/* 2 petites icones sous le nom (Minari exact — frame 025) */}
+            {/* Icones LinkedIn + globe (cliquables pour remplir) */}
             <div className="flex gap-1 ml-9 mb-3">
-              <div className={`w-5 h-5 rounded flex items-center justify-center text-[8px] font-bold ${prospect.linkedin_url ? 'bg-blue-50 text-blue-500' : 'bg-gray-50 text-gray-300'} cursor-pointer`}>in</div>
-              <div className="w-5 h-5 rounded flex items-center justify-center bg-gray-50 text-gray-300 cursor-pointer">
-                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3" /></svg>
-              </div>
+              {prospect.linkedin_url ? (
+                <a href={prospect.linkedin_url} target="_blank" rel="noopener noreferrer"
+                  className="w-5 h-5 rounded flex items-center justify-center text-[8px] font-bold bg-blue-50 text-blue-500 cursor-pointer hover:bg-blue-100">in</a>
+              ) : (
+                <button onClick={async () => {
+                  const url = window.prompt('URL LinkedIn :')
+                  if (url?.trim()) {
+                    await supabase.from('prospects').update({ linkedin_url: url.trim() }).eq('id', prospect.id)
+                    queryClient.invalidateQueries({ queryKey: ['prospects'] })
+                  }
+                }} className="w-5 h-5 rounded flex items-center justify-center text-[8px] font-bold bg-gray-50 text-gray-300 hover:text-blue-500 hover:bg-blue-50 cursor-pointer" title="Ajouter LinkedIn">in</button>
+              )}
+              {prospect.website_url ? (
+                <a href={prospect.website_url} target="_blank" rel="noopener noreferrer"
+                  className="w-5 h-5 rounded flex items-center justify-center bg-gray-50 text-gray-500 cursor-pointer hover:bg-gray-100">
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3" /></svg>
+                </a>
+              ) : (
+                <button onClick={async () => {
+                  const url = window.prompt('URL site web :')
+                  if (url?.trim()) {
+                    await supabase.from('prospects').update({ website_url: url.trim() }).eq('id', prospect.id)
+                    queryClient.invalidateQueries({ queryKey: ['prospects'] })
+                  }
+                }} className="w-5 h-5 rounded flex items-center justify-center bg-gray-50 text-gray-300 hover:text-gray-500 hover:bg-gray-100 cursor-pointer" title="Ajouter site web">
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3" /></svg>
+                </button>
+              )}
             </div>
 
             {/* Titre + Entreprise */}
@@ -353,13 +414,7 @@ export default function ProspectModal({
 
             {/* Champs (Minari exact — UPPERCASE labels, champs éditables avec bordure) */}
             <div className="space-y-3 flex-1">
-              <div>
-                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Email</span>
-                <div className="flex items-center mt-1 border-b border-gray-200 pb-1">
-                  <p className="text-[13px] text-gray-600 flex-1 truncate">{prospect.email || ''}</p>
-                  {prospect.email && <button onClick={() => navigator.clipboard.writeText(prospect.email!)} className="text-gray-300 hover:text-gray-500"><svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg></button>}
-                </div>
-              </div>
+              <EditableField label="Email" value={prospect.email || ''} prospectId={prospect.id} field="email" copyable />
               <div>
                 <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Statut</span>
                 <select value={prospect.crm_status || 'new'} onChange={async e => {
@@ -369,22 +424,11 @@ export default function ProspectModal({
                   {CRM_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                 </select>
               </div>
-              <div>
-                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Téléphone</span>
-                <div className="flex items-center mt-1 border-b border-gray-200 pb-1">
-                  <p className="text-[13px] text-gray-600 font-mono flex-1">{formatPhone(prospect.phone)}</p>
-                  <button onClick={() => navigator.clipboard.writeText(prospect.phone)} className="text-gray-300 hover:text-gray-500"><svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg></button>
-                </div>
-              </div>
-              {/* Phone 2-5 (champs avec bordure — Minari exact) */}
-              {[2, 3, 4, 5].map(n => (
-                <div key={n}>
-                  <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Téléphone {n}</span>
-                  <div className="mt-1 border-b border-gray-200 pb-1">
-                    <p className="text-[13px] text-gray-400 font-mono">{(prospect as unknown as Record<string, string>)[`phone${n}`] || ''}</p>
-                  </div>
-                </div>
-              ))}
+              <EditableField label="Téléphone" value={prospect.phone} prospectId={prospect.id} field="phone" copyable mono />
+              <EditableField label="Téléphone 2" value={prospect.phone2 || ''} prospectId={prospect.id} field="phone2" copyable mono />
+              <EditableField label="Téléphone 3" value={prospect.phone3 || ''} prospectId={prospect.id} field="phone3" mono />
+              <EditableField label="Téléphone 4" value={prospect.phone4 || ''} prospectId={prospect.id} field="phone4" mono />
+              <EditableField label="Téléphone 5" value={prospect.phone5 || ''} prospectId={prospect.id} field="phone5" mono />
             </div>
           </div>
 
@@ -412,10 +456,7 @@ export default function ProspectModal({
                     }`}>{tab}</button>
                 ))}
               </div>
-              <div className="flex items-center gap-3">
-                <span className="text-[12px] text-gray-400">Tout développer</span>
-                <button onClick={onClose} className="text-gray-300 hover:text-gray-500 text-lg">&times;</button>
-              </div>
+              <button onClick={onClose} className="text-gray-300 hover:text-gray-500 text-lg">&times;</button>
             </div>
             <div className="h-px bg-gray-100 mx-5" />
 
