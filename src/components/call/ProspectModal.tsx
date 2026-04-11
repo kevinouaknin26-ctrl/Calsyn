@@ -378,11 +378,11 @@ export default function ProspectModal({
                         <button key={opt.days} onClick={() => handleSnooze(opt.days)}
                           className="w-full text-left px-3 py-1.5 text-[12px] text-gray-600 hover:bg-purple-50 hover:text-purple-600">{opt.label}</button>
                       ))}
-                      <div className="border-t border-gray-100 mt-1 pt-1">
-                        <label className="w-full text-left px-3 py-1.5 text-[12px] text-gray-600 hover:bg-purple-50 hover:text-purple-600 flex items-center gap-1.5 cursor-pointer">
+                      <div className="border-t border-gray-100 mt-1 pt-1 px-3 py-1.5 space-y-1.5">
+                        <div className="flex items-center gap-1.5 text-[12px] text-gray-600">
                           <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-                          Date précise
-                          <input type="date" className="ml-auto text-[11px] border border-gray-200 rounded px-1 py-0.5 outline-none"
+                          Date
+                          <input type="date" className="ml-auto text-[11px] border border-gray-200 rounded px-1.5 py-0.5 outline-none"
                             onChange={async e => {
                               if (e.target.value) {
                                 await supabase.from('prospects').update({ snoozed_until: new Date(e.target.value).toISOString() }).eq('id', prospect.id)
@@ -391,6 +391,24 @@ export default function ProspectModal({
                                 queryClient.invalidateQueries({ queryKey: ['prospects'] })
                               }
                             }} />
+                        </div>
+                        <div className="flex items-center gap-1.5 text-[12px] text-gray-600">
+                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                          Heure
+                          <input type="time" className="ml-auto text-[11px] border border-gray-200 rounded px-1.5 py-0.5 outline-none"
+                            onChange={async e => {
+                              if (e.target.value) {
+                                const today = new Date()
+                                const [h, m] = e.target.value.split(':')
+                                today.setHours(parseInt(h), parseInt(m), 0, 0)
+                                if (today < new Date()) today.setDate(today.getDate() + 1)
+                                await supabase.from('prospects').update({ snoozed_until: today.toISOString() }).eq('id', prospect.id)
+                                setLocalSnoozedUntil(today.toISOString())
+                                setShowSnoozeMenu(false)
+                                queryClient.invalidateQueries({ queryKey: ['prospects'] })
+                              }
+                            }} />
+                        </div>
                         </label>
                       </div>
                     </div>
