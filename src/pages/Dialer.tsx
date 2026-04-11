@@ -395,6 +395,10 @@ export default function Dialer() {
           <div className="flex items-center gap-3">
             <h1 className="text-[17px] font-bold text-gray-800">{activeList?.name || 'Prospects'}</h1>
             <span className="text-[13px] text-gray-400">{prospects?.length || 0} contacts</span>
+            <button onClick={() => setShowAddProspect(true)} className="text-[13px] text-gray-400 hover:text-teal-600 flex items-center gap-1">
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+              Contact
+            </button>
             <button onClick={() => {
               setRefreshing(true)
               queryClient.invalidateQueries({ queryKey: ['prospects', activeListId] })
@@ -509,14 +513,6 @@ export default function Dialer() {
         </div>
 
         <div className="flex items-center gap-3">
-          {/* Ajouter un contact */}
-          <button onClick={() => setShowAddProspect(true)}
-            className="text-[13px] text-gray-400 hover:text-gray-600">+ Contact</button>
-
-          {/* Import CSV */}
-          <button onClick={() => setShowCSVImport(true)}
-            className="text-[13px] text-gray-400 hover:text-gray-600">+ Importer</button>
-
           {/* Call settings dropdown (Minari exact position) */}
           <CallSettingsDropdown open={showCallSettings} onToggle={() => setShowCallSettings(!showCallSettings)} />
         </div>
