@@ -252,28 +252,28 @@ export default function Dialer() {
 
   return (
     <div className="min-h-screen bg-[#f0faf4]">
-      {/* ── Tabs listes (Minari exact — marque-pages plats fond gris fonce) ── */}
-      <div className="bg-[#2d2d2d] flex items-center overflow-x-auto">
+      {/* ── Tabs listes (Minari exact — fond blanc, tabs plats, bordure grise fine) ── */}
+      <div className="bg-white border-b border-gray-200 flex items-center overflow-x-auto px-2">
         <button onClick={async () => {
           const name = prompt('Nom de la nouvelle liste :')
           if (name?.trim()) { const l = await createList.mutateAsync(name.trim()); setActiveListId(l.id) }
-        }} className="flex items-center gap-1 px-4 py-2.5 text-[12px] font-medium text-emerald-400 hover:text-emerald-300 whitespace-nowrap flex-shrink-0">
-          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+        }} className="flex items-center gap-1 px-3 py-2.5 text-[12px] font-medium text-emerald-600 hover:text-emerald-700 whitespace-nowrap flex-shrink-0">
+          <span className="w-3.5 h-3.5 rounded-full bg-emerald-500 text-white flex items-center justify-center text-[9px] font-bold">+</span>
           New list
         </button>
         {lists?.map(l => (
           <button key={l.id} onClick={() => setActiveListId(l.id)}
-            className={`flex items-center gap-2 px-4 py-2.5 text-[12px] whitespace-nowrap flex-shrink-0 transition-colors border-b-2 ${
+            className={`flex items-center gap-2 px-3 py-2.5 text-[12px] whitespace-nowrap flex-shrink-0 transition-colors ${
               activeListId === l.id
-                ? 'bg-white text-gray-800 font-semibold border-transparent rounded-t-lg -mb-px'
-                : 'text-white/60 hover:text-white/80 border-transparent'
+                ? 'text-gray-800 font-semibold border-b-2 border-gray-800'
+                : 'text-gray-400 hover:text-gray-600'
             }`}>
             {l.name}
-            <span className="text-current opacity-40 hover:opacity-80 ml-0.5">&times;</span>
+            <span className="text-gray-300 hover:text-gray-500">&times;</span>
           </button>
         ))}
         {(lists?.length || 0) > 8 && (
-          <span className="px-3 py-2.5 text-[12px] text-white/40 whitespace-nowrap flex-shrink-0">+{(lists?.length || 0) - 8}</span>
+          <span className="px-2 py-2.5 text-[12px] text-gray-400 whitespace-nowrap flex-shrink-0">+{(lists?.length || 0) - 8} ▾</span>
         )}
       </div>
 
@@ -288,27 +288,28 @@ export default function Dialer() {
               Refresh
             </button>
           </div>
-          <div className="flex items-center gap-4 text-[13px]">
-            <span className="text-gray-400 flex items-center gap-1">
-              <svg className="w-4 h-4 text-teal-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-              {meetings} meetings
-            </span>
-            <span className="text-gray-500"><span className="inline-block w-2 h-2 rounded-full bg-emerald-500 mr-1" />Connected {connected}</span>
-            <span className="text-gray-500"><span className="inline-block w-2 h-2 rounded-full bg-orange-400 mr-1" />Attempted {attempted}</span>
-            <span className="text-gray-400">Pending {pending}</span>
+          <div className="flex flex-col items-end gap-1">
+            <div className="flex items-center gap-4 text-[13px]">
+              <span className="text-gray-400 flex items-center gap-1">
+                <svg className="w-4 h-4 text-teal-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                {meetings} meeting{meetings !== 1 ? 's' : ''}
+              </span>
+              <span className="text-gray-500"><span className="inline-block w-2 h-2 rounded-full bg-emerald-500 mr-1" />Connected {connected}</span>
+              <span className="text-gray-500"><span className="inline-block w-2 h-2 rounded-full bg-orange-400 mr-1" />Attempted {attempted}</span>
+              <span className="text-gray-400">Pending {pending}</span>
+            </div>
+            {/* Progress bar — fine, sous les stats */}
+            {(prospects?.length || 0) > 0 && (
+              <div className="h-[3px] rounded-full overflow-hidden flex" style={{ width: 220 }}>
+                {connected > 0 && <div className="h-full bg-emerald-500" style={{ width: `${(connected / (prospects?.length || 1)) * 100}%` }} />}
+                {(attempted - connected) > 0 && <div className="h-full bg-orange-400" style={{ width: `${((attempted - connected) / (prospects?.length || 1)) * 100}%` }} />}
+                <div className="h-full bg-gray-200 flex-1" />
+              </div>
+            )}
           </div>
         </div>
       </div>
 
-      {/* ── Progress bar (Minari exact — under stats) ── */}
-      {(prospects?.length || 0) > 0 && (
-        <div className="px-5 pt-1 pb-0">
-          <div className="h-1 w-full bg-gray-200 rounded-full overflow-hidden flex">
-            {connected > 0 && <div className="h-full bg-emerald-500 transition-all" style={{ width: `${(connected / (prospects?.length || 1)) * 100}%` }} />}
-            {attempted > 0 && <div className="h-full bg-orange-400 transition-all" style={{ width: `${((attempted - connected) / (prospects?.length || 1)) * 100}%` }} />}
-          </div>
-        </div>
-      )}
 
       {/* ── Toolbar (Minari exact layout) ── */}
       <div className="px-5 pb-3 flex items-center justify-between">
