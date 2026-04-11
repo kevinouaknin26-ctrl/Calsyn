@@ -127,7 +127,7 @@ function OutcomeBadge({ outcome, meeting }: { outcome: string | null; meeting: b
 }
 
 // ── Player audio custom (Minari exact — ▶ barre + durée + download + vitesse) ──
-function AudioPlayer({ url, date }: { url: string; date?: string }) {
+function AudioPlayer({ url, date, prospectName }: { url: string; date?: string; prospectName?: string }) {
   const audioRef = useRef<HTMLAudioElement>(null)
   const [playing, setPlaying] = useState(false)
   const [currentTime, setCurrentTime] = useState(0)
@@ -138,7 +138,7 @@ function AudioPlayer({ url, date }: { url: string; date?: string }) {
 
   return (
     <div className="mb-3">
-      <audio ref={audioRef} src={url} preload="metadata"
+      <audio ref={audioRef} src={url} preload="auto"
         onLoadedMetadata={() => { if (audioRef.current) setDuration(audioRef.current.duration) }}
         onTimeUpdate={() => { if (audioRef.current) setCurrentTime(audioRef.current.currentTime) }}
         onEnded={() => setPlaying(false)} />
@@ -173,7 +173,10 @@ function AudioPlayer({ url, date }: { url: string; date?: string }) {
           const blob = await res.blob()
           const a = document.createElement('a')
           a.href = URL.createObjectURL(blob)
-          a.download = `appel_${date?.slice(0, 10) || 'audio'}.mp3`
+          const d = date ? new Date(date) : new Date()
+          const dateStr = `${d.getFullYear()}-${(d.getMonth()+1).toString().padStart(2,'0')}-${d.getDate().toString().padStart(2,'0')}_${d.getHours().toString().padStart(2,'0')}h${d.getMinutes().toString().padStart(2,'0')}`
+          const name = (prospectName || 'inconnu').replace(/[^a-zA-Z0-9àâäéèêëïîôùûüçÀÂÄÉÈÊËÏÎÔÙÛÜÇ -]/g, '').replace(/\s+/g, '_')
+          a.download = `${name}_${dateStr}.mp3`
           a.click()
           URL.revokeObjectURL(a.href)
         }} className="text-gray-400 hover:text-gray-600 flex-shrink-0" title="Télécharger">
@@ -256,7 +259,7 @@ function CallCard({ call, defaultOpen, onUpdate, onCelebrate }: { call: Call; de
           </div>
 
           {/* Player audio (Minari exact — ▶ barre + durée + download + vitesse) */}
-          {call.recording_url && <AudioPlayer url={proxyRecordingUrl(call.recording_url!)} date={call.created_at} />}
+          {call.recording_url && <AudioPlayer url={proxyRecordingUrl(call.recording_url!)} date={call.created_at} prospectName={call.prospect_name || undefined} />}
 
           {/* Show full transcription + BETA badge */}
           {call.ai_transcript && (
