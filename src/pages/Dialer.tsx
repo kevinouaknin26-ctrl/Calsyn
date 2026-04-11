@@ -252,8 +252,9 @@ export default function Dialer() {
 
   return (
     <div className="min-h-screen bg-[#f0faf4]">
-      {/* ── Tabs listes (Minari exact — fond blanc, tabs plats, bordure grise fine) ── */}
-      <div className="bg-white border-b border-gray-200 flex items-center overflow-x-auto px-2">
+      {/* ── Tabs listes (Minari exact — detaches du haut, fond blanc) ── */}
+      <div className="pt-4 px-5 pb-0">
+      <div className="bg-white border-b border-gray-200 flex items-center overflow-x-auto px-2 rounded-t-lg">
         <button onClick={async () => {
           const name = prompt('Nom de la nouvelle liste :')
           if (name?.trim()) { const l = await createList.mutateAsync(name.trim()); setActiveListId(l.id) }
@@ -275,6 +276,7 @@ export default function Dialer() {
         {(lists?.length || 0) > 8 && (
           <span className="px-2 py-2.5 text-[12px] text-gray-400 whitespace-nowrap flex-shrink-0">+{(lists?.length || 0) - 8} ▾</span>
         )}
+      </div>
       </div>
 
       {/* ── List header ── */}
