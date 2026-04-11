@@ -858,6 +858,8 @@ export default function Dialer() {
                 <th className="py-3 px-3 text-left text-[10px] font-bold text-gray-400 uppercase tracking-[0.08em]">Statut appel</th>
                 <th className="py-3 px-3 text-center text-[10px] font-bold text-gray-400 uppercase tracking-[0.08em]">Appels</th>
                 <th className="py-3 px-4 text-left text-[10px] font-bold text-gray-400 uppercase tracking-[0.08em]">Nom</th>
+                <th className="py-3 px-1 text-center text-[10px] font-bold text-gray-400 uppercase tracking-[0.08em]"></th>
+                <th className="py-3 px-1 text-left text-[10px] font-bold text-gray-400 uppercase tracking-[0.08em]">Liens</th>
                 <th className="py-3 px-4 text-left text-[10px] font-bold text-gray-400 uppercase tracking-[0.08em]">Poste</th>
                 <th className="py-3 px-4 text-left text-[10px] font-bold text-gray-400 uppercase tracking-[0.08em]">Societe</th>
                 <th className="py-3 px-4 text-left text-[10px] font-bold text-gray-400 uppercase tracking-[0.08em]">Dernier appel</th>
