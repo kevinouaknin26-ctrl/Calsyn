@@ -307,19 +307,18 @@ export default function Dialer() {
                 <svg className="w-4 h-4 text-teal-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
                 {meetings} meeting{meetings !== 1 ? 's' : ''}
               </span>
-              <div className="flex flex-col items-center">
-                <span className="text-gray-500"><span className="inline-block w-2 h-2 rounded-full bg-emerald-500 mr-1" />Connected {connected}</span>
-                {(prospects?.length || 0) > 0 && <div className="h-[3px] w-full rounded-full bg-emerald-500 mt-1" style={{ opacity: connected > 0 ? 1 : 0.2 }} />}
-              </div>
-              <div className="flex flex-col items-center">
-                <span className="text-gray-500"><span className="inline-block w-2 h-2 rounded-full bg-orange-400 mr-1" />Attempted {attempted}</span>
-                {(prospects?.length || 0) > 0 && <div className="h-[3px] w-full rounded-full bg-orange-400 mt-1" style={{ opacity: attempted > 0 ? 1 : 0.2 }} />}
-              </div>
-              <div className="flex flex-col items-center">
-                <span className="text-gray-400">Pending {pending}</span>
-                {(prospects?.length || 0) > 0 && <div className="h-[3px] w-full rounded-full bg-gray-300 mt-1" style={{ opacity: pending > 0 ? 1 : 0.2 }} />}
-              </div>
+              <span className="text-gray-500"><span className="inline-block w-2 h-2 rounded-full bg-emerald-500 mr-1" />Connected {connected}</span>
+              <span className="text-gray-500"><span className="inline-block w-2 h-2 rounded-full bg-orange-400 mr-1" />Attempted {attempted}</span>
+              <span className="text-gray-400">Pending {pending}</span>
             </div>
+            {/* Barre de progression unique (Minari exact) */}
+            {(prospects?.length || 0) > 0 && (
+              <div className="h-[3px] rounded-full overflow-hidden flex" style={{ width: 200 }}>
+                <div className="h-full bg-emerald-500" style={{ width: `${(connected / (prospects?.length || 1)) * 100}%` }} />
+                <div className="h-full bg-orange-400" style={{ width: `${((attempted - connected) / (prospects?.length || 1)) * 100}%` }} />
+                <div className="h-full bg-gray-200 flex-1" />
+              </div>
+            )}
           </div>
         </div>
       </div>
