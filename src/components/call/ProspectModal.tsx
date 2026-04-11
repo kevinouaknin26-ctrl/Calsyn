@@ -460,23 +460,27 @@ export default function ProspectModal({
 
             {/* Icones LinkedIn + globe — à gauche, avec popover inline pour ajouter */}
             <div className="flex gap-1 mb-3 relative">
-              {prospect.linkedin_url ? (
-                <a href={prospect.linkedin_url?.startsWith('http') ? prospect.linkedin_url : `https://${prospect.linkedin_url}`} target="_blank" rel="noopener noreferrer"
-                  className="w-5 h-5 rounded flex items-center justify-center text-[8px] font-bold bg-blue-50 text-blue-500 cursor-pointer hover:bg-blue-100">in</a>
-              ) : (
-                <button onClick={() => { setEditingUrl('linkedin'); setUrlValue('') }}
-                  className="w-5 h-5 rounded flex items-center justify-center text-[8px] font-bold bg-gray-50 text-gray-300 hover:text-blue-500 hover:bg-blue-50 cursor-pointer" title="Ajouter LinkedIn">in</button>
-              )}
-              {prospect.website_url ? (
-                <a href={prospect.website_url?.startsWith('http') ? prospect.website_url : `https://${prospect.website_url}`} target="_blank" rel="noopener noreferrer"
-                  className="w-5 h-5 rounded flex items-center justify-center bg-gray-50 text-gray-500 cursor-pointer hover:bg-gray-100">
-                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9" /></svg>
+              {/* LinkedIn — clic = modifier, icone ouvrir à côté si rempli */}
+              <button onClick={() => { setEditingUrl('linkedin'); setUrlValue(prospect.linkedin_url || '') }}
+                className={`w-5 h-5 rounded flex items-center justify-center text-[8px] font-bold cursor-pointer ${prospect.linkedin_url ? 'bg-blue-50 text-blue-500 hover:bg-blue-100' : 'bg-gray-50 text-gray-300 hover:text-blue-500 hover:bg-blue-50'}`}
+                title={prospect.linkedin_url ? 'Modifier LinkedIn' : 'Ajouter LinkedIn'}>in</button>
+              {prospect.linkedin_url && (
+                <a href={prospect.linkedin_url.startsWith('http') ? prospect.linkedin_url : `https://${prospect.linkedin_url}`} target="_blank" rel="noopener noreferrer"
+                  className="w-5 h-5 rounded flex items-center justify-center bg-gray-50 text-gray-300 hover:text-blue-500 cursor-pointer" title="Ouvrir LinkedIn">
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
                 </a>
-              ) : (
-                <button onClick={() => { setEditingUrl('website'); setUrlValue('') }}
-                  className="w-5 h-5 rounded flex items-center justify-center bg-gray-50 text-gray-300 hover:text-gray-500 hover:bg-gray-100 cursor-pointer" title="Ajouter site web">
-                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9" /></svg>
-                </button>
+              )}
+              {/* Globe — clic = modifier, icone ouvrir à côté si rempli */}
+              <button onClick={() => { setEditingUrl('website'); setUrlValue(prospect.website_url || '') }}
+                className={`w-5 h-5 rounded flex items-center justify-center cursor-pointer ${prospect.website_url ? 'bg-gray-50 text-gray-500 hover:bg-gray-100' : 'bg-gray-50 text-gray-300 hover:text-gray-500 hover:bg-gray-100'}`}
+                title={prospect.website_url ? 'Modifier site web' : 'Ajouter site web'}>
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9" /></svg>
+              </button>
+              {prospect.website_url && (
+                <a href={prospect.website_url.startsWith('http') ? prospect.website_url : `https://${prospect.website_url}`} target="_blank" rel="noopener noreferrer"
+                  className="w-5 h-5 rounded flex items-center justify-center bg-gray-50 text-gray-300 hover:text-gray-500 cursor-pointer" title="Ouvrir site web">
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
+                </a>
               )}
               {/* Popover inline pour ajouter URL */}
               {editingUrl && (
