@@ -198,7 +198,8 @@ export default function ProspectModal({
       {showConfetti && <Confetti />}
 
       {/* Backdrop — ne ferme PAS au clic (seulement via bouton X) */}
-      <div className="fixed inset-0 bg-black/15 flex items-start justify-center pt-[5vh] z-40">
+      <div className="fixed inset-0 bg-black/15 flex items-start justify-center pt-[5vh] z-40"
+        onClick={e => { if (e.target === e.currentTarget && !isInCall) onClose() }}>
         <div className="bg-white rounded-2xl shadow-xl w-[860px] max-h-[85vh] flex overflow-hidden">
 
           {/* ── GAUCHE — Infos prospect (Minari exact) ── */}

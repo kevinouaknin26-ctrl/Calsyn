@@ -252,13 +252,17 @@ export default function Dialer() {
   const [sortBy, setSortBy] = useState<'name' | 'last_call' | 'status'>('last_call')
   const [showCSVImport, setShowCSVImport] = useState(false)
   const [showSelectList, setShowSelectList] = useState(false)
+  const [openTabIds, setOpenTabIds] = useState<string[]>([])
   const [showCallSettings, setShowCallSettings] = useState(false)
   const { data: prospects } = useProspects(activeListId)
   const { data: callHistory } = useCallsByProspect(selectedProspect?.id ?? null)
   const duration = useTimer(cm.context.startedAt)
   useRealtimeProspects()
 
-  useEffect(() => { if (lists?.length && !activeListId) setActiveListId(lists[0].id) }, [lists, activeListId])
+  useEffect(() => {
+    if (lists?.length && !activeListId) setActiveListId(lists[0].id)
+    if (lists?.length && openTabIds.length === 0) setOpenTabIds(lists.map(l => l.id))
+  }, [lists, activeListId, openTabIds.length])
 
   const handleCall = useCallback((p: Prospect) => {
     if ((cm.isIdle || cm.isDisconnected) && cm.providerReady) {
@@ -288,7 +292,11 @@ export default function Dialer() {
   // Page "Choisir une liste" (Minari frame 005)
   if (showSelectList) {
     return <SelectListPage
-      onSelect={(id) => { setActiveListId(id); setShowSelectList(false) }}
+      onSelect={(id) => {
+        setActiveListId(id)
+        setOpenTabIds(prev => prev.includes(id) ? prev : [...prev, id])
+        setShowSelectList(false)
+      }}
       onClose={() => setShowSelectList(false)}
     />
   }
@@ -305,7 +313,7 @@ export default function Dialer() {
           <span className="w-3.5 h-3.5 rounded-full bg-emerald-500 text-white flex items-center justify-center text-[9px] font-bold">+</span>
           Nouvelle liste
         </button>
-        {lists?.map(l => (
+        {lists?.filter(l => openTabIds.includes(l.id)).map(l => (
           <button key={l.id} onClick={() => setActiveListId(l.id)}
             className={`flex items-center gap-2 px-3 py-2 text-[12px] whitespace-nowrap flex-shrink-0 transition-colors rounded-t-lg ${
               activeListId === l.id
@@ -313,8 +321,14 @@ export default function Dialer() {
                 : 'text-gray-400 hover:text-gray-600'
             }`}>
             {l.name}
-            <button onClick={e => { e.stopPropagation(); if (activeListId === l.id && lists && lists.length > 1) { const other = lists.find(x => x.id !== l.id); if (other) setActiveListId(other.id) } }}
-              className="text-gray-300 hover:text-gray-500 ml-0.5">&times;</button>
+            <button onClick={e => {
+              e.stopPropagation()
+              const remaining = openTabIds.filter(id => id !== l.id)
+              setOpenTabIds(remaining)
+              if (activeListId === l.id) {
+                setActiveListId(remaining.length > 0 ? remaining[remaining.length - 1] : null)
+              }
+            }} className="text-gray-300 hover:text-gray-500 ml-0.5">&times;</button>
           </button>
         ))}
         {(lists?.length || 0) > 8 && (
