@@ -368,7 +368,7 @@ export default function ProspectModal({
               {editingUrl && (
                 <>
                 <div className="fixed inset-0 z-[59]" onClick={() => setEditingUrl(null)} />
-                <div className="absolute top-7 left-0 bg-white rounded-lg shadow-lg border border-gray-200 z-[60] p-2 w-56 animate-slide-down">
+                <div className="fixed bg-white rounded-lg shadow-lg border border-gray-200 z-[60] p-2 w-56 animate-slide-down" style={{ marginTop: 4 }}>
                   <input autoFocus type="url" value={urlValue} onChange={e => setUrlValue(e.target.value)}
                     placeholder={editingUrl === 'linkedin' ? 'https://linkedin.com/in/...' : 'https://...'}
                     onKeyDown={async e => {
