@@ -18,19 +18,19 @@ interface Social {
   url: string
 }
 
-const PLATFORMS: Record<string, { label: string; color: string; icon: string }> = {
-  linkedin:  { label: 'LinkedIn', color: '#0A66C2', icon: 'in' },
-  instagram: { label: 'Instagram', color: '#E4405F', icon: 'ig' },
-  facebook:  { label: 'Facebook', color: '#1877F2', icon: 'fb' },
-  twitter:   { label: 'X / Twitter', color: '#000000', icon: 'X' },
-  tiktok:    { label: 'TikTok', color: '#000000', icon: 'tk' },
-  pinterest: { label: 'Pinterest', color: '#BD081C', icon: 'pi' },
-  youtube:   { label: 'YouTube', color: '#FF0000', icon: 'yt' },
-  behance:   { label: 'Behance', color: '#1769FF', icon: 'be' },
-  dribbble:  { label: 'Dribbble', color: '#EA4C89', icon: 'dr' },
-  snapchat:  { label: 'Snapchat', color: '#FFFC00', icon: 'sc' },
-  website:   { label: 'Site web', color: '#6b7280', icon: '🌐' },
-  other:     { label: 'Autre', color: '#6b7280', icon: '🔗' },
+const PLATFORMS: Record<string, { label: string; color: string; bg: string; icon: string }> = {
+  linkedin:  { label: 'LinkedIn', color: '#ffffff', bg: '#0A66C2', icon: 'in' },
+  instagram: { label: 'Instagram', color: '#ffffff', bg: '#E4405F', icon: 'ig' },
+  facebook:  { label: 'Facebook', color: '#ffffff', bg: '#1877F2', icon: 'fb' },
+  twitter:   { label: 'X / Twitter', color: '#ffffff', bg: '#000000', icon: 'X' },
+  tiktok:    { label: 'TikTok', color: '#ffffff', bg: '#010101', icon: 'tk' },
+  pinterest: { label: 'Pinterest', color: '#ffffff', bg: '#BD081C', icon: 'Pi' },
+  youtube:   { label: 'YouTube', color: '#ffffff', bg: '#FF0000', icon: 'yt' },
+  behance:   { label: 'Behance', color: '#ffffff', bg: '#1769FF', icon: 'Be' },
+  dribbble:  { label: 'Dribbble', color: '#ffffff', bg: '#EA4C89', icon: 'Dr' },
+  snapchat:  { label: 'Snapchat', color: '#000000', bg: '#FFFC00', icon: 'Sc' },
+  website:   { label: 'Site web', color: '#ffffff', bg: '#6b7280', icon: '🌐' },
+  other:     { label: 'Autre', color: '#ffffff', bg: '#6b7280', icon: '🔗' },
 }
 
 /** Détecte la plateforme depuis l'URL */
@@ -54,7 +54,7 @@ function PlatformIcon({ platform, size = 'sm' }: { platform: string; size?: 'sm'
   const s = size === 'sm' ? 'w-5 h-5 text-[7px]' : 'w-6 h-6 text-[8px]'
   return (
     <div className={`${s} rounded flex items-center justify-center font-bold flex-shrink-0`}
-      style={{ background: p.color + '15', color: p.color }}
+      style={{ background: p.bg, color: p.color }}
       title={p.label}>
       {p.icon.length <= 2 ? p.icon : <span className="text-[10px]">{p.icon}</span>}
     </div>
