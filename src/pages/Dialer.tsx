@@ -111,7 +111,7 @@ function CallSettingsDropdown({ open, onToggle }: { open: boolean; onToggle: () 
       </button>
 
       {open && (
-        <div className="absolute right-0 top-8 w-[420px] bg-white rounded-xl shadow-lg border border-gray-200 z-50 p-5 space-y-5">
+        <div className="absolute right-0 top-8 w-[420px] bg-white rounded-xl shadow-lg border border-gray-200 z-50 p-5 space-y-5 animate-slide-down">
           {/* Parallel calls */}
           <div className="flex items-center justify-between">
             <span className="text-[13px] text-gray-700">Appels paralleles</span>
@@ -255,6 +255,7 @@ export default function Dialer() {
   const [showFilters, setShowFilters] = useState(false)
   const [showCSVImport, setShowCSVImport] = useState(false)
   const [showSelectList, setShowSelectList] = useState(false)
+  const [refreshing, setRefreshing] = useState(false)
   const [openTabIds, setOpenTabIds] = useState<string[]>(() => {
     try { return JSON.parse(localStorage.getItem('callio_open_tabs') || '[]') } catch { return [] }
   })
@@ -376,11 +377,13 @@ export default function Dialer() {
             <h1 className="text-[17px] font-bold text-gray-800">{activeList?.name || 'Prospects'}</h1>
             <span className="text-[13px] text-gray-400">{prospects?.length || 0} contacts</span>
             <button onClick={() => {
+              setRefreshing(true)
               queryClient.invalidateQueries({ queryKey: ['prospects', activeListId] })
               queryClient.invalidateQueries({ queryKey: ['prospect-lists'] })
+              setTimeout(() => setRefreshing(false), 800)
             }} className="text-[13px] text-gray-400 hover:text-gray-600 flex items-center gap-1">
-              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
-              Actualiser
+              <svg className={`w-3.5 h-3.5 transition-transform ${refreshing ? 'animate-spin-fast' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+              {refreshing ? 'Chargement...' : 'Actualiser'}
             </button>
           </div>
           <div className="flex flex-col items-end gap-1">
@@ -460,7 +463,7 @@ export default function Dialer() {
               Filtrer{filterStatus ? ' 1' : ''}
             </button>
             {showFilters && (
-              <div className="absolute top-8 left-0 bg-white rounded-xl shadow-lg border border-gray-200 z-50 py-2 w-48">
+              <div className="absolute top-8 left-0 bg-white rounded-xl shadow-lg border border-gray-200 z-50 py-2 w-48 animate-slide-down">
                 <button onClick={() => { setFilterStatus(null); setShowFilters(false) }}
                   className={`w-full text-left px-3 py-1.5 text-[12px] hover:bg-gray-50 ${!filterStatus ? 'text-teal-600 font-medium' : 'text-gray-600'}`}>Tous les statuts</button>
                 {['pending', 'connected', 'meeting_booked', 'no_answer', 'voicemail', 'cancelled', 'failed', 'snoozed', 'disabled'].map(s => {
@@ -556,7 +559,7 @@ export default function Dialer() {
 
       {/* ── Barre d'appel noire flottante (Minari exact — frame 025) ── */}
       {isInCall && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-[#1c1c1c] text-white pl-6 pr-4 py-3.5 rounded-2xl flex items-center gap-6 z-50 shadow-2xl min-w-[480px]">
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-[#1c1c1c] text-white pl-6 pr-4 py-3.5 rounded-2xl flex items-center gap-6 z-50 shadow-2xl min-w-[480px] animate-slide-up">
           <div className="flex-1 min-w-0">
             <p className="font-semibold text-[14px] truncate">{cm.context.prospect?.name}</p>
             <div className="flex items-center gap-3">

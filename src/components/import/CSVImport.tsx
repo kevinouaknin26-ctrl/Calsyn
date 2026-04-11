@@ -180,7 +180,7 @@ export default function CSVImport({ listId, onClose, onSuccess }: Props) {
 
   return (
     <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50">
-      <div className="bg-white rounded-2xl shadow-xl w-[700px] max-h-[85vh] flex flex-col overflow-hidden">
+      <div className="bg-white rounded-2xl shadow-xl w-[700px] max-h-[85vh] flex flex-col overflow-hidden animate-fade-in-scale">
 
         {/* Header */}
         <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">

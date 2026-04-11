@@ -200,7 +200,7 @@ export default function ProspectModal({
       {/* Backdrop — ne ferme PAS au clic (seulement via bouton X) */}
       <div className="fixed inset-0 bg-black/15 flex items-start justify-center pt-[5vh] z-40"
         onClick={e => { if (e.target === e.currentTarget && !isInCall) onClose() }}>
-        <div className="bg-white rounded-2xl shadow-xl w-[860px] max-h-[85vh] flex overflow-hidden">
+        <div className="bg-white rounded-2xl shadow-xl w-[860px] max-h-[85vh] flex overflow-hidden animate-fade-in-scale">
 
           {/* ── GAUCHE — Infos prospect (Minari exact) ── */}
           <div className="w-[300px] p-5 border-r border-gray-100 flex flex-col overflow-y-auto">
