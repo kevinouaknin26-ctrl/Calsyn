@@ -30,13 +30,13 @@ function formatPhone(phone: string): string {
   return phone
 }
 
-function formatDuree(s: number) {
+function formatDurée(s: number) {
   if (!s) return '0sec'
   if (s < 60) return `${s}sec`
   return `${Math.floor(s / 60)}mn${(s % 60).toString().padStart(2, '0')}sec`
 }
 
-function formatDureeShort(s: number) {
+function formatDuréeShort(s: number) {
   if (!s) return '00:00'
   return `${Math.floor(s / 60).toString().padStart(2, '0')}:${(s % 60).toString().padStart(2, '0')}`
 }
@@ -52,23 +52,23 @@ function timeAgo(dateStr: string): string {
 }
 
 const DISPOSITIONS: Array<{ value: Disposition; label: string }> = [
-  { value: 'connected', label: 'Connecte' },
+  { value: 'connected', label: 'Connecté' },
   { value: 'rdv', label: 'RDV pris' },
   { value: 'callback', label: 'Rappel' },
-  { value: 'not_interested', label: 'Pas interesse' },
+  { value: 'not_interested', label: 'Pas intéressé' },
   { value: 'no_answer', label: 'Pas de reponse' },
   { value: 'voicemail', label: 'Messagerie' },
-  { value: 'busy', label: 'Occupe' },
-  { value: 'wrong_number', label: 'Mauvais numero' },
+  { value: 'busy', label: 'Occupé' },
+  { value: 'wrong_number', label: 'Mauvais numéro' },
   { value: 'dnc', label: 'Ne pas appeler' },
 ]
 
 const CRM_OPTIONS: Array<{ value: CrmStatus; label: string }> = [
   { value: 'new', label: 'Nouveau' }, { value: 'open', label: 'Ouvert' }, { value: 'in_progress', label: 'En cours' },
-  { value: 'open_deal', label: 'Affaire ouverte' }, { value: 'unqualified', label: 'Non qualifie' },
-  { value: 'attempted_to_contact', label: 'Tente de contacter' }, { value: 'connected', label: 'Connecte' },
-  { value: 'bad_timing', label: 'Mauvais timing' }, { value: 'not_interested', label: 'Pas interesse' },
-  { value: 'callback', label: 'Rappel' }, { value: 'rdv', label: 'RDV' }, { value: 'mail_sent', label: 'Mail envoye' },
+  { value: 'open_deal', label: 'Affaire ouverte' }, { value: 'unqualified', label: 'Non qualifié' },
+  { value: 'attempted_to_contact', label: 'Tenté de contacter' }, { value: 'connected', label: 'Connecté' },
+  { value: 'bad_timing', label: 'Mauvais timing' }, { value: 'not_interested', label: 'Pas intéressé' },
+  { value: 'callback', label: 'Rappel' }, { value: 'rdv', label: 'RDV' }, { value: 'mail_sent', label: 'Mail envoyé' },
 ]
 
 // ── Confetti ────────────────────────────────────────────────────
@@ -90,8 +90,8 @@ function Confetti() {
   )
 }
 
-// ── Resultat badge ───────────────────────────────────────────────
-function ResultatBadge({ outcome, meeting }: { outcome: string | null; meeting: boolean }) {
+// ── Résultat badge ───────────────────────────────────────────────
+function RésultatBadge({ outcome, meeting }: { outcome: string | null; meeting: boolean }) {
   if (meeting) return <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-teal-100 text-teal-600">RDV pris</span>
   const map: Record<string, string> = {
     connected: 'bg-emerald-100 text-emerald-600', rdv: 'bg-teal-100 text-teal-600',
@@ -116,7 +116,7 @@ function CallEntry({ call }: { call: Call }) {
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
         </svg>
         <span className="text-[13px] text-gray-600">Appel sortant</span>
-        <ResultatBadge outcome={call.call_outcome} meeting={call.meeting_booked} />
+        <RésultatBadge outcome={call.call_outcome} meeting={call.meeting_booked} />
         <span className="ml-auto text-[12px] text-gray-400">{timeAgo(call.created_at)}</span>
         <button className="text-gray-300 hover:text-gray-500">
           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -137,7 +137,7 @@ function CallEntry({ call }: { call: Call }) {
             </svg>
           </button>
           <div className="flex-1 h-1.5 bg-gray-200 rounded-full"><div className="h-1.5 bg-gray-400 rounded-full" style={{ width: '0%' }} /></div>
-          <span className="text-[12px] text-gray-400 font-mono">{formatDureeShort(call.call_duration)}</span>
+          <span className="text-[12px] text-gray-400 font-mono">{formatDuréeShort(call.call_duration)}</span>
           <a href={call.recording_url} download className="text-gray-400 hover:text-gray-600">
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
@@ -166,7 +166,7 @@ function CallEntry({ call }: { call: Call }) {
       {/* AI Summary */}
       {call.ai_summary && call.ai_summary.length > 0 && (
         <div className="mt-2">
-          <p className="text-[12px] text-gray-400 mb-1">Resume IA Callio :</p>
+          <p className="text-[12px] text-gray-400 mb-1">Résumé IA Callio :</p>
           {call.ai_summary.map((s, i) => (
             <p key={i} className="text-[12px] text-gray-500 italic ml-2">- {s}</p>
           ))}
@@ -355,7 +355,7 @@ export default function ProspectModal({
                     <span className="text-[13px] text-gray-600">Connected</span>
                     <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-100 text-emerald-600">En cours</span>
                   </div>
-                  <textarea placeholder="Ecrire une note..." value={callContext?.notes || ''} onChange={e => onSetNotes(e.target.value)}
+                  <textarea placeholder="Écrire une note..." value={callContext?.notes || ''} onChange={e => onSetNotes(e.target.value)}
                     rows={2} className="w-full px-3 py-2 rounded-lg border border-gray-200 text-[13px] text-gray-700 outline-none resize-none placeholder:text-gray-400" />
                 </div>
               )}
@@ -366,23 +366,23 @@ export default function ProspectModal({
                   <div className="flex items-center gap-2 mb-4">
                     <svg className="w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" /></svg>
                     <span className="text-[13px] text-gray-600">Appel sortant</span>
-                    <ResultatBadge outcome={callContext?.disposition || 'connected'} meeting={callContext?.meetingBooked || false} />
+                    <RésultatBadge outcome={callContext?.disposition || 'connected'} meeting={callContext?.meetingBooked || false} />
                     <span className="ml-auto text-[12px] text-gray-400">{new Date().toLocaleDateString('fr-FR')} {new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</span>
                     <button className="text-gray-300 hover:text-gray-500"><svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg></button>
                   </div>
 
-                  {/* Resultat + Duree + Meeting booked (Minari exact layout) */}
+                  {/* Résultat + Durée + Meeting booked (Minari exact layout) */}
                   <div className="flex items-start gap-8 mb-4">
                     <div>
-                      <p className="text-[11px] text-gray-400 mb-1">Resultat</p>
+                      <p className="text-[11px] text-gray-400 mb-1">Résultat</p>
                       <select value={callContext?.disposition || 'connected'} onChange={e => onSetDisposition(e.target.value as Disposition)}
                         className="text-[13px] text-gray-700 border-b border-gray-200 pb-0.5 outline-none bg-transparent cursor-pointer">
                         {DISPOSITIONS.map(d => <option key={d.value} value={d.value}>{d.label}</option>)}
                       </select>
                     </div>
                     <div>
-                      <p className="text-[11px] text-gray-400 mb-1">Duree</p>
-                      <p className="text-[13px] text-gray-700">{formatDuree(callContext?.duration || 0)}</p>
+                      <p className="text-[11px] text-gray-400 mb-1">Durée</p>
+                      <p className="text-[13px] text-gray-700">{formatDurée(callContext?.duration || 0)}</p>
                     </div>
                     <label className="flex items-center gap-2 mt-4 cursor-pointer">
                       <input type="checkbox" checked={callContext?.meetingBooked || false}
@@ -399,7 +399,7 @@ export default function ProspectModal({
                   </div>
 
                   {/* Write a note */}
-                  <textarea placeholder="Ecrire une note..." value={callContext?.notes || ''} onChange={e => onSetNotes(e.target.value)}
+                  <textarea placeholder="Écrire une note..." value={callContext?.notes || ''} onChange={e => onSetNotes(e.target.value)}
                     rows={2} className="w-full px-3 py-2 rounded-lg border border-gray-200 text-[13px] text-gray-700 outline-none resize-none placeholder:text-gray-400 mb-4" />
 
                   {/* Resume / Arreter */}

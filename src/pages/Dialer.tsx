@@ -22,27 +22,27 @@ const CALL_STATUS_BADGE: Record<string, { bg: string; text: string; label: strin
   // Avant l'appel
   pending:          { bg: '#f3f4f6', text: '#6b7280', label: 'En attente', icon: 'group' },
   // Contact decroche
-  connected:        { bg: '#d1fae5', text: '#059669', label: 'Connecte', icon: 'phone' },
+  connected:        { bg: '#d1fae5', text: '#059669', label: 'Connecté', icon: 'phone' },
   meeting_booked:   { bg: '#ccfbf1', text: '#0d9488', label: 'RDV pris', icon: 'phone' },
   // Contact ne repond pas
   no_answer:        { bg: '#f3f4f6', text: '#6b7280', label: 'Pas de reponse', icon: 'phone' },
   voicemail:        { bg: '#f3f4f6', text: '#6b7280', label: 'Messagerie', icon: 'voicemail' },
   voicemail_left:   { bg: '#e0e7ff', text: '#4f46e5', label: 'Message depose', icon: 'voicemail' },
   // Lies a l'appel
-  cancelled:        { bg: '#f3f4f6', text: '#6b7280', label: 'Annule', icon: 'phone' },
-  failed:           { bg: '#fecaca', text: '#dc2626', label: 'Echoue', icon: 'phone' },
-  missed:           { bg: '#fef3c7', text: '#d97706', label: 'Manque', icon: 'phone' },
+  cancelled:        { bg: '#f3f4f6', text: '#6b7280', label: 'Annulé', icon: 'phone' },
+  failed:           { bg: '#fecaca', text: '#dc2626', label: 'Échoué', icon: 'phone' },
+  missed:           { bg: '#fef3c7', text: '#d97706', label: 'Manqué', icon: 'phone' },
   // Lies au numero
-  wrong_number:     { bg: '#fecaca', text: '#dc2626', label: 'Mauvais numero', icon: 'phone' },
-  invalid_number:   { bg: '#fecaca', text: '#dc2626', label: 'Numero invalide', icon: 'phone' },
+  wrong_number:     { bg: '#fecaca', text: '#dc2626', label: 'Mauvais numéro', icon: 'phone' },
+  invalid_number:   { bg: '#fecaca', text: '#dc2626', label: 'Numéro invalide', icon: 'phone' },
   country_mismatch: { bg: '#fecaca', text: '#dc2626', label: 'Indicatif incompatible', icon: 'phone' },
   ios_filter:       { bg: '#fed7aa', text: '#ea580c', label: 'Filtre iOS', icon: 'phone' },
   // Gestion contacts
   snoozed:          { bg: '#e9d5ff', text: '#7c3aed', label: 'En pause', icon: 'group' },
-  disabled:         { bg: '#fecaca', text: '#dc2626', label: 'Desactive', icon: 'group' },
+  disabled:         { bg: '#fecaca', text: '#dc2626', label: 'Désactivé', icon: 'group' },
   max_call:         { bg: '#f3f4f6', text: '#6b7280', label: 'Max atteint', icon: 'phone' },
   // Live pendant session
-  initiated:        { bg: '#fed7aa', text: '#ea580c', label: 'Initie', icon: 'phone' },
+  initiated:        { bg: '#fed7aa', text: '#ea580c', label: 'Initié', icon: 'phone' },
   ringing:          { bg: '#fef3c7', text: '#d97706', label: 'En sonnerie', icon: 'phone' },
   'in-progress':    { bg: '#d1fae5', text: '#059669', label: 'En cours', icon: 'phone' },
 }
@@ -135,7 +135,7 @@ function CallSettingsDropdown({ open, onToggle }: { open: boolean; onToggle: () 
             <span className="text-[13px] text-gray-700">Messagerie vocale</span>
             <div className="flex items-center gap-2">
               <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
-              <span className="text-[13px] text-gray-500">{voicemail ? 'Active' : 'Desactive'}</span>
+              <span className="text-[13px] text-gray-500">{voicemail ? 'Active' : 'Désactivé'}</span>
               <button onClick={() => setVoicemail(!voicemail)}
                 className={`w-10 h-5 rounded-full relative transition-colors ${voicemail ? 'bg-teal-500' : 'bg-gray-300'}`}>
                 <div className={`w-4 h-4 bg-white rounded-full shadow absolute top-0.5 transition-transform ${voicemail ? 'translate-x-5' : 'translate-x-0.5'}`} />
@@ -235,7 +235,7 @@ const ProspectRow = memo(function ProspectRow({ prospect, isActive, onSelect, on
       {/* LAST CALL */}
       <td className="py-3.5 px-4 text-[13px] text-gray-400">{timeAgo(prospect.last_call_at)}</td>
       {/* STATUS (CRM) */}
-      <td className="py-3.5 px-4 text-[13px] text-gray-500">{prospect.crm_status === 'new' ? 'Nouveau' : prospect.crm_status === 'open' ? 'Ouvert' : prospect.crm_status === 'in_progress' ? 'En cours' : prospect.crm_status === 'open_deal' ? 'Affaire ouverte' : prospect.crm_status === 'attempted_to_contact' ? 'Tente de contacter' : prospect.crm_status === 'not_interested' ? 'Pas interesse' : prospect.crm_status === 'callback' ? 'Rappel' : prospect.crm_status === 'rdv' ? 'RDV' : prospect.crm_status === 'mail_sent' ? 'Mail envoye' : prospect.crm_status}</td>
+      <td className="py-3.5 px-4 text-[13px] text-gray-500">{prospect.crm_status === 'new' ? 'Nouveau' : prospect.crm_status === 'open' ? 'Ouvert' : prospect.crm_status === 'in_progress' ? 'En cours' : prospect.crm_status === 'open_deal' ? 'Affaire ouverte' : prospect.crm_status === 'attempted_to_contact' ? 'Tenté de contacter' : prospect.crm_status === 'not_interested' ? 'Pas intéressé' : prospect.crm_status === 'callback' ? 'Rappel' : prospect.crm_status === 'rdv' ? 'RDV' : prospect.crm_status === 'mail_sent' ? 'Mail envoyé' : prospect.crm_status}</td>
       {/* PHONE NUMBER */}
       <td className="py-3.5 px-4 text-[13px] text-gray-400 font-mono">{prospect.phone}</td>
     </tr>
@@ -249,7 +249,9 @@ export default function Dialer() {
   const [activeListId, setActiveListId] = useState<string | null>(null)
   const [selectedProspect, setSelectedProspect] = useState<Prospect | null>(null)
   const [search, setSearch] = useState('')
-  const [sortBy, setSortBy] = useState<'name' | 'last_call' | 'status'>('last_call')
+  const [sortBy, setSortBy] = useState<'last_call' | 'name' | 'status' | 'call_status' | 'calls' | 'company' | 'title'>('last_call')
+  const [filterStatus, setFilterStatus] = useState<string | null>(null)
+  const [showFilters, setShowFilters] = useState(false)
   const [showCSVImport, setShowCSVImport] = useState(false)
   const [showSelectList, setShowSelectList] = useState(false)
   const [openTabIds, setOpenTabIds] = useState<string[]>([])
@@ -279,14 +281,31 @@ export default function Dialer() {
   const activeList = lists?.find(l => l.id === activeListId)
 
   const filtered = prospects
-    ?.filter(p => !search || p.name.toLowerCase().includes(search.toLowerCase())
-      || p.phone.includes(search)
-      || (p.company || '').toLowerCase().includes(search.toLowerCase())
-      || (p.title || '').toLowerCase().includes(search.toLowerCase()))
+    ?.filter(p => {
+      // Filtre recherche
+      if (search && !(
+        p.name.toLowerCase().includes(search.toLowerCase())
+        || p.phone.includes(search)
+        || (p.company || '').toLowerCase().includes(search.toLowerCase())
+        || (p.title || '').toLowerCase().includes(search.toLowerCase())
+        || (p.email || '').toLowerCase().includes(search.toLowerCase())
+      )) return false
+      // Filtre par call status
+      if (filterStatus) {
+        const key = getCallStatusKey(p)
+        if (key !== filterStatus) return false
+      }
+      return true
+    })
     .sort((a, b) => {
-      if (sortBy === 'name') return a.name.localeCompare(b.name)
       if (sortBy === 'last_call') return (b.last_call_at || '').localeCompare(a.last_call_at || '')
-      return a.status.localeCompare(b.status)
+      if (sortBy === 'name') return a.name.localeCompare(b.name)
+      if (sortBy === 'status') return (a.crm_status || '').localeCompare(b.crm_status || '')
+      if (sortBy === 'call_status') return getCallStatusKey(a).localeCompare(getCallStatusKey(b))
+      if (sortBy === 'calls') return (b.call_count || 0) - (a.call_count || 0)
+      if (sortBy === 'company') return (a.company || '').localeCompare(b.company || '')
+      if (sortBy === 'title') return (a.title || '').localeCompare(b.title || '')
+      return 0
     })
 
   // Page "Choisir une liste" (Minari frame 005)
@@ -353,7 +372,7 @@ export default function Dialer() {
                 <svg className="w-4 h-4 text-teal-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
                 {meetings} RDV
               </span>
-              <span className="text-gray-500"><span className="inline-block w-2 h-2 rounded-full bg-emerald-500 mr-1" />Connectes {connected}</span>
+              <span className="text-gray-500"><span className="inline-block w-2 h-2 rounded-full bg-emerald-500 mr-1" />Connectés {connected}</span>
               <span className="text-gray-500"><span className="inline-block w-2 h-2 rounded-full bg-orange-400 mr-1" />Tentatives {attempted}</span>
               <span className="text-gray-400">En attente {pending}</span>
             </div>
@@ -398,12 +417,16 @@ export default function Dialer() {
           {/* Sorted by */}
           <div className="flex items-center gap-1.5 text-[13px] text-gray-500">
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4h13M3 8h9m-9 4h6m4 0l4-4m0 0l4 4m-4-4v12" /></svg>
-            Trie par
+            Trié par
             <select value={sortBy} onChange={e => setSortBy(e.target.value as typeof sortBy)}
               className="text-[13px] text-gray-700 font-medium bg-transparent outline-none cursor-pointer">
               <option value="last_call">Dernier appel</option>
               <option value="name">Nom</option>
-              <option value="status">Statut</option>
+              <option value="call_status">Statut appel</option>
+              <option value="status">Statut CRM</option>
+              <option value="calls">Nombre d'appels</option>
+              <option value="company">Société</option>
+              <option value="title">Poste</option>
             </select>
           </div>
 
@@ -413,10 +436,30 @@ export default function Dialer() {
           </button>
 
           {/* Filter */}
-          <button className="flex items-center gap-1 text-[13px] text-gray-500 hover:text-gray-700">
-            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" /></svg>
-            Filtrer
-          </button>
+          <div className="relative">
+            <button onClick={() => setShowFilters(!showFilters)}
+              className={`flex items-center gap-1 text-[13px] ${filterStatus ? 'text-teal-600 font-medium' : 'text-gray-500 hover:text-gray-700'}`}>
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" /></svg>
+              Filtrer{filterStatus ? ' 1' : ''}
+            </button>
+            {showFilters && (
+              <div className="absolute top-8 left-0 bg-white rounded-xl shadow-lg border border-gray-200 z-50 py-2 w-48">
+                <button onClick={() => { setFilterStatus(null); setShowFilters(false) }}
+                  className={`w-full text-left px-3 py-1.5 text-[12px] hover:bg-gray-50 ${!filterStatus ? 'text-teal-600 font-medium' : 'text-gray-600'}`}>Tous les statuts</button>
+                {['pending', 'connected', 'meeting_booked', 'no_answer', 'voicemail', 'cancelled', 'failed', 'snoozed', 'disabled'].map(s => {
+                  const badge = CALL_STATUS_BADGE[s]
+                  if (!badge) return null
+                  return (
+                    <button key={s} onClick={() => { setFilterStatus(s); setShowFilters(false) }}
+                      className={`w-full text-left px-3 py-1.5 text-[12px] hover:bg-gray-50 flex items-center gap-2 ${filterStatus === s ? 'text-teal-600 font-medium' : 'text-gray-600'}`}>
+                      <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: badge.text }} />
+                      {badge.label}
+                    </button>
+                  )
+                })}
+              </div>
+            )}
+          </div>
 
           {/* Search */}
           <div className="flex items-center gap-1.5 text-gray-400">
@@ -536,8 +579,8 @@ export default function Dialer() {
         </div>
       )}
 
-      {/* Close call settings when clicking outside */}
-      {showCallSettings && <div className="fixed inset-0 z-40" onClick={() => setShowCallSettings(false)} />}
+      {/* Close dropdowns when clicking outside */}
+      {(showCallSettings || showFilters) && <div className="fixed inset-0 z-40" onClick={() => { setShowCallSettings(false); setShowFilters(false) }} />}
     </div>
   )
 }

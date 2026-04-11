@@ -18,17 +18,17 @@ export default function Settings() {
 
   return (
     <div className="min-h-screen bg-white p-6">
-      <h1 className="text-xl font-bold text-gray-800 mb-6">Parametres</h1>
+      <h1 className="text-xl font-bold text-gray-800 mb-6">Paramètres</h1>
 
       <div className="max-w-2xl space-y-6">
 
         {/* ── Call Settings (Minari style) ── */}
         <div className="bg-white rounded-xl border border-gray-200 p-5">
-          <h2 className="text-sm font-bold text-gray-800 mb-5">Parametres d'appel</h2>
+          <h2 className="text-sm font-bold text-gray-800 mb-5">Paramètres d'appel</h2>
 
-          {/* Appels paralleles */}
+          {/* Appels parallèles */}
           <div className="mb-5">
-            <label className="text-xs font-semibold text-gray-600 block mb-2">Appels paralleles</label>
+            <label className="text-xs font-semibold text-gray-600 block mb-2">Appels parallèles</label>
             <div className="flex items-center gap-2">
               {[1, 2, 3, 4, 5].map(n => (
                 <button key={n} onClick={() => setParallelCalls(n)}
@@ -46,7 +46,7 @@ export default function Settings() {
           <div className="mb-5 flex items-center justify-between">
             <div>
               <label className="text-xs font-semibold text-gray-600 block">Rotation auto des numeros</label>
-              <p className="text-[11px] text-gray-400 mt-0.5">Alterne entre les numeros assignes</p>
+              <p className="text-[11px] text-gray-400 mt-0.5">Alterne entre les numéros assignés</p>
             </div>
             <button onClick={() => setAutoRotate(!autoRotate)}
               className={`w-11 h-6 rounded-full transition-colors relative ${autoRotate ? 'bg-emerald-500' : 'bg-gray-300'}`}>
@@ -76,11 +76,11 @@ export default function Settings() {
             </div>
           </div>
 
-          {/* Depot messagerie vocale */}
+          {/* Dépôt messagerie vocale */}
           <div className="mb-5 flex items-center justify-between">
             <div>
-              <label className="text-xs font-semibold text-gray-600 block">Depot messagerie vocale</label>
-              <p className="text-[11px] text-gray-400 mt-0.5">Deposer un message vocal automatiquement sur les repondeurs</p>
+              <label className="text-xs font-semibold text-gray-600 block">Dépôt messagerie vocale</label>
+              <p className="text-[11px] text-gray-400 mt-0.5">Déposer un message vocal automatiquement sur les répondeurs</p>
             </div>
             <button onClick={() => setVoicemailDrop(!voicemailDrop)}
               className={`w-11 h-6 rounded-full transition-colors relative ${voicemailDrop ? 'bg-emerald-500' : 'bg-gray-300'}`}>
@@ -173,7 +173,7 @@ export default function Settings() {
                 <span className="text-[11px] font-mono text-gray-400 w-48">{key}</span>
                 <span className="text-[11px] text-emerald-500 font-semibold flex items-center gap-1">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                  Configure
+                  Configuré
                 </span>
               </div>
             ))}
