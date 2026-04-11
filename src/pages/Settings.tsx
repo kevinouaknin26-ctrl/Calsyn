@@ -18,17 +18,17 @@ export default function Settings() {
 
   return (
     <div className="min-h-screen bg-white p-6">
-      <h1 className="text-xl font-bold text-gray-800 mb-6">Settings</h1>
+      <h1 className="text-xl font-bold text-gray-800 mb-6">Parametres</h1>
 
       <div className="max-w-2xl space-y-6">
 
         {/* ── Call Settings (Minari style) ── */}
         <div className="bg-white rounded-xl border border-gray-200 p-5">
-          <h2 className="text-sm font-bold text-gray-800 mb-5">Call Settings</h2>
+          <h2 className="text-sm font-bold text-gray-800 mb-5">Parametres d'appel</h2>
 
-          {/* Parallel calls */}
+          {/* Appels paralleles */}
           <div className="mb-5">
-            <label className="text-xs font-semibold text-gray-600 block mb-2">Parallel calls</label>
+            <label className="text-xs font-semibold text-gray-600 block mb-2">Appels paralleles</label>
             <div className="flex items-center gap-2">
               {[1, 2, 3, 4, 5].map(n => (
                 <button key={n} onClick={() => setParallelCalls(n)}
@@ -45,7 +45,7 @@ export default function Settings() {
           {/* Auto rotate numbers */}
           <div className="mb-5 flex items-center justify-between">
             <div>
-              <label className="text-xs font-semibold text-gray-600 block">Auto-rotate caller phone numbers</label>
+              <label className="text-xs font-semibold text-gray-600 block">Rotation auto des numeros</label>
               <p className="text-[11px] text-gray-400 mt-0.5">Alterne entre les numeros assignes</p>
             </div>
             <button onClick={() => setAutoRotate(!autoRotate)}
@@ -56,11 +56,11 @@ export default function Settings() {
 
           {/* Max call attempts */}
           <div className="mb-5">
-            <label className="text-xs font-semibold text-gray-600 block mb-2">Maximum call attempts per contact</label>
+            <label className="text-xs font-semibold text-gray-600 block mb-2">Tentatives max par contact</label>
             <div className="flex items-center gap-2">
               <select value={maxAttempts} onChange={e => setMaxAttempts(e.target.value)}
                 className="px-3 py-1.5 rounded-lg border border-gray-200 text-xs text-gray-700 outline-none">
-                <option value="unlimited">Unlimited</option>
+                <option value="unlimited">Illimite</option>
                 <option value="1">1</option>
                 <option value="2">2</option>
                 <option value="3">3</option>
@@ -69,17 +69,17 @@ export default function Settings() {
               </select>
               <select value={attemptPeriod} onChange={e => setAttemptPeriod(e.target.value)}
                 className="px-3 py-1.5 rounded-lg border border-gray-200 text-xs text-gray-700 outline-none">
-                <option value="per_day">per day</option>
-                <option value="per_week">per week</option>
+                <option value="per_day">par jour</option>
+                <option value="per_week">par semaine</option>
                 <option value="total">total</option>
               </select>
             </div>
           </div>
 
-          {/* Voicemail drop */}
+          {/* Depot messagerie vocale */}
           <div className="mb-5 flex items-center justify-between">
             <div>
-              <label className="text-xs font-semibold text-gray-600 block">Voicemail drop</label>
+              <label className="text-xs font-semibold text-gray-600 block">Depot messagerie vocale</label>
               <p className="text-[11px] text-gray-400 mt-0.5">Deposer un message vocal automatiquement sur les repondeurs</p>
             </div>
             <button onClick={() => setVoicemailDrop(!voicemailDrop)}
@@ -88,35 +88,35 @@ export default function Settings() {
             </button>
           </div>
 
-          {/* Conversation threshold */}
+          {/* Seuil de conversation */}
           <div className="mb-2">
-            <label className="text-xs font-semibold text-gray-600 block mb-2">Conversation threshold</label>
+            <label className="text-xs font-semibold text-gray-600 block mb-2">Seuil de conversation</label>
             <div className="flex items-center gap-2">
               <select value={conversationThreshold} onChange={e => setConversationThreshold(Number(e.target.value))}
                 className="px-3 py-1.5 rounded-lg border border-gray-200 text-xs text-gray-700 outline-none">
-                <option value={0}>0 seconds</option>
-                <option value={30}>30 seconds</option>
-                <option value={60}>60 seconds</option>
+                <option value={0}>0 seconde</option>
+                <option value={30}>30 seconde</option>
+                <option value={60}>60 seconde</option>
               </select>
             </div>
             <p className="text-[11px] text-gray-400 mt-1.5">Duree minimum pour compter comme "Conversation" dans les analytics</p>
           </div>
         </div>
 
-        {/* ── AI Summary Settings ── */}
+        {/* ── Resume IA Settings ── */}
         <div className="bg-white rounded-xl border border-gray-200 p-5">
-          <h2 className="text-sm font-bold text-gray-800 mb-4">AI Summary</h2>
+          <h2 className="text-sm font-bold text-gray-800 mb-4">Resume IA</h2>
           <p className="text-xs text-gray-400 mb-3">Les transcriptions sont generees pour les appels de 20 secondes minimum. Langues auto-detectees : FR, EN, DE, IT, ES.</p>
           <div className="p-3 rounded-lg bg-gray-50 border border-gray-200">
             <p className="text-[10px] font-bold text-gray-400 uppercase mb-1">Prompt standard</p>
             <p className="text-xs text-gray-600">Resume, signaux cles, score de qualification</p>
           </div>
-          <button className="mt-3 text-xs text-teal-600 hover:text-teal-700 font-medium">+ New custom prompt</button>
+          <button className="mt-3 text-xs text-teal-600 hover:text-teal-700 font-medium">+ Nouveau prompt personnalise</button>
         </div>
 
-        {/* ── Incoming Calls (Callback) ── */}
+        {/* ── Appels entrants (Callback) ── */}
         <div className="bg-white rounded-xl border border-gray-200 p-5">
-          <h2 className="text-sm font-bold text-gray-800 mb-4">Incoming Calls</h2>
+          <h2 className="text-sm font-bold text-gray-800 mb-4">Appels entrants</h2>
           <div className="space-y-3">
             <label className="flex items-start gap-3 p-3 rounded-lg border border-gray-200 cursor-pointer hover:bg-gray-50">
               <input type="radio" name="callback" defaultChecked className="mt-0.5 accent-teal-600" />
@@ -165,7 +165,7 @@ export default function Settings() {
 
         {/* ── Twilio Config ── */}
         <div className="bg-white rounded-xl border border-gray-200 p-5">
-          <h2 className="text-sm font-bold text-gray-800 mb-4">VoIP Configuration</h2>
+          <h2 className="text-sm font-bold text-gray-800 mb-4">Configuration VoIP</h2>
           <p className="text-xs text-gray-400 mb-3">Les secrets sont configures cote serveur.</p>
           <div className="space-y-2">
             {['TWILIO_ACCOUNT_SID', 'TWILIO_API_KEY_SID', 'TWILIO_TWIML_APP_SID'].map(key => (
@@ -173,7 +173,7 @@ export default function Settings() {
                 <span className="text-[11px] font-mono text-gray-400 w-48">{key}</span>
                 <span className="text-[11px] text-emerald-500 font-semibold flex items-center gap-1">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                  Configured
+                  Configure
                 </span>
               </div>
             ))}

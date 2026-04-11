@@ -18,15 +18,15 @@ import type { Prospect } from '@/types/prospect'
 // Pending, Connected, Attempted, Voicemail, Meeting booked
 // + etats live pendant session : In-progress, Ringing
 const CALL_STATUS_BADGE: Record<string, { bg: string; text: string; label: string; icon: string }> = {
-  pending:        { bg: '#f3f4f6', text: '#6b7280', label: 'Pending', icon: 'group' },
-  connected:      { bg: '#d1fae5', text: '#059669', label: 'Connected', icon: 'phone' },
-  attempted:      { bg: '#f3f4f6', text: '#6b7280', label: 'Attempted', icon: 'phone' },
-  voicemail:      { bg: '#f3f4f6', text: '#6b7280', label: 'Voicemail', icon: 'voicemail' },
-  meeting_booked: { bg: '#ccfbf1', text: '#0d9488', label: 'Meeting booked', icon: 'phone' },
-  // Live pendant session (Pending → Initiated → Ringing → In-progress → Connected)
-  initiated:      { bg: '#fed7aa', text: '#ea580c', label: 'Initiated', icon: 'phone' },
-  ringing:        { bg: '#fef3c7', text: '#d97706', label: 'Ringing', icon: 'phone' },
-  'in-progress':  { bg: '#d1fae5', text: '#059669', label: 'In-progress', icon: 'phone' },
+  pending:        { bg: '#f3f4f6', text: '#6b7280', label: 'En attente', icon: 'group' },
+  connected:      { bg: '#d1fae5', text: '#059669', label: 'Connecte', icon: 'phone' },
+  attempted:      { bg: '#f3f4f6', text: '#6b7280', label: 'Tente', icon: 'phone' },
+  voicemail:      { bg: '#f3f4f6', text: '#6b7280', label: 'Messagerie', icon: 'voicemail' },
+  meeting_booked: { bg: '#ccfbf1', text: '#0d9488', label: 'RDV pris', icon: 'phone' },
+  // Live pendant session
+  initiated:      { bg: '#fed7aa', text: '#ea580c', label: 'Initie', icon: 'phone' },
+  ringing:        { bg: '#fef3c7', text: '#d97706', label: 'En sonnerie', icon: 'phone' },
+  'in-progress':  { bg: '#d1fae5', text: '#059669', label: 'En cours', icon: 'phone' },
 }
 
 /** Mappe le last_call_outcome vers un badge CALL STATUS Minari */
@@ -60,13 +60,13 @@ function timeAgo(dateStr: string | null): string {
   if (!dateStr) return '-'
   const diff = Date.now() - new Date(dateStr).getTime()
   const mins = Math.floor(diff / 60000)
-  if (mins < 1) return 'just now'
-  if (mins < 60) return `about ${mins} minutes ago`
+  if (mins < 1) return 'a l\'instant'
+  if (mins < 60) return `il y a ${mins} min`
   const hours = Math.floor(mins / 60)
-  if (hours < 24) return `about ${hours} hours ago`
+  if (hours < 24) return `il y a ${hours}h`
   const days = Math.floor(hours / 24)
-  if (days === 1) return 'yesterday'
-  return `about ${days} days ago`
+  if (days === 1) return 'hier'
+  return `il y a ${days}j`
 }
 
 // ── Call Settings Dropdown (Minari frame 012 exact) ───────────────
@@ -81,7 +81,7 @@ function CallSettingsDropdown({ open, onToggle }: { open: boolean; onToggle: () 
     <div className="relative">
       <button onClick={onToggle} className="flex items-center gap-1.5 text-[13px] text-gray-600 hover:text-gray-800">
         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" /></svg>
-        Call settings
+        Parametres d'appel
         <svg className={`w-3 h-3 transition-transform ${open ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
       </button>
 
@@ -89,7 +89,7 @@ function CallSettingsDropdown({ open, onToggle }: { open: boolean; onToggle: () 
         <div className="absolute right-0 top-8 w-[420px] bg-white rounded-xl shadow-lg border border-gray-200 z-50 p-5 space-y-5">
           {/* Parallel calls */}
           <div className="flex items-center justify-between">
-            <span className="text-[13px] text-gray-700">Parallel calls</span>
+            <span className="text-[13px] text-gray-700">Appels paralleles</span>
             <div className="flex items-center border border-gray-200 rounded-lg overflow-hidden">
               {[1, 2, 3, 4, 5].map(n => (
                 <button key={n} onClick={() => setParallel(n)}
@@ -102,16 +102,16 @@ function CallSettingsDropdown({ open, onToggle }: { open: boolean; onToggle: () 
 
           {/* From phone number */}
           <div className="flex items-center justify-between">
-            <span className="text-[13px] text-gray-700">From phone number</span>
+            <span className="text-[13px] text-gray-700">Numero appelant</span>
             <span className="text-[13px] text-gray-500">+33 1 59 58 01 89</span>
           </div>
 
           {/* Voicemail */}
           <div className="flex items-center justify-between">
-            <span className="text-[13px] text-gray-700">Voicemail</span>
+            <span className="text-[13px] text-gray-700">Messagerie vocale</span>
             <div className="flex items-center gap-2">
               <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
-              <span className="text-[13px] text-gray-500">{voicemail ? 'On' : 'Off'}</span>
+              <span className="text-[13px] text-gray-500">{voicemail ? 'Active' : 'Desactive'}</span>
               <button onClick={() => setVoicemail(!voicemail)}
                 className={`w-10 h-5 rounded-full relative transition-colors ${voicemail ? 'bg-teal-500' : 'bg-gray-300'}`}>
                 <div className={`w-4 h-4 bg-white rounded-full shadow absolute top-0.5 transition-transform ${voicemail ? 'translate-x-5' : 'translate-x-0.5'}`} />
@@ -121,13 +121,13 @@ function CallSettingsDropdown({ open, onToggle }: { open: boolean; onToggle: () 
 
           {/* Contact phone number field */}
           <div className="flex items-center justify-between">
-            <span className="text-[13px] text-gray-700">Contact phone number field</span>
-            <span className="text-[13px] text-gray-500">Phone number ▾</span>
+            <span className="text-[13px] text-gray-700">Champ telephone du contact</span>
+            <span className="text-[13px] text-gray-500">Telephone ▾</span>
           </div>
 
           {/* Complete task when contact dialed */}
           <div className="flex items-center justify-between">
-            <span className="text-[13px] text-gray-700">Complete task when contact dialed</span>
+            <span className="text-[13px] text-gray-700">Terminer la tache quand le contact est compose</span>
             <button className="w-10 h-5 rounded-full bg-gray-300 relative">
               <div className="w-4 h-4 bg-white rounded-full shadow absolute top-0.5 translate-x-0.5" />
             </button>
@@ -135,7 +135,7 @@ function CallSettingsDropdown({ open, onToggle }: { open: boolean; onToggle: () 
 
           {/* Auto-rotate */}
           <div className="flex items-center justify-between">
-            <span className="text-[13px] text-gray-700">Auto-rotate caller phone numbers</span>
+            <span className="text-[13px] text-gray-700">Rotation auto des numeros</span>
             <button onClick={() => setAutoRotate(!autoRotate)}
               className={`w-10 h-5 rounded-full relative transition-colors ${autoRotate ? 'bg-teal-500' : 'bg-gray-300'}`}>
               <div className={`w-4 h-4 bg-white rounded-full shadow absolute top-0.5 transition-transform ${autoRotate ? 'translate-x-5' : 'translate-x-0.5'}`} />
@@ -144,16 +144,16 @@ function CallSettingsDropdown({ open, onToggle }: { open: boolean; onToggle: () 
 
           {/* Max call attempts */}
           <div className="flex items-center justify-between">
-            <span className="text-[13px] text-gray-700">Maximum call attempts<br/><span className="text-gray-400">per contact</span></span>
+            <span className="text-[13px] text-gray-700">Tentatives d'appel max<br/><span className="text-gray-400">par contact</span></span>
             <div className="flex items-center gap-1.5">
               <select value={maxAttempts} onChange={e => setMaxAttempts(e.target.value)}
                 className="text-[13px] text-gray-600 bg-transparent border border-gray-200 rounded-lg px-2 py-1 outline-none">
-                <option>Unlimited</option><option>1</option><option>2</option><option>3</option><option>5</option><option>10</option>
+                <option>Illimite</option><option>1</option><option>2</option><option>3</option><option>5</option><option>10</option>
               </select>
-              <span className="text-[13px] text-gray-400">per</span>
+              <span className="text-[13px] text-gray-400">par</span>
               <select value={attemptPeriod} onChange={e => setAttemptPeriod(e.target.value)}
                 className="text-[13px] text-gray-600 bg-transparent border border-gray-200 rounded-lg px-2 py-1 outline-none">
-                <option value="day">day</option><option value="week">week</option>
+                <option value="day">jour</option><option value="week">semaine</option>
               </select>
             </div>
           </div>
@@ -211,7 +211,7 @@ const ProspectRow = memo(function ProspectRow({ prospect, isActive, onSelect, on
       {/* LAST CALL */}
       <td className="py-3.5 px-4 text-[13px] text-gray-400">{timeAgo(prospect.last_call_at)}</td>
       {/* STATUS (CRM) */}
-      <td className="py-3.5 px-4 text-[13px] text-gray-500">{prospect.crm_status === 'new' ? 'New' : prospect.crm_status === 'open' ? 'Open' : prospect.crm_status === 'in_progress' ? 'In Progress' : prospect.crm_status === 'open_deal' ? 'Open Deal' : prospect.crm_status === 'attempted_to_contact' ? 'Attempted to Contact' : prospect.crm_status === 'not_interested' ? 'Not interested' : prospect.crm_status === 'callback' ? 'Callback' : prospect.crm_status === 'rdv' ? 'RDV' : prospect.crm_status === 'mail_sent' ? 'Mail sent' : prospect.crm_status}</td>
+      <td className="py-3.5 px-4 text-[13px] text-gray-500">{prospect.crm_status === 'new' ? 'Nouveau' : prospect.crm_status === 'open' ? 'Ouvert' : prospect.crm_status === 'in_progress' ? 'En cours' : prospect.crm_status === 'open_deal' ? 'Affaire ouverte' : prospect.crm_status === 'attempted_to_contact' ? 'Tente de contacter' : prospect.crm_status === 'not_interested' ? 'Pas interesse' : prospect.crm_status === 'callback' ? 'Rappel' : prospect.crm_status === 'rdv' ? 'RDV' : prospect.crm_status === 'mail_sent' ? 'Mail envoye' : prospect.crm_status}</td>
       {/* PHONE NUMBER */}
       <td className="py-3.5 px-4 text-[13px] text-gray-400 font-mono">{prospect.phone}</td>
     </tr>
@@ -273,7 +273,7 @@ export default function Dialer() {
           if (name?.trim()) { const l = await createList.mutateAsync(name.trim()); setActiveListId(l.id) }
         }} className="flex items-center gap-1 px-3 py-2.5 text-[12px] font-medium text-emerald-600 hover:text-emerald-700 whitespace-nowrap flex-shrink-0">
           <span className="w-3.5 h-3.5 rounded-full bg-emerald-500 text-white flex items-center justify-center text-[9px] font-bold">+</span>
-          New list
+          Nouvelle liste
         </button>
         {lists?.map(l => (
           <button key={l.id} onClick={() => setActiveListId(l.id)}
@@ -299,18 +299,18 @@ export default function Dialer() {
             <span className="text-[13px] text-gray-400">{prospects?.length || 0} contacts</span>
             <button className="text-[13px] text-gray-400 hover:text-gray-600 flex items-center gap-1">
               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
-              Refresh
+              Actualiser
             </button>
           </div>
           <div className="flex flex-col items-end gap-1">
             <div className="flex items-center gap-4 text-[13px]">
               <span className="text-gray-400 flex items-center gap-1">
                 <svg className="w-4 h-4 text-teal-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-                {meetings} meeting{meetings !== 1 ? 's' : ''}
+                {meetings} RDV
               </span>
-              <span className="text-gray-500"><span className="inline-block w-2 h-2 rounded-full bg-emerald-500 mr-1" />Connected {connected}</span>
-              <span className="text-gray-500"><span className="inline-block w-2 h-2 rounded-full bg-orange-400 mr-1" />Attempted {attempted}</span>
-              <span className="text-gray-400">Pending {pending}</span>
+              <span className="text-gray-500"><span className="inline-block w-2 h-2 rounded-full bg-emerald-500 mr-1" />Connectes {connected}</span>
+              <span className="text-gray-500"><span className="inline-block w-2 h-2 rounded-full bg-orange-400 mr-1" />Tentes {attempted}</span>
+              <span className="text-gray-400">En attente {pending}</span>
             </div>
             {/* Barre de progression unique (Minari exact) */}
             {(prospects?.length || 0) > 0 && (
@@ -332,33 +332,33 @@ export default function Dialer() {
           {isInCall ? (
             <button onClick={cm.hangup}
               className="px-4 py-2 rounded-full text-[13px] font-semibold bg-red-500 text-white hover:bg-red-600 transition-colors">
-              Cancel calls
+              Annuler les appels
             </button>
           ) : (
             <button onClick={() => { const next = prospects?.find(p => p.call_count === 0); if (next) handleCall(next) }}
               disabled={!cm.providerReady || !(cm.isIdle || cm.isDisconnected)}
               className="px-4 py-2 rounded-full text-[13px] font-semibold bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-40 transition-colors flex items-center gap-1.5">
               <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" /></svg>
-              {cm.providerReady ? 'Resume calling' : 'Connecting...'}
+              {cm.providerReady ? 'Reprendre les appels' : 'Connexion...'}
             </button>
           )}
 
           {/* Redial */}
           {(prospects?.filter(p => p.last_call_outcome === 'no_answer' || p.last_call_outcome === 'voicemail').length || 0) > 0 && (
             <button className="px-4 py-2 rounded-full text-[13px] font-semibold bg-emerald-600 text-white hover:bg-emerald-700 transition-colors">
-              Redial {prospects?.filter(p => p.last_call_outcome === 'no_answer' || p.last_call_outcome === 'voicemail').length} contacts
+              Rappeler {prospects?.filter(p => p.last_call_outcome === 'no_answer' || p.last_call_outcome === 'voicemail').length} contacts
             </button>
           )}
 
           {/* Sorted by */}
           <div className="flex items-center gap-1.5 text-[13px] text-gray-500">
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4h13M3 8h9m-9 4h6m4 0l4-4m0 0l4 4m-4-4v12" /></svg>
-            Sorted by
+            Trie par
             <select value={sortBy} onChange={e => setSortBy(e.target.value as typeof sortBy)}
               className="text-[13px] text-gray-700 font-medium bg-transparent outline-none cursor-pointer">
-              <option value="last_call">Last Call</option>
-              <option value="name">Name</option>
-              <option value="status">Status</option>
+              <option value="last_call">Dernier appel</option>
+              <option value="name">Nom</option>
+              <option value="status">Statut</option>
             </select>
           </div>
 
@@ -370,13 +370,13 @@ export default function Dialer() {
           {/* Filter */}
           <button className="flex items-center gap-1 text-[13px] text-gray-500 hover:text-gray-700">
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" /></svg>
-            Filter
+            Filtrer
           </button>
 
           {/* Search */}
           <div className="flex items-center gap-1.5 text-gray-400">
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
-            <input type="text" placeholder="Search contacts..." value={search} onChange={e => setSearch(e.target.value)}
+            <input type="text" placeholder="Rechercher des contacts..." value={search} onChange={e => setSearch(e.target.value)}
               className="text-[13px] bg-transparent outline-none text-gray-700 placeholder:text-gray-400 w-40" />
           </div>
         </div>
@@ -384,7 +384,7 @@ export default function Dialer() {
         <div className="flex items-center gap-3">
           {/* Import CSV */}
           <button onClick={() => setShowCSVImport(true)}
-            className="text-[13px] text-gray-400 hover:text-gray-600">+ Import</button>
+            className="text-[13px] text-gray-400 hover:text-gray-600">+ Importer</button>
 
           {/* Call settings dropdown (Minari exact position) */}
           <CallSettingsDropdown open={showCallSettings} onToggle={() => setShowCallSettings(!showCallSettings)} />
@@ -396,14 +396,14 @@ export default function Dialer() {
           <table className="w-full">
             <thead>
               <tr className="border-b border-gray-100">
-                <th className="py-3 px-5 text-left text-[10px] font-bold text-gray-400 uppercase tracking-[0.08em]">Call Status</th>
-                <th className="py-3 px-3 text-center text-[10px] font-bold text-gray-400 uppercase tracking-[0.08em]">Calls</th>
-                <th className="py-3 px-4 text-left text-[10px] font-bold text-gray-400 uppercase tracking-[0.08em]">Name</th>
-                <th className="py-3 px-4 text-left text-[10px] font-bold text-gray-400 uppercase tracking-[0.08em]">Title</th>
-                <th className="py-3 px-4 text-left text-[10px] font-bold text-gray-400 uppercase tracking-[0.08em]">Company</th>
-                <th className="py-3 px-4 text-left text-[10px] font-bold text-gray-400 uppercase tracking-[0.08em]">Last Call</th>
-                <th className="py-3 px-4 text-left text-[10px] font-bold text-gray-400 uppercase tracking-[0.08em]">Status</th>
-                <th className="py-3 px-4 text-left text-[10px] font-bold text-gray-400 uppercase tracking-[0.08em]">Phone Number</th>
+                <th className="py-3 px-5 text-left text-[10px] font-bold text-gray-400 uppercase tracking-[0.08em]">Statut appel</th>
+                <th className="py-3 px-3 text-center text-[10px] font-bold text-gray-400 uppercase tracking-[0.08em]">Appels</th>
+                <th className="py-3 px-4 text-left text-[10px] font-bold text-gray-400 uppercase tracking-[0.08em]">Nom</th>
+                <th className="py-3 px-4 text-left text-[10px] font-bold text-gray-400 uppercase tracking-[0.08em]">Poste</th>
+                <th className="py-3 px-4 text-left text-[10px] font-bold text-gray-400 uppercase tracking-[0.08em]">Societe</th>
+                <th className="py-3 px-4 text-left text-[10px] font-bold text-gray-400 uppercase tracking-[0.08em]">Dernier appel</th>
+                <th className="py-3 px-4 text-left text-[10px] font-bold text-gray-400 uppercase tracking-[0.08em]">Statut</th>
+                <th className="py-3 px-4 text-left text-[10px] font-bold text-gray-400 uppercase tracking-[0.08em]">Telephone</th>
               </tr>
             </thead>
             <tbody>
@@ -420,8 +420,8 @@ export default function Dialer() {
           </table>
           {!prospects?.length && (
             <div className="text-center py-20">
-              <p className="text-[13px] text-gray-400">No contacts in this list</p>
-              <button onClick={() => setShowCSVImport(true)} className="text-[13px] text-emerald-600 hover:text-emerald-700 mt-2 font-medium">Import from CSV</button>
+              <p className="text-[13px] text-gray-400">Aucun contact dans cette liste</p>
+              <button onClick={() => setShowCSVImport(true)} className="text-[13px] text-emerald-600 hover:text-emerald-700 mt-2 font-medium">Importer depuis un CSV</button>
             </div>
           )}
       </div>
