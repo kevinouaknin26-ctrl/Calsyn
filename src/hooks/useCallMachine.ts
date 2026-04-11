@@ -48,14 +48,19 @@ export function useCallMachine() {
       onStateChange: (callState, session) => {
         if (cancelled) return
         sessionRef.current = session
-        console.log(`[useCallMachine] Provider state: ${callState}`)
+        const sid = session.id
+        console.log(`[useCallMachine] Provider state: ${callState}, sid: ${sid}`)
         if (callState === 'ringing') {
-          send({ type: 'RINGING', callSid: session.id })
+          if (sid) send({ type: 'RINGING', callSid: sid })
         }
         if (callState === 'active') {
+          // Capturer le callSid au accept si pas encore capturé au ringing
+          if (sid) send({ type: 'RINGING', callSid: sid })
           send({ type: 'ANSWERED' })
         }
         if (callState === 'done') {
+          // Dernier essai de capturer le callSid
+          if (sid) send({ type: 'RINGING', callSid: sid })
           setTimeout(() => { if (!cancelled) send({ type: 'REMOTE_HANG_UP' }) }, 100)
         }
       },
@@ -82,15 +87,20 @@ export function useCallMachine() {
   }, [organisation, send])
 
   // ── Autosave : quand on passe en disconnected, save en background ──
+  const isDisconnectedState = state.matches('disconnected')
+  const contextCallSid = state.context.callSid
+  const contextProspectId = state.context.prospect?.id
+
   useEffect(() => {
-    if (state.matches('disconnected') && state.context.callSid) {
-      console.log('[useCallMachine] Autosaving call...')
+    if (isDisconnectedState) {
+      console.log(`[useCallMachine] Autosave trigger — callSid: ${contextCallSid}, prospect: ${contextProspectId}`)
+      // Save meme sans callSid — le prospect_id suffit pour identifier l'appel
       saveCallDisposition({
         callSid: state.context.callSid,
         conferenceSid: state.context.conferenceSid,
         prospectId: state.context.prospect?.id ?? null,
         duration: state.context.duration,
-        disposition: state.context.disposition,
+        disposition: state.context.disposition || 'connected',
         notes: state.context.notes,
         meetingBooked: state.context.meetingBooked,
       }).then(() => {
@@ -99,7 +109,7 @@ export function useCallMachine() {
         console.error('[useCallMachine] Save failed:', err)
       })
     }
-  }, [state.value, state.context.callSid])
+  }, [isDisconnectedState])
 
   // ── Actions ───────────────────────────────────────────────────────
 
@@ -128,6 +138,9 @@ export function useCallMachine() {
   }, [send])
 
   const hangup = useCallback(() => {
+    // Capturer le callSid avant de deconnecter
+    const sid = sessionRef.current?.id
+    if (sid) send({ type: 'RINGING', callSid: sid })
     providerRef.current?.disconnectAll()
     sessionRef.current = null
     send({ type: 'HANG_UP' })
