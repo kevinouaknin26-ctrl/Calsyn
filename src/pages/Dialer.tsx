@@ -179,7 +179,14 @@ export default function Dialer() {
           onSetDisposition={cm.setDisposition}
           onSetNotes={cm.setNotes}
           onSetMeeting={cm.setMeeting}
-          onReset={() => { cm.reset(); setSelectedProspect(null) }}
+          onReset={() => { cm.reset() }}
+          onNextCall={() => {
+            cm.reset()
+            setSelectedProspect(null)
+            // Appeler le prochain prospect idle
+            const next = prospects?.find(p => p.status === 'idle' && p.id !== selectedProspect?.id)
+            if (next) setTimeout(() => handleCall(next), 300)
+          }}
           providerReady={cm.providerReady}
         />
       )}
