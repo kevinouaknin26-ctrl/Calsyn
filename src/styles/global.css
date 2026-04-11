@@ -27,20 +27,20 @@
     --text-placeholder: #d1d5db;
   }
 
-  /* Mode sombre */
+  /* Mode sombre — violet pâle pastel, pas trop sombre */
   .dark {
-    --bg-page: #0f0f1a;
-    --bg-card: #1a1a2e;
-    --bg-sidebar: #12121f;
-    --bg-input: #1e1e35;
-    --bg-hover: rgba(255,255,255,0.05);
-    --bg-table-header: rgba(30,30,50,0.8);
-    --border: #2d2d4a;
-    --border-light: rgba(45,45,74,0.5);
-    --text-primary: #e5e7eb;
-    --text-secondary: #9ca3af;
-    --text-muted: #6b7280;
-    --text-placeholder: #4b5563;
+    --bg-page: #e8e0f0;
+    --bg-card: #f0eaf5;
+    --bg-sidebar: #e4dced;
+    --bg-input: #ede6f3;
+    --bg-hover: rgba(0,0,0,0.04);
+    --bg-table-header: rgba(228,220,237,0.8);
+    --border: #d4cade;
+    --border-light: rgba(212,202,222,0.5);
+    --text-primary: #2d2640;
+    --text-secondary: #5c5270;
+    --text-muted: #8a7fa0;
+    --text-placeholder: #b0a6c0;
   }
 
   body { background: var(--bg-page); color: var(--text-primary); }

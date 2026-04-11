@@ -7,7 +7,7 @@ import { useRealtimeCalls } from '@/hooks/useRealtime'
 
 function StatCard({ label, value, sub, color }: { label: string; value: string | number; sub?: string; color: string }) {
   return (
-    <div className="bg-white dark:bg-[#1a1a2e] rounded-xl border border-gray-200 dark:border-gray-700 p-5">
+    <div className="bg-white dark:bg-[#f0eaf5] rounded-xl border border-gray-200 dark:border-[#d4cade] p-5">
       <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">{label}</p>
       <p className="text-3xl font-extrabold" style={{ color }}>{value}</p>
       {sub && <p className="text-xs text-gray-400 mt-1">{sub}</p>}
@@ -28,7 +28,7 @@ export default function Dashboard() {
   const connectRate = total > 0 ? Math.round((connected / total) * 100) : 0
 
   return (
-    <div className="min-h-screen bg-[#f8f9fa] dark:bg-[#0f0f1a] p-6">
+    <div className="min-h-screen bg-[#f8f9fa] dark:bg-[#e8e0f0] p-6">
       <h1 className="text-xl font-bold text-gray-800 mb-6">Tableau de bord</h1>
 
       {isLoading ? (
@@ -43,7 +43,7 @@ export default function Dashboard() {
           </div>
 
           {total === 0 && (
-            <div className="text-center py-20 bg-white dark:bg-[#1a1a2e] rounded-xl border border-gray-200 dark:border-gray-700">
+            <div className="text-center py-20 bg-white dark:bg-[#f0eaf5] rounded-xl border border-gray-200 dark:border-[#d4cade]">
               <p className="text-4xl mb-4">📊</p>
               <p className="text-sm font-semibold text-gray-700">Pas encore de donnees</p>
               <p className="text-xs text-gray-400 mt-1">Les stats apparaitront apres les premiers appels</p>

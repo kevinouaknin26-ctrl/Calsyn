@@ -162,7 +162,7 @@ function CallSettingsDropdown({ open, onToggle }: { open: boolean; onToggle: () 
       </button>
 
       {open && (
-        <div className="absolute right-0 top-10 w-[440px] bg-white dark:bg-[#1e1e35] rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 z-50 p-5 space-y-4 animate-slide-down">
+        <div className="absolute right-0 top-10 w-[440px] bg-white dark:bg-[#ede6f3] rounded-xl shadow-lg border border-gray-200 dark:border-[#d4cade] z-50 p-5 space-y-4 animate-slide-down">
 
           {/* Microphone (connecté — vrais périphériques + Test/Play) */}
           <div>
@@ -571,9 +571,9 @@ export default function Dialer() {
   }
 
   return (
-    <div className="min-h-screen bg-[#f5f3ff] dark:bg-[#0f0f1a] p-4 pl-2">
+    <div className="min-h-screen bg-[#f5f3ff] dark:bg-[#e8e0f0] p-4 pl-2">
       {/* ── UN SEUL conteneur blanc arrondi (Minari exact) ── */}
-      <div className="bg-white dark:bg-[#1a1a2e] rounded-2xl shadow-sm border border-gray-200/50 dark:border-gray-700/50 min-h-[calc(100vh-2rem)] flex flex-col overflow-hidden">
+      <div className="bg-white dark:bg-[#f0eaf5] rounded-2xl shadow-sm border border-gray-200/50 dark:border-[#d4cade]/50 min-h-[calc(100vh-2rem)] flex flex-col overflow-hidden">
 
       {/* ── Tabs listes ── */}
       <div className="border-b border-gray-100 flex items-center overflow-x-auto px-3">
@@ -740,7 +740,7 @@ export default function Dialer() {
               Filtrer{filterStatus ? ' 1' : ''}
             </button>
             {showFilters && (
-              <div className="absolute top-8 left-0 bg-white dark:bg-[#1e1e35] rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 z-50 py-2 w-48 animate-slide-down">
+              <div className="absolute top-8 left-0 bg-white dark:bg-[#ede6f3] rounded-xl shadow-lg border border-gray-200 dark:border-[#d4cade] z-50 py-2 w-48 animate-slide-down">
                 <button onClick={() => { setFilterStatus(null); setShowFilters(false) }}
                   className={`w-full text-left px-3 py-1.5 text-[12px] hover:bg-gray-50 ${!filterStatus ? 'text-indigo-600 font-medium' : 'text-gray-600'}`}>Tous les statuts</button>
                 {['pending', 'connected', 'meeting_booked', 'no_answer', 'voicemail', 'cancelled', 'failed', 'snoozed', 'disabled'].map(s => {

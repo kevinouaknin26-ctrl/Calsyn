@@ -467,10 +467,10 @@ export default function ProspectModal({
 
       <div className="fixed inset-0 bg-black/15 flex items-start justify-center pt-[5vh] z-40"
         onClick={e => { if (e.target === e.currentTarget && !isInCall) onClose() }}>
-        <div className="bg-white dark:bg-[#1a1a2e] rounded-2xl shadow-xl w-[880px] max-h-[85vh] flex animate-fade-in-scale">
+        <div className="bg-white dark:bg-[#f0eaf5] rounded-2xl shadow-xl w-[880px] max-h-[85vh] flex animate-fade-in-scale">
 
           {/* ── GAUCHE — Infos prospect ── */}
-          <div className="w-[300px] p-5 border-r border-gray-100 dark:border-gray-700 flex flex-col overflow-y-auto">
+          <div className="w-[300px] p-5 border-r border-gray-100 dark:border-[#d4cade] flex flex-col overflow-y-auto">
 
             {/* ── EN HAUT : Nom + logos réseaux + poste/entreprise ── */}
             <div className="flex items-center gap-2 mb-1">
