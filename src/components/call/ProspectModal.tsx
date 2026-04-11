@@ -6,10 +6,12 @@ import { useState } from 'react'
 import type { Prospect } from '@/types/prospect'
 import type { Disposition } from '@/types/call'
 import type { CallContext } from '@/machines/callMachine'
+import type { Call } from '@/types/call'
 
 interface Props {
   prospect: Prospect
   callContext: CallContext | null
+  callHistory: Call[]
   isInCall: boolean
   isDisconnected: boolean
   onCall: (p: Prospect) => void
@@ -70,7 +72,7 @@ function Confetti() {
 }
 
 export default function ProspectModal({
-  prospect, callContext, isInCall, isDisconnected,
+  prospect, callContext, callHistory, isInCall, isDisconnected,
   onCall, onClose, onSetDisposition, onSetNotes, onSetMeeting, onReset, onNextCall, providerReady,
 }: Props) {
   const [activeTab, setActiveTab] = useState('activite')
