@@ -307,10 +307,17 @@ export default function Dialer() {
 
   const handleCall = useCallback((p: Prospect) => {
     if ((cm.isIdle || cm.isDisconnected) && cm.providerReady) {
-      setSelectedProspect(p)
+      // NE PAS ouvrir le modal ici — il s'ouvrira quand le prospect décroche
       cm.call(p)
     }
   }, [cm])
+
+  // Ouvrir le modal automatiquement quand le prospect DECROCHE (Minari exact)
+  useEffect(() => {
+    if (cm.isConnected && cm.context.prospect && !selectedProspect) {
+      setSelectedProspect(cm.context.prospect)
+    }
+  }, [cm.isConnected, cm.context.prospect, selectedProspect])
 
   const isInCall = cm.isDialing || cm.isConnected
   const connected = prospects?.filter(p => p.last_call_outcome === 'connected' || p.last_call_outcome === 'rdv').length || 0
@@ -494,7 +501,7 @@ export default function Dialer() {
               disabled={!cm.providerReady || !(cm.isIdle || cm.isDisconnected)}
               className="px-4 py-2 rounded-full text-[13px] font-semibold bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-40 transition-colors flex items-center gap-1.5">
               <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" /></svg>
-              {cm.providerReady ? 'Reprendre les appels' : 'Connexion...'}
+              {cm.providerReady ? (attempted > 0 ? 'Reprendre les appels' : 'Démarrer les appels') : 'Connexion...'}
             </button>
           )}
 
