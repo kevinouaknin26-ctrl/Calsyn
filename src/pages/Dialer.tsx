@@ -70,6 +70,7 @@ export default function Dialer() {
   const { data: lists } = useProspectLists()
   const [activeListId, setActiveListId] = useState<string | null>(null)
   const [selectedProspect, setSelectedProspect] = useState<Prospect | null>(null)
+  const [search, setSearch] = useState('')
   const { data: prospects } = useProspects(activeListId)
   const duration = useTimer(cm.context.startedAt)
 
@@ -105,6 +106,13 @@ export default function Dialer() {
           <h1 className="text-lg font-bold text-gray-800">{lists?.find(l => l.id === activeListId)?.name || 'Prospects'}</h1>
           <span className="text-xs text-gray-400">{prospects?.length || 0} contacts</span>
           <button className="text-xs text-gray-400 hover:text-gray-600">↻ Refresh</button>
+          <input
+            type="text"
+            placeholder="🔍 Rechercher..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            className="px-3 py-1.5 text-xs rounded-lg border border-gray-200 outline-none text-gray-700 w-48 focus:border-teal-400"
+          />
         </div>
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-3 text-xs">
@@ -135,7 +143,9 @@ export default function Dialer() {
             </tr>
           </thead>
           <tbody>
-            {prospects?.map(p => (
+            {prospects
+              ?.filter(p => !search || p.name.toLowerCase().includes(search.toLowerCase()) || p.phone.includes(search) || (p.company || '').toLowerCase().includes(search.toLowerCase()))
+              .map(p => (
               <ProspectRow key={p.id} prospect={p} onSelect={setSelectedProspect} onCall={handleCall} />
             ))}
           </tbody>
