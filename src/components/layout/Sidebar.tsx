@@ -58,7 +58,9 @@ export default function Sidebar() {
             </svg>
           </button>
           {expanded && (
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-teal-400 to-teal-600 flex items-center justify-center text-white text-xs font-extrabold">C</div>
+            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-400 to-purple-500 flex items-center justify-center text-white">
+              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M13 3L4 14h7l-2 7 9-11h-7l2-7z" /></svg>
+            </div>
           )}
         </div>
 

@@ -22,7 +22,9 @@ export default function Login() {
     <div className="min-h-screen bg-[#1a1a2e] flex items-center justify-center">
       <div className="w-96 px-10">
         <div className="text-center mb-10">
-          <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-emerald-400 to-emerald-600 flex items-center justify-center text-white text-2xl font-extrabold mx-auto mb-4">C</div>
+          <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-indigo-400 to-purple-500 flex items-center justify-center text-white mx-auto mb-4">
+            <svg className="w-8 h-8" fill="currentColor" viewBox="0 0 24 24"><path d="M13 3L4 14h7l-2 7 9-11h-7l2-7z" /></svg>
+          </div>
           <h1 className="text-3xl font-extrabold tracking-tight text-white">Callio</h1>
           <p className="text-sm text-white/40 mt-2">Connectez-vous pour continuer</p>
         </div>

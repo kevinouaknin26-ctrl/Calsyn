@@ -19,7 +19,9 @@ function Protected({ children, admin }: { children: ReactNode; admin?: boolean }
 
   if (loading) return (
     <div className="min-h-screen bg-[#1a1a2e] flex items-center justify-center">
-      <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-emerald-400 to-emerald-600 flex items-center justify-center text-white text-xl font-extrabold">C</div>
+      <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-indigo-400 to-purple-500 flex items-center justify-center text-white">
+        <svg className="w-7 h-7" fill="currentColor" viewBox="0 0 24 24"><path d="M13 3L4 14h7l-2 7 9-11h-7l2-7z" /></svg>
+      </div>
     </div>
   )
 
