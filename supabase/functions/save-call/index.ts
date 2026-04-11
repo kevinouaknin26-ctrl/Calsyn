@@ -45,7 +45,7 @@ serve(async (req) => {
 
     // Body
     const body = await req.json()
-    const { callSid, conferenceSid, prospectId, duration, disposition, notes, meetingBooked } = body
+    const { callSid, conferenceSid, prospectId, prospectName, prospectPhone, duration, disposition, notes, meetingBooked } = body
 
     // Service role pour ecriture
     const supabase = createClient(
@@ -86,6 +86,8 @@ serve(async (req) => {
       sdr_id: user.id,
       organisation_id: profile.organisation_id,
       prospect_id: prospectId,
+      prospect_name: prospectName || null,
+      prospect_phone: prospectPhone || null,
     }
 
     if (callId) {

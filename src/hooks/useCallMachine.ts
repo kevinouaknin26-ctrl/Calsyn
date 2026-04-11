@@ -99,6 +99,8 @@ export function useCallMachine() {
         callSid: state.context.callSid,
         conferenceSid: state.context.conferenceSid,
         prospectId: state.context.prospect?.id ?? null,
+        prospectName: state.context.prospect?.name ?? null,
+        prospectPhone: state.context.prospect?.phone ?? null,
         duration: state.context.duration,
         disposition: state.context.disposition || 'connected',
         notes: state.context.notes,

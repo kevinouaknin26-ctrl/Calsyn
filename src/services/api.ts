@@ -49,6 +49,8 @@ export async function saveCallDisposition(params: {
   callSid: string | null
   conferenceSid: string | null
   prospectId: string | null
+  prospectName: string | null
+  prospectPhone: string | null
   duration: number | null
   disposition: string | null
   notes: string
