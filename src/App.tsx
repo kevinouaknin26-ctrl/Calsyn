@@ -1,7 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { AuthProvider, useAuth } from '@/hooks/useAuth'
-import { ThemeProvider } from '@/hooks/useTheme'
 import Layout from '@/components/layout/Layout'
 import Login from '@/pages/Login'
 import Dialer from '@/pages/Dialer'
@@ -19,8 +18,8 @@ function Protected({ children, admin }: { children: ReactNode; admin?: boolean }
   const { user, loading, isAdmin } = useAuth()
 
   if (loading) return (
-    <div className="min-h-screen bg-black flex items-center justify-center">
-      <span className="text-2xl font-extrabold text-white">Callio</span>
+    <div className="min-h-screen bg-[#1a1a2e] flex items-center justify-center">
+      <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-emerald-400 to-emerald-600 flex items-center justify-center text-white text-xl font-extrabold">C</div>
     </div>
   )
 
@@ -45,14 +44,12 @@ function AppRoutes() {
 
 export default function App() {
   return (
-    <ThemeProvider>
-      <QueryClientProvider client={queryClient}>
-        <BrowserRouter>
-          <AuthProvider>
-            <AppRoutes />
-          </AuthProvider>
-        </BrowserRouter>
-      </QueryClientProvider>
-    </ThemeProvider>
+    <QueryClientProvider client={queryClient}>
+      <BrowserRouter>
+        <AuthProvider>
+          <AppRoutes />
+        </AuthProvider>
+      </BrowserRouter>
+    </QueryClientProvider>
   )
 }
