@@ -538,7 +538,7 @@ export default function Dialer() {
 
 
           {/* Sorted by */}
-          <div className="flex items-center gap-1.5 text-[13px] text-gray-500">
+          <div className="flex items-center gap-1.5 text-[13px] text-gray-500 px-3 py-1.5 rounded-lg border border-gray-200 bg-white">
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4h13M3 8h9m-9 4h6m4 0l4-4m0 0l4 4m-4-4v12" /></svg>
             Trié par
             <select value={sortBy} onChange={e => setSortBy(e.target.value as typeof sortBy)}
@@ -556,7 +556,7 @@ export default function Dialer() {
           {/* Filter */}
           <div className="relative">
             <button onClick={() => setShowFilters(!showFilters)}
-              className={`flex items-center gap-1 text-[13px] ${filterStatus ? 'text-teal-600 font-medium' : 'text-gray-500 hover:text-gray-700'}`}>
+              className={`flex items-center gap-1 text-[13px] px-3 py-1.5 rounded-lg border transition-colors ${filterStatus ? 'text-teal-600 font-medium border-teal-200 bg-teal-50' : 'text-gray-500 hover:text-gray-700 border-gray-200 bg-white'}`}>
               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" /></svg>
               Filtrer{filterStatus ? ' 1' : ''}
             </button>
@@ -580,10 +580,10 @@ export default function Dialer() {
           </div>
 
           {/* Search */}
-          <div className="flex items-center gap-1.5 text-gray-400">
-            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-200 bg-white">
+            <svg className="w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
             <input type="text" placeholder="Rechercher des contacts..." value={search} onChange={e => setSearch(e.target.value)}
-              className="text-[13px] bg-transparent outline-none text-gray-700 placeholder:text-gray-400 w-40" />
+              className="text-[13px] bg-transparent outline-none text-gray-700 placeholder:text-gray-400 w-44" />
           </div>
         </div>
 
