@@ -13,25 +13,31 @@ import ProspectModal from '@/components/call/ProspectModal'
 import { useRealtimeProspects } from '@/hooks/useRealtime'
 import type { Prospect } from '@/types/prospect'
 
-// ── Call status badges (Minari exact : pill shape) ────────────────
-// CALL STATUS = resultat du DERNIER APPEL, pas le statut du prospect
-// "Pending" si jamais appele (call_count === 0)
-const CALL_OUTCOME_BADGE: Record<string, { bg: string; text: string; label: string }> = {
-  // Etats idle (resultat dernier appel)
-  pending:        { bg: '#f3f4f6', text: '#6b7280', label: 'Pending' },
-  connected:      { bg: '#d1fae5', text: '#059669', label: 'Connected' },
-  rdv:            { bg: '#ccfbf1', text: '#0d9488', label: 'Meeting booked' },
-  callback:       { bg: '#fef3c7', text: '#d97706', label: 'Callback' },
-  not_interested: { bg: '#fecaca', text: '#dc2626', label: 'Exposed' },
-  no_answer:      { bg: '#f3f4f6', text: '#6b7280', label: 'No Answer' },
-  voicemail:      { bg: '#fed7aa', text: '#ea580c', label: 'Voicemail' },
-  busy:           { bg: '#f3f4f6', text: '#6b7280', label: 'Busy' },
-  wrong_number:   { bg: '#fecaca', text: '#dc2626', label: 'Wrong Number' },
-  dnc:            { bg: '#fecaca', text: '#dc2626', label: 'Do not call' },
-  // Etats LIVE pendant session (frame 010/015)
-  'in-progress':  { bg: '#fee2e2', text: '#dc2626', label: 'In-progress' },
-  ringing:        { bg: '#fecaca', text: '#dc2626', label: 'Ringing' },
-  cancelled:      { bg: '#f3f4f6', text: '#6b7280', label: 'Cancelled' },
+// ── Call status badges (Minari exact) ──────────────────────────────
+// CALL STATUS = statut de l'appel dans la SESSION. Set restreint :
+// Pending, Connected, Attempted, Voicemail, Meeting booked
+// + etats live pendant session : In-progress, Ringing
+const CALL_STATUS_BADGE: Record<string, { bg: string; text: string; label: string; icon: string }> = {
+  pending:        { bg: '#f3f4f6', text: '#6b7280', label: 'Pending', icon: 'group' },
+  connected:      { bg: '#d1fae5', text: '#059669', label: 'Connected', icon: 'phone' },
+  attempted:      { bg: '#f3f4f6', text: '#6b7280', label: 'Attempted', icon: 'phone' },
+  voicemail:      { bg: '#f3f4f6', text: '#6b7280', label: 'Voicemail', icon: 'voicemail' },
+  meeting_booked: { bg: '#ccfbf1', text: '#0d9488', label: 'Meeting booked', icon: 'phone' },
+  // Live pendant session
+  'in-progress':  { bg: '#fee2e2', text: '#dc2626', label: 'In-progress', icon: 'phone' },
+  ringing:        { bg: '#fecaca', text: '#dc2626', label: 'Ringing', icon: 'phone' },
+}
+
+/** Mappe le last_call_outcome vers un badge CALL STATUS Minari */
+function getCallStatusKey(prospect: Prospect): string {
+  if (prospect.call_count === 0) return 'pending'
+  const o = prospect.last_call_outcome
+  if (!o) return 'attempted'
+  if (o === 'rdv') return 'meeting_booked'
+  if (o === 'connected') return 'connected'
+  if (o === 'voicemail') return 'voicemail'
+  // Tout le reste (no_answer, busy, not_interested, callback, wrong_number, dnc) = attempted
+  return 'attempted'
 }
 
 // ── Timer ──────────────────────────────────────────────────────────
@@ -160,19 +166,23 @@ function CallSettingsDropdown({ open, onToggle }: { open: boolean; onToggle: () 
 const ProspectRow = memo(function ProspectRow({ prospect, isActive, onSelect, onCall }: {
   prospect: Prospect; isActive: boolean; onSelect: (p: Prospect) => void; onCall: (p: Prospect) => void
 }) {
-  // CALL STATUS = dernier appel outcome, ou "pending" si jamais appele
-  const outcomeKey = prospect.call_count === 0 ? 'pending' : (prospect.last_call_outcome || 'connected')
-  const st = CALL_OUTCOME_BADGE[outcomeKey] || CALL_OUTCOME_BADGE.pending
+  const statusKey = getCallStatusKey(prospect)
+  const st = CALL_STATUS_BADGE[statusKey] || CALL_STATUS_BADGE.pending
 
   return (
     <tr onClick={() => onSelect(prospect)}
       className={`border-b border-gray-50 cursor-pointer transition-colors ${
         isActive ? 'bg-emerald-50/60' : 'hover:bg-gray-50/60'
       }`}>
-      {/* CALL STATUS — pill badge */}
+      {/* CALL STATUS — pill badge with icon (Minari exact) */}
       <td className="py-3.5 px-5">
-        <span className="inline-block px-3 py-1 rounded-full text-[11px] font-semibold whitespace-nowrap"
-          style={{ background: st.bg, color: st.text }}>{st.label}</span>
+        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-semibold whitespace-nowrap"
+          style={{ background: st.bg, color: st.text }}>
+          {st.icon === 'group' && <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" /></svg>}
+          {st.icon === 'phone' && <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" /></svg>}
+          {st.icon === 'voicemail' && <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>}
+          {st.label}
+        </span>
       </td>
       {/* CALLS */}
       <td className="py-3.5 px-3 text-[13px] text-gray-400 text-center">{prospect.call_count || 0}</td>
