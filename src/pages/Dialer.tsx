@@ -376,9 +376,13 @@ export default function Dialer() {
     }
   }, [lists, activeListId, openTabIds.length])
 
-  // Persister les tabs ouverts (même si vide)
+  // Persister les tabs ouverts + nettoyer activeListId si plus de tabs
   useEffect(() => {
     localStorage.setItem('callio_open_tabs', JSON.stringify(openTabIds))
+    if (openTabIds.length === 0) {
+      setActiveListId(null)
+      localStorage.removeItem('callio_active_list')
+    }
   }, [openTabIds])
 
   const handleCall = useCallback((p: Prospect) => {
