@@ -4,7 +4,7 @@
  * Call Settings dropdown, badges pill, icones LinkedIn/copier dans rows.
  */
 
-import { useState, useEffect, useCallback, memo } from 'react'
+import { useState, useEffect, useCallback, memo, useRef } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useCallMachine } from '@/hooks/useCallMachine'
 import { useProspectLists, useProspects, useAddProspect } from '@/hooks/useProspects'
@@ -115,6 +115,23 @@ function CallSettingsDropdown({ open, onToggle }: { open: boolean; onToggle: () 
   const [attemptPeriod, setAttemptPeriod] = useCallSetting('attempt_period', 'jour')
   const [phoneField, setPhoneField] = useCallSetting('phone_field', 'phone')
 
+  // Microphone — vrais périphériques audio
+  const [micDevices, setMicDevices] = useState<MediaDeviceInfo[]>([])
+  const [selectedMic, setSelectedMic] = useCallSetting('mic_device', '')
+  const [micTesting, setMicTesting] = useState(false)
+  const [micAudioUrl, setMicAudioUrl] = useState<string | null>(null)
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null)
+  const chunksRef = useRef<Blob[]>([])
+
+  // Charger les périphériques au mount
+  useEffect(() => {
+    navigator.mediaDevices?.enumerateDevices().then(devices => {
+      const mics = devices.filter(d => d.kind === 'audioinput')
+      setMicDevices(mics)
+      if (!selectedMic && mics.length > 0) setSelectedMic(mics[0].deviceId)
+    }).catch(() => {})
+  }, [open])
+
   // Toggle helper
   const Toggle = ({ value, onChange }: { value: boolean; onChange: (v: boolean) => void }) => (
     <button onClick={() => onChange(!value)}
@@ -134,17 +151,47 @@ function CallSettingsDropdown({ open, onToggle }: { open: boolean; onToggle: () 
       {open && (
         <div className="absolute right-0 top-10 w-[440px] bg-white rounded-xl shadow-lg border border-gray-200 z-50 p-5 space-y-4 animate-slide-down">
 
-          {/* Microphone (Minari exact — dropdown + Test/Play) */}
+          {/* Microphone (connecté — vrais périphériques + Test/Play) */}
           <div>
             <div className="flex items-center justify-between mb-1.5">
               <span className="text-[13px] text-gray-700">Microphone</span>
-              <select className="text-[12px] text-gray-500 bg-transparent border border-gray-200 rounded-lg px-2 py-1 outline-none max-w-[200px] truncate">
-                <option>Microphone par défaut</option>
+              <select value={selectedMic} onChange={e => setSelectedMic(e.target.value)}
+                className="text-[12px] text-gray-500 bg-transparent border border-gray-200 rounded-lg px-2 py-1 outline-none max-w-[200px] truncate">
+                {micDevices.length > 0 ? micDevices.map(d => (
+                  <option key={d.deviceId} value={d.deviceId}>{d.label || `Microphone ${d.deviceId.slice(0, 8)}`}</option>
+                )) : <option>Aucun microphone détecté</option>}
               </select>
             </div>
             <div className="flex items-center gap-2 justify-end">
-              <button className="px-2.5 py-1 rounded-lg border border-gray-200 text-[11px] text-gray-500 hover:bg-gray-50">Test</button>
-              <button className="px-2.5 py-1 rounded-lg border border-gray-200 text-[11px] text-gray-500 hover:bg-gray-50">Play</button>
+              <button onClick={async () => {
+                if (micTesting) {
+                  mediaRecorderRef.current?.stop()
+                  setMicTesting(false)
+                  return
+                }
+                try {
+                  const stream = await navigator.mediaDevices.getUserMedia({ audio: { deviceId: selectedMic ? { exact: selectedMic } : undefined } })
+                  chunksRef.current = []
+                  const recorder = new MediaRecorder(stream)
+                  recorder.ondataavailable = e => chunksRef.current.push(e.data)
+                  recorder.onstop = () => {
+                    stream.getTracks().forEach(t => t.stop())
+                    const blob = new Blob(chunksRef.current, { type: 'audio/webm' })
+                    setMicAudioUrl(URL.createObjectURL(blob))
+                  }
+                  mediaRecorderRef.current = recorder
+                  recorder.start()
+                  setMicTesting(true)
+                  setTimeout(() => { if (recorder.state === 'recording') { recorder.stop(); setMicTesting(false) } }, 5000)
+                } catch { alert('Impossible d\'accéder au microphone') }
+              }} className={`px-2.5 py-1 rounded-lg border text-[11px] transition-colors ${micTesting ? 'border-red-300 text-red-500 bg-red-50' : 'border-gray-200 text-gray-500 hover:bg-gray-50'}`}>
+                {micTesting ? '⏹ Arrêter' : '🎤 Test'}
+              </button>
+              <button onClick={() => { if (micAudioUrl) new Audio(micAudioUrl).play() }}
+                disabled={!micAudioUrl}
+                className="px-2.5 py-1 rounded-lg border border-gray-200 text-[11px] text-gray-500 hover:bg-gray-50 disabled:opacity-30">
+                ▶ Play
+              </button>
             </div>
           </div>
 
@@ -153,14 +200,13 @@ function CallSettingsDropdown({ open, onToggle }: { open: boolean; onToggle: () 
           {/* Parallel calls (Minari exact — sélecteur avec checkmark) */}
           <div className="flex items-center justify-between">
             <span className="text-[13px] text-gray-700">Appels parallèles</span>
-            <div className="flex items-center border border-gray-200 rounded-lg overflow-hidden">
+            <div className="flex items-center border border-gray-200 rounded-md overflow-hidden">
               {[1, 2, 3, 4, 5].map(n => (
                 <button key={n} onClick={() => setParallel(n)}
-                  className={`w-9 h-8 text-xs font-medium border-r border-gray-200 last:border-r-0 flex items-center justify-center gap-0.5 ${
+                  className={`w-7 h-6 text-[11px] font-medium border-r border-gray-200 last:border-r-0 flex items-center justify-center ${
                     parallel === n ? 'bg-teal-50 text-teal-700 font-semibold' : 'text-gray-500 hover:bg-gray-50'
                   }`}>
-                  {n}
-                  {parallel === n && <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>}
+                  {n}{parallel === n ? ' ✓' : ''}
                 </button>
               ))}
             </div>
