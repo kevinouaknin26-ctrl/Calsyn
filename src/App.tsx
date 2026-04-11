@@ -19,12 +19,7 @@ function Protected({ children, admin }: { children: ReactNode; admin?: boolean }
 
   if (loading) return (
     <div className="min-h-screen bg-[#1a1a2e] flex items-center justify-center">
-      <div className="w-12 h-12 rounded-2xl bg-white border border-gray-200 flex items-center justify-center">
-        <svg className="w-7 h-7" viewBox="0 0 24 24">
-          <defs><linearGradient id="boltGradA" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stopColor="#818cf8" /><stop offset="100%" stopColor="#7c3aed" /></linearGradient></defs>
-          <path d="M13 3L4 14h7l-2 7 9-11h-7l2-7z" fill="url(#boltGradA)" />
-        </svg>
-      </div>
+      <img src="/favicon.svg" alt="Callio" className="w-12 h-12" />
     </div>
   )
 

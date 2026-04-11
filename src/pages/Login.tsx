@@ -22,12 +22,7 @@ export default function Login() {
     <div className="min-h-screen bg-[#1a1a2e] flex items-center justify-center">
       <div className="w-96 px-10">
         <div className="text-center mb-10">
-          <div className="w-14 h-14 rounded-2xl bg-white border border-gray-200 shadow-sm flex items-center justify-center mx-auto mb-4">
-            <svg className="w-8 h-8" viewBox="0 0 24 24">
-              <defs><linearGradient id="boltGradL" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stopColor="#818cf8" /><stop offset="100%" stopColor="#7c3aed" /></linearGradient></defs>
-              <path d="M13 3L4 14h7l-2 7 9-11h-7l2-7z" fill="url(#boltGradL)" />
-            </svg>
-          </div>
+          <img src="/favicon.svg" alt="Callio" className="w-16 h-16 mx-auto mb-4" />
           <h1 className="text-3xl font-extrabold tracking-tight text-white">Callio</h1>
           <p className="text-sm text-white/40 mt-2">Connectez-vous pour continuer</p>
         </div>

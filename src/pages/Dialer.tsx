@@ -677,14 +677,14 @@ export default function Dialer() {
                 <svg className="w-4 h-4 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
                 {meetings} RDV
               </span>
-              <span className="text-gray-500"><span className="inline-block w-2 h-2 rounded-full bg-violet-500 mr-1" />Connectés {connected}</span>
+              <span className="text-gray-500"><span className="inline-block w-2 h-2 rounded-full bg-emerald-500 mr-1" />Connectés {connected}</span>
               <span className="text-gray-500"><span className="inline-block w-2 h-2 rounded-full bg-orange-400 mr-1" />Tentatives {attempted}</span>
               <span className="text-gray-400">En attente {pending}</span>
             </div>
             {/* Barre de progression unique (Minari exact) */}
             {(prospects?.length || 0) > 0 && (
               <div className="h-[3px] rounded-full overflow-hidden flex w-full">
-                <div className="h-full bg-violet-500" style={{ width: `${(connected / (prospects?.length || 1)) * 100}%` }} />
+                <div className="h-full bg-emerald-500" style={{ width: `${(connected / (prospects?.length || 1)) * 100}%` }} />
                 <div className="h-full bg-orange-400" style={{ width: `${((attempted - connected) / (prospects?.length || 1)) * 100}%` }} />
                 <div className="h-full bg-gray-200 flex-1" />
               </div>

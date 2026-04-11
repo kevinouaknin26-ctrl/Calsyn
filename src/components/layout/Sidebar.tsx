@@ -58,12 +58,7 @@ export default function Sidebar() {
             </svg>
           </button>
           {expanded && (
-            <div className="w-8 h-8 rounded-lg bg-white border border-gray-200 flex items-center justify-center">
-              <svg className="w-5 h-5" viewBox="0 0 24 24">
-                <defs><linearGradient id="boltGrad" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stopColor="#818cf8" /><stop offset="100%" stopColor="#7c3aed" /></linearGradient></defs>
-                <path d="M13 3L4 14h7l-2 7 9-11h-7l2-7z" fill="url(#boltGrad)" />
-              </svg>
-            </div>
+            <img src="/favicon.svg" alt="Callio" className="w-7 h-7" />
           )}
         </div>
 
