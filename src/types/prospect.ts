@@ -43,6 +43,7 @@ export interface Prospect {
   crm_status: CrmStatus
   call_count: number
   last_call_at: string | null
+  last_call_outcome: string | null
   snoozed_until: string | null
   do_not_call: boolean
   created_at: string

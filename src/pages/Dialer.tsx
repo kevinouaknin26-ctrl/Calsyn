@@ -14,15 +14,19 @@ import { useRealtimeProspects } from '@/hooks/useRealtime'
 import type { Prospect } from '@/types/prospect'
 
 // ── Call status badges (Minari exact : pill shape) ────────────────
-const CALL_STATUS: Record<string, { bg: string; text: string; label: string }> = {
-  idle:        { bg: '#f3f4f6', text: '#6b7280', label: 'Pending' },
-  calling:     { bg: '#fef3c7', text: '#d97706', label: 'Ringing' },
-  connected:   { bg: '#d1fae5', text: '#059669', label: 'Connected' },
-  to_callback: { bg: '#fef3c7', text: '#d97706', label: 'Callback' },
-  interested:  { bg: '#d1fae5', text: '#059669', label: 'Interested' },
-  not_reached: { bg: '#fed7aa', text: '#ea580c', label: 'Voicemail' },
-  refused:     { bg: '#fecaca', text: '#dc2626', label: 'Exposed' },
-  converted:   { bg: '#ccfbf1', text: '#0d9488', label: 'Meeting booked' },
+// CALL STATUS = resultat du DERNIER APPEL, pas le statut du prospect
+// "Pending" si jamais appele (call_count === 0)
+const CALL_OUTCOME_BADGE: Record<string, { bg: string; text: string; label: string }> = {
+  pending:        { bg: '#f3f4f6', text: '#6b7280', label: 'Pending' },
+  connected:      { bg: '#d1fae5', text: '#059669', label: 'Connected' },
+  rdv:            { bg: '#ccfbf1', text: '#0d9488', label: 'Meeting booked' },
+  callback:       { bg: '#fef3c7', text: '#d97706', label: 'Callback' },
+  not_interested: { bg: '#fecaca', text: '#dc2626', label: 'Exposed' },
+  no_answer:      { bg: '#f3f4f6', text: '#6b7280', label: 'No Answer' },
+  voicemail:      { bg: '#fed7aa', text: '#ea580c', label: 'Voicemail' },
+  busy:           { bg: '#f3f4f6', text: '#6b7280', label: 'Busy' },
+  wrong_number:   { bg: '#fecaca', text: '#dc2626', label: 'Wrong Number' },
+  dnc:            { bg: '#fecaca', text: '#dc2626', label: 'Do not call' },
 }
 
 // ── Timer ──────────────────────────────────────────────────────────
@@ -151,7 +155,9 @@ function CallSettingsDropdown({ open, onToggle }: { open: boolean; onToggle: () 
 const ProspectRow = memo(function ProspectRow({ prospect, isActive, onSelect, onCall }: {
   prospect: Prospect; isActive: boolean; onSelect: (p: Prospect) => void; onCall: (p: Prospect) => void
 }) {
-  const st = CALL_STATUS[prospect.status] || CALL_STATUS.idle
+  // CALL STATUS = dernier appel outcome, ou "pending" si jamais appele
+  const outcomeKey = prospect.call_count === 0 ? 'pending' : (prospect.last_call_outcome || 'connected')
+  const st = CALL_OUTCOME_BADGE[outcomeKey] || CALL_OUTCOME_BADGE.pending
 
   return (
     <tr onClick={() => onSelect(prospect)}
@@ -222,10 +228,10 @@ export default function Dialer() {
   }, [cm])
 
   const isInCall = cm.isDialing || cm.isConnected
-  const connected = prospects?.filter(p => ['connected', 'interested', 'converted'].includes(p.status)).length || 0
+  const connected = prospects?.filter(p => p.last_call_outcome === 'connected' || p.last_call_outcome === 'rdv').length || 0
   const attempted = prospects?.filter(p => p.call_count > 0).length || 0
-  const pending = prospects?.filter(p => p.status === 'idle').length || 0
-  const meetings = prospects?.filter(p => p.status === 'converted').length || 0
+  const pending = prospects?.filter(p => p.call_count === 0).length || 0
+  const meetings = prospects?.filter(p => p.last_call_outcome === 'rdv' || p.crm_status === 'rdv').length || 0
   const activeList = lists?.find(l => l.id === activeListId)
 
   const filtered = prospects
@@ -296,7 +302,7 @@ export default function Dialer() {
               Cancel calls
             </button>
           ) : (
-            <button onClick={() => { const next = prospects?.find(p => p.status === 'idle'); if (next) handleCall(next) }}
+            <button onClick={() => { const next = prospects?.find(p => p.call_count === 0); if (next) handleCall(next) }}
               disabled={!cm.providerReady || !(cm.isIdle || cm.isDisconnected)}
               className="px-4 py-2 rounded-full text-[13px] font-semibold bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-40 transition-colors flex items-center gap-1.5">
               <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" /></svg>
@@ -305,9 +311,9 @@ export default function Dialer() {
           )}
 
           {/* Redial */}
-          {(prospects?.filter(p => p.status === 'not_reached').length || 0) > 0 && (
+          {(prospects?.filter(p => p.last_call_outcome === 'no_answer' || p.last_call_outcome === 'voicemail').length || 0) > 0 && (
             <button className="px-4 py-2 rounded-full text-[13px] font-semibold bg-emerald-600 text-white hover:bg-emerald-700 transition-colors">
-              Redial {prospects?.filter(p => p.status === 'not_reached').length} contacts
+              Redial {prospects?.filter(p => p.last_call_outcome === 'no_answer' || p.last_call_outcome === 'voicemail').length} contacts
             </button>
           )}
 
@@ -404,7 +410,7 @@ export default function Dialer() {
           onSetDisposition={cm.setDisposition} onSetNotes={cm.setNotes} onSetMeeting={cm.setMeeting}
           onReset={cm.reset}
           onNextCall={() => { cm.reset(); setSelectedProspect(null)
-            const next = prospects?.find(p => p.status === 'idle' && p.id !== selectedProspect?.id)
+            const next = prospects?.find(p => p.call_count === 0 && p.id !== selectedProspect?.id)
             if (next) setTimeout(() => handleCall(next), 300) }}
           providerReady={cm.providerReady}
         />
