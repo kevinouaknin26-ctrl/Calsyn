@@ -395,7 +395,7 @@ const ProspectRow = memo(function ProspectRow({ prospect, isActive, liveStatus, 
       {/* Colonne réseaux sociaux */}
       <td className="py-3.5 px-1">
         {socials.length > 0 && (
-          <div className="flex gap-0.5">
+          <div className="grid gap-0.5" style={{ gridTemplateColumns: `repeat(${Math.min(socials.length, 3)}, 1.25rem)` }}>
             {socials.map((s, i) => (
               <a key={i} href={s.url.startsWith('http') ? s.url : `https://${s.url}`} target="_blank" rel="noopener noreferrer"
                 onClick={e => e.stopPropagation()}>
