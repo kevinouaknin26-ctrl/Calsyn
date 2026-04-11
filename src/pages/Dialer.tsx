@@ -10,6 +10,7 @@ import { useCallMachine } from '@/hooks/useCallMachine'
 import { useProspectLists, useProspects, useAddProspect } from '@/hooks/useProspects'
 import { useCallsByProspect } from '@/hooks/useCalls'
 import { useAuth } from '@/hooks/useAuth'
+import { supabase } from '@/config/supabase'
 import CSVImport from '@/components/import/CSVImport'
 import SelectListPage from '@/components/dialer/SelectListPage'
 import ProspectModal from '@/components/call/ProspectModal'
@@ -397,21 +398,28 @@ export default function Dialer() {
       <div className="px-5 pt-4 pb-2">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            {renamingList ? (
+            {renamingList && (isAdmin || isManager) ? (
               <input autoFocus type="text" value={renameValue}
                 onChange={e => setRenameValue(e.target.value)}
-                onKeyDown={e => {
-                  if (e.key === 'Enter' && renameValue.trim()) {
-                    // TODO: mutation rename list
+                onKeyDown={async e => {
+                  if (e.key === 'Enter' && renameValue.trim() && activeListId) {
+                    await supabase.from('prospect_lists').update({ name: renameValue.trim() }).eq('id', activeListId)
+                    queryClient.invalidateQueries({ queryKey: ['prospect-lists'] })
                     setRenamingList(false)
                   }
                   if (e.key === 'Escape') setRenamingList(false)
                 }}
-                onBlur={() => setRenamingList(false)}
+                onBlur={async () => {
+                  if (renameValue.trim() && activeListId && renameValue !== activeList?.name) {
+                    await supabase.from('prospect_lists').update({ name: renameValue.trim() }).eq('id', activeListId)
+                    queryClient.invalidateQueries({ queryKey: ['prospect-lists'] })
+                  }
+                  setRenamingList(false)
+                }}
                 className="text-[17px] font-bold text-gray-800 outline-none border-b-2 border-teal-400 bg-transparent" />
             ) : (
-              <h1 onClick={() => { setRenameValue(activeList?.name || ''); setRenamingList(true) }}
-                className="text-[17px] font-bold text-gray-800 cursor-pointer hover:text-teal-700 transition-colors">{activeList?.name || 'Prospects'}</h1>
+              <h1 onClick={() => { if (isAdmin || isManager) { setRenameValue(activeList?.name || ''); setRenamingList(true) } }}
+                className={`text-[17px] font-bold text-gray-800 ${(isAdmin || isManager) ? 'cursor-pointer hover:text-teal-700' : ''} transition-colors`}>{activeList?.name || 'Prospects'}</h1>
             )}
             <span className="text-[13px] text-gray-400">{prospects?.length || 0} contacts</span>
             <button onClick={() => setShowAddProspect(true)} className="text-[13px] text-gray-400 hover:text-teal-600 flex items-center gap-1">
