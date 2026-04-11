@@ -5,13 +5,14 @@
  */
 
 import { useState, useEffect, useCallback, memo, useRef } from 'react'
-import { useQueryClient } from '@tanstack/react-query'
+import { useQueryClient, useQuery } from '@tanstack/react-query'
 import { useCallMachine } from '@/hooks/useCallMachine'
 import { useProspectLists, useProspects, useAddProspect } from '@/hooks/useProspects'
 import { useCallsByProspect } from '@/hooks/useCalls'
 import { useAuth } from '@/hooks/useAuth'
 import { supabase } from '@/config/supabase'
 import CSVImport from '@/components/import/CSVImport'
+import { PlatformIcon } from '@/components/call/SocialLinks'
 import SelectListPage from '@/components/dialer/SelectListPage'
 import ProspectModal from '@/components/call/ProspectModal'
 import { useRealtimeProspects } from '@/hooks/useRealtime'
@@ -340,8 +341,8 @@ function CallSettingsDropdown({ open, onToggle }: { open: boolean; onToggle: () 
 }
 
 // ── Prospect Row (Minari exact : LinkedIn + contact icons) ────────
-const ProspectRow = memo(function ProspectRow({ prospect, isActive, liveStatus, selected, onToggleSelect, onSelect, onCall }: {
-  prospect: Prospect; isActive: boolean; liveStatus?: string; selected: boolean; onToggleSelect: (id: string) => void; onSelect: (p: Prospect) => void; onCall: (p: Prospect) => void
+const ProspectRow = memo(function ProspectRow({ prospect, isActive, liveStatus, selected, socials, onToggleSelect, onSelect, onCall }: {
+  prospect: Prospect; isActive: boolean; liveStatus?: string; selected: boolean; socials: Array<{ platform: string; url: string }>; onToggleSelect: (id: string) => void; onSelect: (p: Prospect) => void; onCall: (p: Prospect) => void
 }) {
   // Pendant un appel actif, le badge montre le statut live (Initié/En sonnerie/En cours)
   const statusKey = liveStatus || getCallStatusKey(prospect)
@@ -391,34 +392,30 @@ const ProspectRow = memo(function ProspectRow({ prospect, isActive, liveStatus, 
           </button>
           {/* Spacer pour pousser les icones à droite */}
           <div className="flex-1" />
-          {/* Icones — appeler toujours, mail/site/linkedin seulement si info existe */}
+          {/* Icones — appeler + mail + réseaux (flex-wrap si beaucoup) */}
           <button onClick={e => { e.stopPropagation(); onCall(prospect) }}
-            className="w-6 h-6 rounded bg-gray-100 flex items-center justify-center flex-shrink-0 hover:bg-violet-50 group">
+            className="w-5 h-5 rounded bg-gray-100 flex items-center justify-center flex-shrink-0 hover:bg-violet-50 group">
             <svg className="w-3 h-3 text-gray-400 group-hover:text-violet-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
             </svg>
           </button>
           {prospect.email && (
             <a href={`mailto:${prospect.email}`} onClick={e => e.stopPropagation()} title={prospect.email}
-              className="w-6 h-6 rounded bg-gray-100 flex items-center justify-center flex-shrink-0 hover:bg-violet-50 group">
-              <svg className="w-3 h-3 text-gray-400 group-hover:text-violet-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              className="w-5 h-5 rounded bg-gray-100 flex items-center justify-center flex-shrink-0 hover:bg-violet-50 group">
+              <svg className="w-2.5 h-2.5 text-gray-400 group-hover:text-violet-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
               </svg>
             </a>
           )}
-          {prospect.website_url && (
-            <a href={prospect.website_url} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} title={prospect.website_url}
-              className="w-6 h-6 rounded bg-gray-100 flex items-center justify-center flex-shrink-0 hover:bg-violet-50 group">
-              <svg className="w-3 h-3 text-gray-400 group-hover:text-violet-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9" />
-              </svg>
-            </a>
-          )}
-          {prospect.linkedin_url && (
-            <a href={prospect.linkedin_url} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}
-              className="w-6 h-6 rounded bg-blue-50 flex items-center justify-center flex-shrink-0 hover:bg-blue-100">
-              <span className="text-[8px] font-bold text-blue-500">in</span>
-            </a>
+          {socials.length > 0 && (
+            <div className="flex flex-wrap gap-0.5 max-w-[120px]">
+              {socials.map((s, i) => (
+                <a key={i} href={s.url.startsWith('http') ? s.url : `https://${s.url}`} target="_blank" rel="noopener noreferrer"
+                  onClick={e => e.stopPropagation()}>
+                  <PlatformIcon platform={s.platform} size="sm" />
+                </a>
+              ))}
+            </div>
           )}
         </div>
       </td>
@@ -473,6 +470,23 @@ export default function Dialer() {
   const [showCallSettings, setShowCallSettings] = useState(false)
   const { data: prospects } = useProspects(activeListId)
   const { data: callHistory } = useCallsByProspect(selectedProspect?.id ?? null)
+
+  // Socials de tous les prospects (pour afficher les logos dans la table)
+  const prospectIds = prospects?.map(p => p.id) || []
+  const { data: allSocials } = useQuery({
+    queryKey: ['all-socials', activeListId],
+    queryFn: async () => {
+      if (!prospectIds.length) return []
+      const { data } = await supabase.from('prospect_socials').select('prospect_id, platform, url').in('prospect_id', prospectIds)
+      return data || []
+    },
+    enabled: prospectIds.length > 0,
+  })
+  const socialsByProspect = new Map<string, Array<{ platform: string; url: string }>>()
+  allSocials?.forEach((s: { prospect_id: string; platform: string; url: string }) => {
+    if (!socialsByProspect.has(s.prospect_id)) socialsByProspect.set(s.prospect_id, [])
+    socialsByProspect.get(s.prospect_id)!.push(s)
+  })
   const queryClient = useQueryClient()
   const duration = useTimer(cm.context.startedAt)
   useRealtimeProspects()
@@ -854,6 +868,7 @@ export default function Dialer() {
                   isActive={selectedProspect?.id === p.id && isInCall}
                   liveStatus={getLiveCallStatus(p.id)}
                   selected={selectedIds.has(p.id)}
+                  socials={socialsByProspect.get(p.id) || []}
                   onToggleSelect={id => setSelectedIds(prev => {
                     const next = new Set(prev)
                     if (next.has(id)) next.delete(id)
