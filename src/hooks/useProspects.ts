@@ -86,6 +86,15 @@ export function useAddProspect() {
   return useMutation({
     mutationFn: async (prospect: { listId: string; name: string; phone: string; email?: string; company?: string; sector?: string }) => {
       if (!organisation?.id) throw new Error('No organisation')
+      // Vérifier doublon dans la même liste
+      const { data: existing } = await supabase
+        .from('prospects')
+        .select('id')
+        .eq('list_id', prospect.listId)
+        .eq('phone', prospect.phone)
+        .limit(1)
+      if (existing && existing.length > 0) throw new Error('Ce numéro existe déjà dans cette liste')
+
       const { data, error } = await supabase
         .from('prospects')
         .insert({
