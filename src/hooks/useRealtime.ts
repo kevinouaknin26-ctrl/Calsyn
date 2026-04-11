@@ -26,6 +26,7 @@ export function useRealtimeCalls() {
         // Invalider le cache pour forcer un refetch
         queryClient.invalidateQueries({ queryKey: ['calls'] })
         queryClient.invalidateQueries({ queryKey: ['calls-by-phone'] })
+        queryClient.invalidateQueries({ queryKey: ['calls-by-prospect'] })
       })
       .subscribe()
 

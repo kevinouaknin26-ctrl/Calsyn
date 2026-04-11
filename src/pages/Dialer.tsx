@@ -10,6 +10,8 @@ import { useProspectLists, useProspects } from '@/hooks/useProspects'
 import { useCallsByProspect } from '@/hooks/useCalls'
 import ProspectModal from '@/components/call/ProspectModal'
 import CSVImport from '@/components/import/CSVImport'
+import { useRealtimeProspects } from '@/hooks/useRealtime'
+import { useCreateList } from '@/hooks/useProspects'
 import type { Prospect, CrmStatus } from '@/types/prospect'
 
 // ── Call status badges (Minari style) ─────────────────────────────
@@ -127,7 +129,9 @@ export default function Dialer() {
   const [showCSVImport, setShowCSVImport] = useState(false)
   const { data: prospects } = useProspects(activeListId)
   const { data: callHistory } = useCallsByProspect(selectedProspect?.id ?? null)
+  const createList = useCreateList()
   const duration = useTimer(cm.context.startedAt)
+  useRealtimeProspects()
 
   useEffect(() => { if (lists?.length && !activeListId) setActiveListId(lists[0].id) }, [lists, activeListId])
 
@@ -244,6 +248,17 @@ export default function Dialer() {
                 : 'text-gray-400 hover:text-gray-600 border-transparent'
             }`}>{l.name}</button>
         ))}
+        <button
+          onClick={async () => {
+            const name = prompt('Nom de la nouvelle liste :')
+            if (name?.trim()) {
+              const list = await createList.mutateAsync(name.trim())
+              setActiveListId(list.id)
+            }
+          }}
+          className="px-2 py-2 text-xs text-gray-300 hover:text-gray-500 border-b-2 border-transparent"
+          title="Nouvelle liste"
+        >+</button>
       </div>
 
       {/* ── Table (Minari colonnes exactes) ── */}
