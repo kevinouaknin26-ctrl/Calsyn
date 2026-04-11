@@ -254,7 +254,9 @@ export default function Dialer() {
   const [showFilters, setShowFilters] = useState(false)
   const [showCSVImport, setShowCSVImport] = useState(false)
   const [showSelectList, setShowSelectList] = useState(false)
-  const [openTabIds, setOpenTabIds] = useState<string[]>([])
+  const [openTabIds, setOpenTabIds] = useState<string[]>(() => {
+    try { return JSON.parse(localStorage.getItem('callio_open_tabs') || '[]') } catch { return [] }
+  })
   const [showCallSettings, setShowCallSettings] = useState(false)
   const { data: prospects } = useProspects(activeListId)
   const { data: callHistory } = useCallsByProspect(selectedProspect?.id ?? null)
@@ -263,8 +265,18 @@ export default function Dialer() {
 
   useEffect(() => {
     if (lists?.length && !activeListId) setActiveListId(lists[0].id)
-    if (lists?.length && openTabIds.length === 0) setOpenTabIds(lists.map(l => l.id))
+    // Ouvrir les tabs seulement au premier chargement si aucun tab sauvegardé
+    if (lists?.length && openTabIds.length === 0) {
+      const ids = lists.map(l => l.id)
+      setOpenTabIds(ids)
+      localStorage.setItem('callio_open_tabs', JSON.stringify(ids))
+    }
   }, [lists, activeListId, openTabIds.length])
+
+  // Persister les tabs ouverts
+  useEffect(() => {
+    if (openTabIds.length > 0) localStorage.setItem('callio_open_tabs', JSON.stringify(openTabIds))
+  }, [openTabIds])
 
   const handleCall = useCallback((p: Prospect) => {
     if ((cm.isIdle || cm.isDisconnected) && cm.providerReady) {
