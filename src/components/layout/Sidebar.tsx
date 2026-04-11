@@ -9,7 +9,7 @@ import { useAuth } from '@/hooks/useAuth'
 const NAV = [
   { to: '/app/dialer', icon: '☎️', label: 'Dialer' },
   { to: '/app/history', icon: '📋', label: 'Historique' },
-  { to: '/app/dashboard', icon: '📊', label: 'Dashboard', admin: true },
+  { to: '/app/dashboard', icon: '📊', label: 'Tableau de bord', admin: true },
   { to: '/app/team', icon: '👥', label: 'Equipe', admin: true },
   { to: '/app/settings', icon: '⚙️', label: 'Reglages' },
 ]
