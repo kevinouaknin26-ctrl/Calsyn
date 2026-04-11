@@ -237,7 +237,7 @@ export default function ProspectModal({
 
       <div className="fixed inset-0 bg-black/15 flex items-start justify-center pt-[5vh] z-40"
         onClick={e => { if (e.target === e.currentTarget && !isInCall) onClose() }}>
-        <div className="bg-white rounded-2xl shadow-xl w-[880px] max-h-[85vh] flex overflow-hidden animate-fade-in-scale">
+        <div className="bg-white rounded-2xl shadow-xl w-[880px] max-h-[85vh] flex animate-fade-in-scale">
 
           {/* ── GAUCHE — Infos prospect ── */}
           <div className="w-[300px] p-5 border-r border-gray-100 flex flex-col overflow-y-auto">
@@ -311,7 +311,7 @@ export default function ProspectModal({
                     <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                   </button>
                   {showSnoozeMenu && (
-                    <div className="absolute top-9 right-0 bg-white rounded-xl shadow-lg border border-gray-200 z-50 py-1.5 w-40 animate-slide-down">
+                    <div className="fixed bg-white rounded-xl shadow-lg border border-gray-200 z-[60] py-1.5 w-44 animate-slide-down" style={{ marginTop: 4 }}>
                       <p className="px-3 py-1 text-[10px] font-bold text-gray-400 uppercase">Mettre en pause</p>
                       {[{ days: 1, label: 'Demain' }, { days: 3, label: 'Dans 3 jours' }, { days: 7, label: 'Dans 1 semaine' }, { days: 14, label: 'Dans 2 semaines' }, { days: 30, label: 'Dans 1 mois' }].map(opt => (
                         <button key={opt.days} onClick={() => handleSnooze(opt.days)}
