@@ -509,7 +509,10 @@ export default function Dialer() {
               Annuler les appels
             </button>
           ) : (
-            <button onClick={() => { const next = prospects?.find(p => p.call_count === 0); if (next) handleCall(next) }}
+            <button onClick={() => {
+              const next = prospects?.find(p => p.call_count === 0 && !p.do_not_call && !(p.snoozed_until && new Date(p.snoozed_until) > new Date()))
+              if (next) handleCall(next)
+            }}
               disabled={!cm.providerReady || !(cm.isIdle || cm.isDisconnected)}
               className="px-4 py-2 rounded-full text-[13px] font-semibold bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-40 transition-colors flex items-center gap-1.5">
               <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" /></svg>
@@ -697,9 +700,20 @@ export default function Dialer() {
           onCall={handleCall} onClose={() => { if (!isInCall) setSelectedProspect(null) }}
           onSetDisposition={cm.setDisposition} onSetNotes={cm.setNotes} onSetMeeting={cm.setMeeting}
           onReset={cm.reset}
-          onNextCall={() => { cm.reset(); setSelectedProspect(null)
-            const next = prospects?.find(p => p.call_count === 0 && p.id !== selectedProspect?.id)
-            if (next) setTimeout(() => handleCall(next), 300) }}
+          onNextCall={() => {
+            cm.reset()
+            setSelectedProspect(null)
+            // Rafraichir la liste pour que le prospect traité se repositionne
+            queryClient.invalidateQueries({ queryKey: ['prospects', activeListId] })
+            // Trouver le prochain prospect non-appelé (en excluant snoozed et DNC)
+            const next = prospects?.find(p =>
+              p.call_count === 0 &&
+              p.id !== selectedProspect?.id &&
+              !p.do_not_call &&
+              !(p.snoozed_until && new Date(p.snoozed_until) > new Date())
+            )
+            if (next) setTimeout(() => handleCall(next), 500)
+          }}
           providerReady={cm.providerReady}
         />
       )}
