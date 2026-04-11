@@ -23,9 +23,10 @@ const CALL_STATUS_BADGE: Record<string, { bg: string; text: string; label: strin
   attempted:      { bg: '#f3f4f6', text: '#6b7280', label: 'Attempted', icon: 'phone' },
   voicemail:      { bg: '#f3f4f6', text: '#6b7280', label: 'Voicemail', icon: 'voicemail' },
   meeting_booked: { bg: '#ccfbf1', text: '#0d9488', label: 'Meeting booked', icon: 'phone' },
-  // Live pendant session
-  'in-progress':  { bg: '#fee2e2', text: '#dc2626', label: 'In-progress', icon: 'phone' },
-  ringing:        { bg: '#fecaca', text: '#dc2626', label: 'Ringing', icon: 'phone' },
+  // Live pendant session (Pending → Initiated → Ringing → In-progress → Connected)
+  initiated:      { bg: '#fed7aa', text: '#ea580c', label: 'Initiated', icon: 'phone' },
+  ringing:        { bg: '#fef3c7', text: '#d97706', label: 'Ringing', icon: 'phone' },
+  'in-progress':  { bg: '#d1fae5', text: '#059669', label: 'In-progress', icon: 'phone' },
 }
 
 /** Mappe le last_call_outcome vers un badge CALL STATUS Minari */
