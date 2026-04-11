@@ -97,76 +97,122 @@ function timeAgo(dateStr: string | null): string {
 }
 
 // ── Call Settings Dropdown (Minari frame 012 exact) ───────────────
+/** Helper pour persister les call settings */
+function useCallSetting<T>(key: string, defaultValue: T): [T, (v: T) => void] {
+  const [val, setVal] = useState<T>(() => {
+    try { const s = localStorage.getItem(`callio_cs_${key}`); return s ? JSON.parse(s) : defaultValue } catch { return defaultValue }
+  })
+  const set = (v: T) => { setVal(v); localStorage.setItem(`callio_cs_${key}`, JSON.stringify(v)) }
+  return [val, set]
+}
+
 function CallSettingsDropdown({ open, onToggle }: { open: boolean; onToggle: () => void }) {
-  const [parallel, setParallel] = useState(1)
-  const [autoRotate, setAutoRotate] = useState(true)
-  const [voicemail, setVoicemail] = useState(false)
-  const [maxAttempts, setMaxAttempts] = useState('Unlimited')
-  const [attemptPeriod, setAttemptPeriod] = useState('day')
+  const [parallel, setParallel] = useCallSetting('parallel', 1)
+  const [autoRotate, setAutoRotate] = useCallSetting('auto_rotate', true)
+  const [voicemail, setVoicemail] = useCallSetting('voicemail', false)
+  const [completeTask, setCompleteTask] = useCallSetting('complete_task', false)
+  const [maxAttempts, setMaxAttempts] = useCallSetting('max_attempts', 'Illimité')
+  const [attemptPeriod, setAttemptPeriod] = useCallSetting('attempt_period', 'jour')
+  const [phoneField, setPhoneField] = useCallSetting('phone_field', 'phone')
+
+  // Toggle helper
+  const Toggle = ({ value, onChange }: { value: boolean; onChange: (v: boolean) => void }) => (
+    <button onClick={() => onChange(!value)}
+      className={`w-10 h-5 rounded-full relative transition-colors ${value ? 'bg-teal-500' : 'bg-gray-300'}`}>
+      <div className={`w-4 h-4 bg-white rounded-full shadow absolute top-0.5 transition-transform ${value ? 'translate-x-5' : 'translate-x-0.5'}`} />
+    </button>
+  )
 
   return (
     <div className="relative">
       <button onClick={onToggle} className="flex items-center gap-1.5 text-[13px] text-gray-600 hover:text-gray-800 px-3 py-1.5 rounded-lg border border-gray-200 bg-white">
         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" /></svg>
-        Parametres d'appel
+        Paramètres d'appel
         <svg className={`w-3 h-3 transition-transform ${open ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
       </button>
 
       {open && (
-        <div className="absolute right-0 top-8 w-[420px] bg-white rounded-xl shadow-lg border border-gray-200 z-50 p-5 space-y-5 animate-slide-down">
-          {/* Parallel calls */}
+        <div className="absolute right-0 top-10 w-[440px] bg-white rounded-xl shadow-lg border border-gray-200 z-50 p-5 space-y-4 animate-slide-down">
+
+          {/* Microphone (Minari exact — dropdown + Test/Play) */}
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <span className="text-[13px] text-gray-700">Microphone</span>
+              <select className="text-[12px] text-gray-500 bg-transparent border border-gray-200 rounded-lg px-2 py-1 outline-none max-w-[200px] truncate">
+                <option>Microphone par défaut</option>
+              </select>
+            </div>
+            <div className="flex items-center gap-2 justify-end">
+              <button className="px-2.5 py-1 rounded-lg border border-gray-200 text-[11px] text-gray-500 hover:bg-gray-50">Test</button>
+              <button className="px-2.5 py-1 rounded-lg border border-gray-200 text-[11px] text-gray-500 hover:bg-gray-50">Play</button>
+            </div>
+          </div>
+
+          <div className="h-px bg-gray-100" />
+
+          {/* Parallel calls (Minari exact — sélecteur avec checkmark) */}
           <div className="flex items-center justify-between">
-            <span className="text-[13px] text-gray-700">Appels paralleles</span>
+            <span className="text-[13px] text-gray-700">Appels parallèles</span>
             <div className="flex items-center border border-gray-200 rounded-lg overflow-hidden">
               {[1, 2, 3, 4, 5].map(n => (
                 <button key={n} onClick={() => setParallel(n)}
-                  className={`w-9 h-8 text-xs font-medium border-r border-gray-200 last:border-r-0 ${
-                    parallel === n ? 'bg-gray-800 text-white' : 'text-gray-500 hover:bg-gray-50'
-                  }`}>{n}</button>
+                  className={`w-9 h-8 text-xs font-medium border-r border-gray-200 last:border-r-0 flex items-center justify-center gap-0.5 ${
+                    parallel === n ? 'bg-teal-50 text-teal-700 font-semibold' : 'text-gray-500 hover:bg-gray-50'
+                  }`}>
+                  {n}
+                  {parallel === n && <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>}
+                </button>
               ))}
             </div>
           </div>
 
-          {/* From phone number */}
+          {/* From phone number (Minari exact — point vert + numéro) */}
           <div className="flex items-center justify-between">
-            <span className="text-[13px] text-gray-700">Numero appelant</span>
-            <span className="text-[13px] text-gray-500">+33 1 59 58 01 89</span>
+            <span className="text-[13px] text-gray-700">Numéro appelant</span>
+            <div className="flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-emerald-500" />
+              <span className="text-[13px] text-gray-600">+33 1 59 58 01 89</span>
+            </div>
           </div>
 
-          {/* Voicemail */}
+          {/* Voicemail (Minari exact — icone + type dropdown) */}
           <div className="flex items-center justify-between">
             <span className="text-[13px] text-gray-700">Messagerie vocale</span>
             <div className="flex items-center gap-2">
-              <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
-              <span className="text-[13px] text-gray-500">{voicemail ? 'Active' : 'Désactivé'}</span>
-              <button onClick={() => setVoicemail(!voicemail)}
-                className={`w-10 h-5 rounded-full relative transition-colors ${voicemail ? 'bg-teal-500' : 'bg-gray-300'}`}>
-                <div className={`w-4 h-4 bg-white rounded-full shadow absolute top-0.5 transition-transform ${voicemail ? 'translate-x-5' : 'translate-x-0.5'}`} />
-              </button>
+              <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" /></svg>
+              {voicemail ? (
+                <select className="text-[12px] text-gray-600 bg-transparent border border-gray-200 rounded-lg px-2 py-1 outline-none">
+                  <option>Message type 1</option>
+                  <option>Message type 2</option>
+                </select>
+              ) : (
+                <span className="text-[13px] text-gray-400">Désactivé</span>
+              )}
+              <Toggle value={voicemail} onChange={setVoicemail} />
             </div>
           </div>
 
           {/* Contact phone number field */}
           <div className="flex items-center justify-between">
-            <span className="text-[13px] text-gray-700">Champ telephone du contact</span>
-            <span className="text-[13px] text-gray-500">Telephone ▾</span>
+            <span className="text-[13px] text-gray-700">Champ téléphone</span>
+            <select value={phoneField} onChange={e => setPhoneField(e.target.value)}
+              className="text-[12px] text-gray-600 bg-transparent border border-gray-200 rounded-lg px-2 py-1 outline-none">
+              <option value="phone">Téléphone</option>
+              <option value="phone2">Téléphone 2</option>
+              <option value="phone3">Téléphone 3</option>
+            </select>
           </div>
 
           {/* Complete task when contact dialed */}
           <div className="flex items-center justify-between">
-            <span className="text-[13px] text-gray-700">Terminer la tache quand le contact est compose</span>
-            <button className="w-10 h-5 rounded-full bg-gray-300 relative">
-              <div className="w-4 h-4 bg-white rounded-full shadow absolute top-0.5 translate-x-0.5" />
-            </button>
+            <span className="text-[13px] text-gray-700">Terminer la tâche au composé</span>
+            <Toggle value={completeTask} onChange={setCompleteTask} />
           </div>
 
           {/* Auto-rotate */}
           <div className="flex items-center justify-between">
-            <span className="text-[13px] text-gray-700">Rotation auto des numeros</span>
-            <button onClick={() => setAutoRotate(!autoRotate)}
-              className={`w-10 h-5 rounded-full relative transition-colors ${autoRotate ? 'bg-teal-500' : 'bg-gray-300'}`}>
-              <div className={`w-4 h-4 bg-white rounded-full shadow absolute top-0.5 transition-transform ${autoRotate ? 'translate-x-5' : 'translate-x-0.5'}`} />
-            </button>
+            <span className="text-[13px] text-gray-700">Rotation auto des numéros</span>
+            <Toggle value={autoRotate} onChange={setAutoRotate} />
           </div>
 
           {/* Max call attempts */}
@@ -175,7 +221,7 @@ function CallSettingsDropdown({ open, onToggle }: { open: boolean; onToggle: () 
             <div className="flex items-center gap-1.5">
               <select value={maxAttempts} onChange={e => setMaxAttempts(e.target.value)}
                 className="text-[13px] text-gray-600 bg-transparent border border-gray-200 rounded-lg px-2 py-1 outline-none">
-                <option>Illimite</option><option>1</option><option>2</option><option>3</option><option>5</option><option>10</option>
+                <option>Illimité</option><option>1</option><option>2</option><option>3</option><option>5</option><option>10</option>
               </select>
               <span className="text-[13px] text-gray-400">par</span>
               <select value={attemptPeriod} onChange={e => setAttemptPeriod(e.target.value)}
