@@ -409,7 +409,6 @@ export default function ProspectModal({
                               }
                             }} />
                         </div>
-                        </label>
                       </div>
                     </div>
                   )}
