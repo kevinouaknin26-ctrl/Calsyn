@@ -8,6 +8,7 @@ export interface Organisation {
   max_sdrs: number
   is_active: boolean
   voice_provider: 'twilio' | 'telnyx'
+  from_number: string | null
   credit_balance: number
   credit_reserved: number
   recording_compliance: boolean

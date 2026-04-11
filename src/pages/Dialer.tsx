@@ -6,12 +6,11 @@
 
 import { useState, useEffect, useCallback, memo } from 'react'
 import { useCallMachine } from '@/hooks/useCallMachine'
-import { useProspectLists, useProspects } from '@/hooks/useProspects'
+import { useProspectLists, useProspects, useCreateList } from '@/hooks/useProspects'
 import { useCallsByProspect } from '@/hooks/useCalls'
 import ProspectModal from '@/components/call/ProspectModal'
 import CSVImport from '@/components/import/CSVImport'
 import { useRealtimeProspects } from '@/hooks/useRealtime'
-import { useCreateList } from '@/hooks/useProspects'
 import type { Prospect, CrmStatus } from '@/types/prospect'
 
 // ── Call status badges (Minari style) ─────────────────────────────

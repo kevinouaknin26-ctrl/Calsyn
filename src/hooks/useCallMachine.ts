@@ -43,6 +43,14 @@ export function useCallMachine() {
       },
       onError: (err) => {
         if (cancelled) return
+        // Auto-refresh token quand il expire
+        if (err.message === 'TOKEN_WILL_EXPIRE') {
+          console.log('[useCallMachine] Token expiring, refreshing...')
+          fetchVoiceToken()
+            .then(newToken => { if (!cancelled) return provider.init(newToken) })
+            .catch(e => console.error('[useCallMachine] Token refresh failed:', e))
+          return
+        }
         console.error('[useCallMachine] Provider error:', err.message)
       },
       onStateChange: (callState, session) => {
@@ -122,13 +130,15 @@ export function useCallMachine() {
       return
     }
 
-    console.log(`[useCallMachine] Calling ${prospect.name}`)
+    // Numero de l'appelant depuis l'organisation (pas hardcode)
+    const fromNumber = organisation?.from_number || '+33159580189'
+    console.log(`[useCallMachine] Calling ${prospect.name} from ${fromNumber}`)
     send({ type: 'CALL', prospect })
 
     const conferenceId = crypto.randomUUID()
     const session = await provider.connect({
       to: prospect.phone,
-      from: '+33159580189',
+      from: fromNumber,
       conferenceId,
     })
 
@@ -162,7 +172,9 @@ export function useCallMachine() {
   const setNotes = useCallback((n: string) => send({ type: 'SET_NOTES', notes: n }), [send])
   const setMeeting = useCallback((m: boolean) => send({ type: 'SET_MEETING', meetingBooked: m }), [send])
   const reset = useCallback(() => {
-    // Save final avec la disposition mise a jour par l'utilisateur
+    // Le save est fait par l'autosave useEffect quand on entre en disconnected.
+    // Ici on fait juste un re-save pour capturer les derniers changements de disposition/notes
+    // AVANT de reset vers idle (le useEffect ne se re-declenchera pas car isDisconnectedState est deja true).
     if (state.matches('disconnected')) {
       saveCallDisposition({
         callSid: state.context.callSid,
