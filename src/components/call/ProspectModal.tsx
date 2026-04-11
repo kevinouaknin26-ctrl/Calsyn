@@ -7,6 +7,14 @@ import type { Prospect } from '@/types/prospect'
 import type { Disposition } from '@/types/call'
 import type { CallContext } from '@/machines/callMachine'
 
+function formatPhone(phone: string): string {
+  // +33617535622 → +33 6 17 53 56 22
+  if (phone.startsWith('+33') && phone.length === 12) {
+    return `+33 ${phone[3]} ${phone.slice(4, 6)} ${phone.slice(6, 8)} ${phone.slice(8, 10)} ${phone.slice(10, 12)}`
+  }
+  return phone
+}
+
 interface Props {
   prospect: Prospect
   callContext: CallContext | null
@@ -68,7 +76,7 @@ export default function ProspectModal({
               disabled={!providerReady || isInCall}
               className="flex-1 py-2.5 rounded-lg text-sm font-semibold bg-teal-600 text-white hover:bg-teal-700 disabled:opacity-40 transition-colors flex items-center justify-center gap-2"
             >
-              📞 Appeler {prospect.phone}
+              📞 Appeler {formatPhone(prospect.phone)}
             </button>
           </div>
 
@@ -84,7 +92,7 @@ export default function ProspectModal({
             <div>
               <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Telephone</span>
               <div className="flex items-center gap-2 mt-0.5">
-                <p className="text-gray-700">{prospect.phone}</p>
+                <p className="text-gray-700">{formatPhone(prospect.phone)}</p>
                 <button onClick={() => navigator.clipboard.writeText(prospect.phone)} className="text-gray-300 hover:text-gray-500 text-[10px]">📋</button>
               </div>
             </div>
