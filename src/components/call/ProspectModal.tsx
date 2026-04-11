@@ -67,20 +67,33 @@ const CRM_OPTIONS: Array<{ value: CrmStatus; label: string }> = [
   { value: 'callback', label: 'Rappel' }, { value: 'rdv', label: 'RDV' }, { value: 'mail_sent', label: 'Mail envoyé' },
 ]
 
-// ── Confetti ────────────────────────────────────────────────────
-function Confetti() {
-  const pieces = Array.from({ length: 50 }, (_, i) => ({
-    x: Math.random() * 100, size: 5 + Math.random() * 8,
-    color: ['#059669', '#0ea5e9', '#8b5cf6', '#f59e0b', '#ef4444', '#ec4899'][i % 6],
-    delay: Math.random() * 0.6, rotation: Math.random() * 360,
+// ── Celebration emojis (montent du bas vers le haut) ────────────
+function Celebration() {
+  const emojis = ['🔥', '🎉', '💪', '🚀', '⭐', '🏆', '💰', '✨', '🎯', '👏']
+  const pieces = Array.from({ length: 25 }, (_, i) => ({
+    emoji: emojis[i % emojis.length],
+    x: 5 + Math.random() * 90,
+    delay: Math.random() * 0.8,
+    duration: 1.5 + Math.random() * 1,
+    size: 20 + Math.random() * 16,
+    wobble: -20 + Math.random() * 40,
   }))
   return (
     <div className="fixed inset-0 pointer-events-none z-[9999] overflow-hidden">
       {pieces.map((p, i) => (
-        <div key={i} style={{ position: 'absolute', left: `${p.x}%`, top: -20, width: p.size, height: p.size,
-          borderRadius: Math.random() > 0.5 ? '50%' : 2, background: p.color,
-          animation: `confettiFall 2s ${p.delay}s ease-in forwards`, transform: `rotate(${p.rotation}deg)` }} />
+        <div key={i} style={{
+          position: 'absolute', left: `${p.x}%`, bottom: -50,
+          fontSize: p.size,
+          animation: `emojiRise ${p.duration}s ${p.delay}s ease-out forwards`,
+        }}>{p.emoji}</div>
       ))}
+      <style>{`
+        @keyframes emojiRise {
+          0% { transform: translateY(0) rotate(0deg); opacity: 1; }
+          70% { opacity: 1; }
+          100% { transform: translateY(-110vh) rotate(${Math.random() > 0.5 ? '' : '-'}30deg); opacity: 0; }
+        }
+      `}</style>
     </div>
   )
 }
@@ -248,7 +261,7 @@ export default function ProspectModal({
   onCall, onClose, onSetDisposition, onSetNotes, onSetMeeting, onReset, onNextCall, providerReady,
 }: Props) {
   const [activeTab, setActiveTab] = useState('activite')
-  const [showConfetti, setShowConfetti] = useState(false)
+  const [showCelebration, setShowCelebration] = useState(false)
   const [showSnoozeMenu, setShowSnoozeMenu] = useState(false)
   const [editingUrl, setEditingUrl] = useState<'linkedin' | 'website' | null>(null)
   const [urlValue, setUrlValue] = useState('')
@@ -259,7 +272,7 @@ export default function ProspectModal({
 
   const handleMeetingToggle = (checked: boolean) => {
     onSetMeeting(checked)
-    if (checked) { setShowConfetti(true); setTimeout(() => setShowConfetti(false), 2500) }
+    if (checked) { setShowCelebration(true); setTimeout(() => setShowCelebration(false), 2500) }
   }
 
   async function handleSnooze(days: number) {
@@ -289,7 +302,7 @@ export default function ProspectModal({
 
   return (
     <>
-      {showConfetti && <Confetti />}
+      {showCelebration && <Celebration />}
 
       <div className="fixed inset-0 bg-black/15 flex items-start justify-center pt-[5vh] z-40"
         onClick={e => { if (e.target === e.currentTarget && !isInCall) onClose() }}>
@@ -460,25 +473,6 @@ export default function ProspectModal({
                 </button>
               </div>
             )}
-
-            {/* Meeting booked toggle (Minari : bouton cliquable dans la fiche) */}
-            <label className="flex items-center gap-2 mb-3 cursor-pointer px-3 py-2 rounded-lg border border-gray-200 hover:border-teal-200 transition-colors">
-              <input type="checkbox"
-                checked={prospect.last_call_outcome === 'meeting_booked' || prospect.crm_status === 'rdv'}
-                onChange={async e => {
-                  if (e.target.checked) {
-                    await supabase.from('prospects').update({ last_call_outcome: 'meeting_booked', crm_status: 'rdv' }).eq('id', prospect.id)
-                  } else {
-                    await supabase.from('prospects').update({ last_call_outcome: 'connected', crm_status: 'open' }).eq('id', prospect.id)
-                  }
-                  queryClient.invalidateQueries({ queryKey: ['prospects'] })
-                }}
-                className="w-4 h-4 rounded border-gray-300 accent-teal-600" />
-              <svg className="w-4 h-4 text-teal-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-              <span className={`text-[13px] font-medium ${(prospect.last_call_outcome === 'meeting_booked' || prospect.crm_status === 'rdv') ? 'text-teal-600' : 'text-gray-600'}`}>
-                RDV pris
-              </span>
-            </label>
 
             {/* Snooze badge (Minari : badge violet + "Remove snooze") */}
             {isSnoozed && (
