@@ -391,22 +391,34 @@ const ProspectRow = memo(function ProspectRow({ prospect, isActive, liveStatus, 
           </button>
           {/* Spacer pour pousser les icones à droite */}
           <div className="flex-1" />
-          {/* Icones appeler + LinkedIn — alignées à droite comme une colonne */}
+          {/* Icones — appeler toujours, mail/site/linkedin seulement si info existe */}
           <button onClick={e => { e.stopPropagation(); onCall(prospect) }}
             className="w-6 h-6 rounded bg-gray-100 flex items-center justify-center flex-shrink-0 hover:bg-violet-50 group">
             <svg className="w-3 h-3 text-gray-400 group-hover:text-violet-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
             </svg>
           </button>
-          {prospect.linkedin_url ? (
+          {prospect.email && (
+            <a href={`mailto:${prospect.email}`} onClick={e => e.stopPropagation()} title={prospect.email}
+              className="w-6 h-6 rounded bg-gray-100 flex items-center justify-center flex-shrink-0 hover:bg-violet-50 group">
+              <svg className="w-3 h-3 text-gray-400 group-hover:text-violet-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+              </svg>
+            </a>
+          )}
+          {prospect.website_url && (
+            <a href={prospect.website_url} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} title={prospect.website_url}
+              className="w-6 h-6 rounded bg-gray-100 flex items-center justify-center flex-shrink-0 hover:bg-violet-50 group">
+              <svg className="w-3 h-3 text-gray-400 group-hover:text-violet-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9" />
+              </svg>
+            </a>
+          )}
+          {prospect.linkedin_url && (
             <a href={prospect.linkedin_url} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}
               className="w-6 h-6 rounded bg-blue-50 flex items-center justify-center flex-shrink-0 hover:bg-blue-100">
               <span className="text-[8px] font-bold text-blue-500">in</span>
             </a>
-          ) : (
-            <div className="w-6 h-6 rounded bg-gray-50 flex items-center justify-center flex-shrink-0">
-              <span className="text-[8px] font-bold text-gray-300">in</span>
-            </div>
           )}
         </div>
       </td>
