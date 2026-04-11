@@ -88,6 +88,7 @@ export default function Dialer() {
   const connected = prospects?.filter(p => ['connected', 'interested', 'converted'].includes(p.status)).length || 0
   const attempted = prospects?.filter(p => p.call_count > 0).length || 0
   const pending = prospects?.filter(p => p.status === 'idle').length || 0
+  const meetings = prospects?.filter(p => p.status === 'converted').length || 0
 
   return (
     <div className="min-h-screen bg-[#f8f9fa] flex flex-col">
@@ -122,6 +123,7 @@ export default function Dialer() {
         </div>
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-3 text-xs">
+            {meetings > 0 && <span className="text-teal-500 font-semibold">📅 {meetings} RDV</span>}
             <span className="text-emerald-500 font-semibold">● Connectes {connected}</span>
             <span className="text-orange-400 font-semibold">● Tentes {attempted}</span>
             <span className="text-gray-400">En attente {pending}</span>
