@@ -1,6 +1,12 @@
 /**
  * status-callback — Events de progression d'appel Twilio.
- * Source de verite pour la DB. Cherche le prospect par numero pour enrichir le call.
+ * Source de verite pour la DB.
+ *
+ * WORKFLOW COMPLET :
+ * 1. Recoit l'event Twilio (initiated, ringing, answered, completed, busy, no-answer, canceled, failed)
+ * 2. Cherche le prospect par numero
+ * 3. Upsert le call enrichi dans la table calls
+ * 4. Met a jour le prospect : last_call_at, last_call_outcome, call_count++
  */
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
@@ -28,8 +34,9 @@ serve(async (req) => {
     const from = params.From || ''
     const to = params.To || ''
 
-    console.log(`[status-callback] ${callSid}: ${callStatus} (${duration}s)`)
+    console.log(`[status-callback] ${callSid}: ${callStatus} (${duration}s) from=${from} to=${to}`)
 
+    // On ne traite que les etats finaux pour la DB
     if (!['completed', 'busy', 'no-answer', 'canceled', 'failed'].includes(callStatus)) {
       return new Response(JSON.stringify({ ok: true }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -41,15 +48,22 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '',
     )
 
+    // Mapping Twilio → nos statuts (Minari exact)
     const outcomeMap: Record<string, string> = {
-      'completed': 'connected',
-      'busy': 'busy',
+      'completed': duration > 0 ? 'connected' : 'no_answer', // completed sans duree = pas vraiment decroche
+      'busy': 'no_answer',
       'no-answer': 'no_answer',
-      'canceled': 'no_answer',
-      'failed': 'no_answer',
+      'canceled': 'cancelled',
+      'failed': 'failed',
     }
 
-    // Chercher le prospect par numero pour enrichir le call
+    // Detection voicemail : completed + duree < 8 secondes = probablement repondeur (Minari rule)
+    let outcome = outcomeMap[callStatus] || 'no_answer'
+    if (callStatus === 'completed' && duration > 0 && duration <= 8) {
+      outcome = 'voicemail' // Recategorise auto < 8s (comme Minari)
+    }
+
+    // ── 1. Chercher le prospect par numero ──
     let prospectName: string | null = null
     let prospectId: string | null = null
     let organisationId: string | null = null
@@ -58,7 +72,7 @@ serve(async (req) => {
     if (to) {
       const { data: prospect } = await supabase
         .from('prospects')
-        .select('id, name, organisation_id, list_id')
+        .select('id, name, organisation_id, list_id, call_count')
         .eq('phone', to)
         .limit(1)
         .single()
@@ -68,7 +82,7 @@ serve(async (req) => {
         prospectId = prospect.id
         organisationId = prospect.organisation_id
 
-        // Trouver le SDR via la liste du prospect
+        // Trouver le SDR via la liste
         if (prospect.list_id) {
           const { data: list } = await supabase
             .from('prospect_lists')
@@ -78,25 +92,32 @@ serve(async (req) => {
           if (list?.created_by) sdrId = list.created_by
         }
 
-        // Mettre a jour le prospect
-        await supabase
+        // ── 2. Mettre a jour le prospect (COMPLET) ──
+        const { error: prospectErr } = await supabase
           .from('prospects')
           .update({
             last_call_at: new Date().toISOString(),
-            call_count: prospect.id ? undefined : 0, // increment via RPC plus tard
+            last_call_outcome: outcome,
+            call_count: (prospect.call_count || 0) + 1,
           })
           .eq('id', prospect.id)
+
+        if (prospectErr) {
+          console.error('[status-callback] Prospect update error:', prospectErr)
+        } else {
+          console.log(`[status-callback] Prospect ${prospect.name} updated: outcome=${outcome}, count=${(prospect.call_count || 0) + 1}`)
+        }
       }
     }
 
-    // Upsert le call enrichi
+    // ── 3. Upsert le call enrichi ──
     const { error } = await supabase
       .from('calls')
       .upsert({
         call_sid: callSid,
         conference_sid: conferenceSid,
         call_duration: duration,
-        call_outcome: outcomeMap[callStatus] || callStatus,
+        call_outcome: outcome,
         prospect_phone: to,
         prospect_name: prospectName,
         prospect_id: prospectId,
@@ -110,7 +131,7 @@ serve(async (req) => {
       })
 
     if (error) {
-      console.error('[status-callback] Upsert error:', error)
+      console.error('[status-callback] Call upsert error:', error)
     }
 
     return new Response(JSON.stringify({ ok: true }), {

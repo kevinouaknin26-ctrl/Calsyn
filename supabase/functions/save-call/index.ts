@@ -1,10 +1,11 @@
 /**
  * save-call — Sauvegarde la disposition et les notes du SDR apres un appel.
  *
- * Appele par le frontend quand le SDR clique "Sauvegarder".
- * Met a jour le call existant (cree par status-callback) avec la disposition.
- *
- * Auth : JWT Supabase requis.
+ * WORKFLOW COMPLET :
+ * 1. Auth JWT Supabase
+ * 2. Cherche le call existant (par callSid ou conferenceSid)
+ * 3. Update ou insert le call avec disposition/notes/meeting
+ * 4. Met a jour le prospect : last_call_outcome (si disposition change), meeting_booked
  */
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
@@ -66,7 +67,7 @@ serve(async (req) => {
       })
     }
 
-    // Chercher le call existant (cree par status-callback) ou en creer un nouveau
+    // ── 1. Chercher le call existant ──
     let callId: string | null = null
 
     if (callSid) {
@@ -78,8 +79,12 @@ serve(async (req) => {
       if (data) callId = data.id
     }
 
+    // ── 2. Mapper la disposition vers le call outcome ──
+    // "rdv" dans le frontend = "meeting_booked" en DB si meetingBooked est true
+    const callOutcome = meetingBooked ? 'meeting_booked' : (disposition || 'connected')
+
     const callData = {
-      call_outcome: disposition,
+      call_outcome: callOutcome,
       note: notes || '',
       meeting_booked: meetingBooked || false,
       call_duration: duration || 0,
@@ -91,11 +96,9 @@ serve(async (req) => {
     }
 
     if (callId) {
-      // Update le call existant
       const { error } = await supabase.from('calls').update(callData).eq('id', callId)
       if (error) throw error
     } else {
-      // Creer un nouveau call (cas ou le webhook n'a pas encore fire)
       const { data: newCall, error } = await supabase.from('calls').insert({
         ...callData,
         call_sid: callSid,
@@ -104,6 +107,34 @@ serve(async (req) => {
       }).select('id').single()
       if (error) throw error
       callId = newCall.id
+    }
+
+    // ── 3. Mettre a jour le prospect avec la disposition du SDR ──
+    if (prospectId) {
+      const prospectUpdate: Record<string, unknown> = {
+        last_call_outcome: callOutcome,
+      }
+
+      // Si le SDR marque "wrong_number", on desactive le prospect
+      if (disposition === 'wrong_number') {
+        prospectUpdate.do_not_call = true
+      }
+
+      // Si le SDR marque "dnc" (Do Not Call)
+      if (disposition === 'dnc') {
+        prospectUpdate.do_not_call = true
+      }
+
+      const { error: prospectErr } = await supabase
+        .from('prospects')
+        .update(prospectUpdate)
+        .eq('id', prospectId)
+
+      if (prospectErr) {
+        console.error('[save-call] Prospect update error:', prospectErr)
+      } else {
+        console.log(`[save-call] Prospect ${prospectId} updated: outcome=${callOutcome}`)
+      }
     }
 
     return new Response(JSON.stringify({ ok: true, id: callId }), {
