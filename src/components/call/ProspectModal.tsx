@@ -395,7 +395,7 @@ export default function ProspectModal({
   const [localDoNotCall, setLocalDoNotCall] = useState(prospect.do_not_call)
   const [localSnoozedUntil, setLocalSnoozedUntil] = useState(prospect.snoozed_until)
   const queryClient = useQueryClient()
-  const tabs = ['Activité', 'Notes', 'Tâches', 'Emails', 'Appels', 'SMS']
+  const tabs = ['Activité', 'Notes', 'Tâches', 'Emails', 'Appels', 'SMS', 'Historique']
 
   const handleMeetingToggle = (checked: boolean) => {
     onSetMeeting(checked)
@@ -748,22 +748,8 @@ export default function ProspectModal({
                 <CallCard key={c.id} call={c} defaultOpen={i === 0 && !isInCall && !isDisconnected} onUpdate={() => queryClient.invalidateQueries({ queryKey: ['calls-by-prospect'] })} onCelebrate={() => { setShowCelebration(true); setTimeout(() => setShowCelebration(false), 2500) }} />
               ))}
 
-              {/* Logs d'activité (modifications de champs, snooze, DNC) */}
-              {activityLogs && activityLogs.length > 0 && (
-                <div className="mt-3 space-y-1">
-                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Historique des modifications</p>
-                  {activityLogs.map((log: { id: string; action: string; details: string; created_at: string }) => (
-                    <div key={log.id} className="flex items-center gap-2 text-[11px] text-gray-400 py-1 border-b border-gray-50">
-                      <svg className="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                      <span className="flex-1">{log.details}</span>
-                      <span className="text-[10px] text-gray-300">{formatDate(log.created_at)}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-
               {/* Vide */}
-              {!isInCall && !isDisconnected && callHistory.length === 0 && (!activityLogs || activityLogs.length === 0) && (
+              {!isInCall && !isDisconnected && callHistory.length === 0 && (
                 <p className="text-[13px] text-gray-400 text-center py-10">Aucune activité</p>
               )}
               </>
@@ -839,6 +825,27 @@ export default function ProspectModal({
                   <svg className="w-8 h-8 text-gray-300 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>
                   <p className="text-[13px] text-gray-400">Aucun SMS</p>
                   <p className="text-[11px] text-gray-300 mt-1">L'envoi de SMS sera disponible prochainement</p>
+                </div>
+              )}
+
+              {/* ── Onglet Historique ── */}
+              {activeTab === 'historique' && (
+                <div>
+                  {activityLogs && activityLogs.length > 0 ? (
+                    <div className="space-y-1">
+                      {activityLogs.map((log: { id: string; action: string; details: string; created_at: string }) => (
+                        <div key={log.id} className="flex items-start gap-2 text-[12px] py-2 border-b border-gray-50">
+                          <svg className="w-3.5 h-3.5 text-gray-300 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                          <div className="flex-1">
+                            <p className="text-gray-600">{log.details}</p>
+                            <p className="text-[10px] text-gray-300 mt-0.5">{formatDate(log.created_at)}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-[13px] text-gray-400 text-center py-10">Aucune modification enregistrée</p>
+                  )}
                 </div>
               )}
             </div>
