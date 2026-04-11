@@ -235,9 +235,9 @@ const ProspectRow = memo(function ProspectRow({ prospect, isActive, liveStatus, 
         <div className="flex items-center gap-2">
           {/* Nom dans une bulle cliquable */}
           <button onClick={() => onSelect(prospect)}
-            className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-gray-100 hover:bg-gray-200 transition-colors cursor-pointer">
-            <svg className="w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
-            <span className="text-[13px] font-semibold text-gray-800">{prospect.name}</span>
+            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-gray-50 hover:bg-gray-100 transition-colors cursor-pointer border border-gray-200/60">
+            <svg className="w-3 h-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+            <span className="text-[13px] font-medium text-gray-800">{prospect.name}</span>
           </button>
           {/* Icones après le nom (Minari exact) */}
           <button onClick={e => { e.stopPropagation(); onCall(prospect) }}
