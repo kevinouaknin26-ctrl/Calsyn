@@ -108,14 +108,14 @@ export default function Dialer() {
         </div>
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-3 text-xs">
-            <span className="text-emerald-500 font-semibold">● Connected {connected}</span>
-            <span className="text-orange-400 font-semibold">● Attempted {attempted}</span>
-            <span className="text-gray-400">Pending {pending}</span>
+            <span className="text-emerald-500 font-semibold">● Connectes {connected}</span>
+            <span className="text-orange-400 font-semibold">● Tentes {attempted}</span>
+            <span className="text-gray-400">En attente {pending}</span>
           </div>
           <button onClick={() => { const next = prospects?.find(p => p.status === 'idle'); if (next) handleCall(next) }}
             disabled={!cm.providerReady || !(cm.isIdle || cm.isDisconnected)}
             className="px-4 py-2 rounded-lg text-sm font-semibold bg-emerald-500 text-white hover:bg-emerald-600 disabled:opacity-40 transition-colors">
-            {cm.providerReady ? '▶ Resume calling' : '⏳ Connecting...'}
+            {cm.providerReady ? '▶ Lancer les appels' : '⏳ Connexion...'}
           </button>
         </div>
       </div>
@@ -125,13 +125,13 @@ export default function Dialer() {
         <table className="w-full">
           <thead>
             <tr className="text-[10px] font-bold text-gray-400 uppercase tracking-wider border-b border-gray-100">
-              <th className="py-2 px-4 text-left">Call status</th>
-              <th className="py-2 px-2 text-left">Calls</th>
-              <th className="py-2 px-4 text-left">Name</th>
-              <th className="py-2 px-4 text-left">Sector</th>
-              <th className="py-2 px-4 text-left">Company</th>
-              <th className="py-2 px-4 text-left">Last call</th>
-              <th className="py-2 px-4 text-left">Phone number</th>
+              <th className="py-2 px-4 text-left">Statut</th>
+              <th className="py-2 px-2 text-left">Appels</th>
+              <th className="py-2 px-4 text-left">Nom</th>
+              <th className="py-2 px-4 text-left">Secteur</th>
+              <th className="py-2 px-4 text-left">Entreprise</th>
+              <th className="py-2 px-4 text-left">Dernier appel</th>
+              <th className="py-2 px-4 text-left">Telephone</th>
             </tr>
           </thead>
           <tbody>
