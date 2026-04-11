@@ -70,19 +70,19 @@ serve(async (req) => {
     let sdrId: string | null = null
 
     if (to) {
-      const { data: prospect } = await supabase
+      // Chercher TOUS les prospects avec ce numero (peut etre dans plusieurs listes)
+      const { data: prospects } = await supabase
         .from('prospects')
         .select('id, name, organisation_id, list_id, call_count')
         .eq('phone', to)
-        .limit(1)
-        .single()
 
-      if (prospect) {
+      if (prospects && prospects.length > 0) {
+        // Utiliser le premier pour enrichir le call
+        const prospect = prospects[0]
         prospectName = prospect.name
         prospectId = prospect.id
         organisationId = prospect.organisation_id
 
-        // Trouver le SDR via la liste
         if (prospect.list_id) {
           const { data: list } = await supabase
             .from('prospect_lists')
@@ -92,21 +92,22 @@ serve(async (req) => {
           if (list?.created_by) sdrId = list.created_by
         }
 
-        // ── 2. Mettre a jour le prospect (COMPLET) ──
-        const { error: prospectErr } = await supabase
-          .from('prospects')
-          .update({
-            last_call_at: new Date().toISOString(),
-            last_call_outcome: outcome,
-            call_count: (prospect.call_count || 0) + 1,
-          })
-          .eq('id', prospect.id)
+        // ── 2. Mettre a jour TOUS les prospects avec ce numero ──
+        for (const p of prospects) {
+          const { error: prospectErr } = await supabase
+            .from('prospects')
+            .update({
+              last_call_at: new Date().toISOString(),
+              last_call_outcome: outcome,
+              call_count: (p.call_count || 0) + 1,
+            })
+            .eq('id', p.id)
 
-        if (prospectErr) {
-          console.error('[status-callback] Prospect update error:', prospectErr)
-        } else {
-          console.log(`[status-callback] Prospect ${prospect.name} updated: outcome=${outcome}, count=${(prospect.call_count || 0) + 1}`)
+          if (prospectErr) {
+            console.error(`[status-callback] Prospect ${p.name} update error:`, prospectErr)
+          }
         }
+        console.log(`[status-callback] ${prospects.length} prospect(s) updated for ${to}: outcome=${outcome}`)
       }
     }
 
