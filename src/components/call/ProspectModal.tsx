@@ -7,6 +7,8 @@
  */
 
 import { useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
+import { supabase } from '@/config/supabase'
 import type { Prospect, CrmStatus } from '@/types/prospect'
 import type { Disposition, Call } from '@/types/call'
 import type { CallContext } from '@/machines/callMachine'
@@ -193,6 +195,10 @@ export default function ProspectModal({
 }: Props) {
   const [activeTab, setActiveTab] = useState('activite')
   const [showConfetti, setShowConfetti] = useState(false)
+  const [showSnoozeMenu, setShowSnoozeMenu] = useState(false)
+  const [localDoNotCall, setLocalDoNotCall] = useState(prospect.do_not_call)
+  const [localSnoozedUntil, setLocalSnoozedUntil] = useState(prospect.snoozed_until)
+  const queryClient = useQueryClient()
   const tabs = ['Activité', 'Notes', 'Tâches', 'Emails', 'Appels', 'SMS']
 
   const handleMeetingToggle = (checked: boolean) => {
@@ -200,7 +206,30 @@ export default function ProspectModal({
     if (checked) { setShowConfetti(true); setTimeout(() => setShowConfetti(false), 2500) }
   }
 
-  const callsDisabled = prospect.do_not_call
+  async function handleSnooze(days: number) {
+    const until = new Date()
+    until.setDate(until.getDate() + days)
+    await supabase.from('prospects').update({ snoozed_until: until.toISOString() }).eq('id', prospect.id)
+    setLocalSnoozedUntil(until.toISOString())
+    setShowSnoozeMenu(false)
+    queryClient.invalidateQueries({ queryKey: ['prospects'] })
+  }
+
+  async function handleRemoveSnooze() {
+    await supabase.from('prospects').update({ snoozed_until: null }).eq('id', prospect.id)
+    setLocalSnoozedUntil(null)
+    queryClient.invalidateQueries({ queryKey: ['prospects'] })
+  }
+
+  async function handleToggleDNC() {
+    const newValue = !localDoNotCall
+    await supabase.from('prospects').update({ do_not_call: newValue }).eq('id', prospect.id)
+    setLocalDoNotCall(newValue)
+    queryClient.invalidateQueries({ queryKey: ['prospects'] })
+  }
+
+  const callsDisabled = localDoNotCall
+  const isSnoozed = localSnoozedUntil && new Date(localSnoozedUntil) > new Date()
 
   return (
     <>
@@ -251,7 +280,7 @@ export default function ProspectModal({
                   <svg className="w-4 h-4 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" /></svg>
                   <span className="text-[13px] font-semibold text-red-500">Appels désactivés</span>
                 </div>
-                <button className="w-full py-2.5 rounded-xl text-[13px] font-semibold bg-teal-700 text-white hover:bg-teal-800 flex items-center justify-center gap-2">
+                <button onClick={handleToggleDNC} className="w-full py-2.5 rounded-xl text-[13px] font-semibold bg-teal-700 text-white hover:bg-teal-800 flex items-center justify-center gap-2">
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" /></svg>
                   Activer les appels
                 </button>
@@ -275,22 +304,35 @@ export default function ProspectModal({
                     <span className="text-white/40 text-[10px]">▾</span>
                   </button>
                 )}
-                {/* Snooze (horloge) */}
-                <button title="Mettre en pause" className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center text-gray-400 hover:text-purple-500 hover:bg-purple-50 transition-colors">
-                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                </button>
-                {/* Ne plus appeler (X) */}
-                <button title="Ne plus appeler" className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors">
+                {/* Snooze (horloge) — avec menu durée */}
+                <div className="relative">
+                  <button onClick={() => setShowSnoozeMenu(!showSnoozeMenu)} title="Mettre en pause"
+                    className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center text-gray-400 hover:text-purple-500 hover:bg-purple-50 transition-colors">
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                  </button>
+                  {showSnoozeMenu && (
+                    <div className="absolute top-9 right-0 bg-white rounded-xl shadow-lg border border-gray-200 z-50 py-1.5 w-40 animate-slide-down">
+                      <p className="px-3 py-1 text-[10px] font-bold text-gray-400 uppercase">Mettre en pause</p>
+                      {[{ days: 1, label: 'Demain' }, { days: 3, label: 'Dans 3 jours' }, { days: 7, label: 'Dans 1 semaine' }, { days: 14, label: 'Dans 2 semaines' }, { days: 30, label: 'Dans 1 mois' }].map(opt => (
+                        <button key={opt.days} onClick={() => handleSnooze(opt.days)}
+                          className="w-full text-left px-3 py-1.5 text-[12px] text-gray-600 hover:bg-purple-50 hover:text-purple-600">{opt.label}</button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                {/* Ne plus appeler — toggle DNC */}
+                <button onClick={handleToggleDNC} title={callsDisabled ? 'Réactiver les appels' : 'Ne plus appeler'}
+                  className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors ${callsDisabled ? 'bg-red-100 text-red-500' : 'bg-gray-100 text-gray-400 hover:text-red-500 hover:bg-red-50'}`}>
                   <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" /></svg>
                 </button>
               </div>
             )}
 
-            {/* Snooze badge */}
-            {prospect.snoozed_until && new Date(prospect.snoozed_until) > new Date() && (
+            {/* Snooze badge (Minari : badge violet + "Remove snooze") */}
+            {isSnoozed && (
               <div className="mb-3 px-3 py-2 rounded-lg bg-purple-50 border border-purple-100">
-                <p className="text-[12px] text-purple-600 font-medium">En pause jusqu'au {new Date(prospect.snoozed_until).toLocaleDateString('fr-FR')}</p>
-                <button className="text-[11px] text-purple-400 hover:text-purple-600 mt-0.5">Retirer la pause</button>
+                <p className="text-[12px] text-purple-600 font-medium">En pause jusqu'au {new Date(localSnoozedUntil!).toLocaleDateString('fr-FR')}</p>
+                <button onClick={handleRemoveSnooze} className="text-[11px] text-purple-400 hover:text-purple-600 mt-0.5 underline">Retirer la pause</button>
               </div>
             )}
 
@@ -305,8 +347,10 @@ export default function ProspectModal({
               </div>
               <div>
                 <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Statut</span>
-                <select value={prospect.crm_status || 'new'} onChange={() => {}}
-                  className="block mt-1 text-[13px] text-gray-600 bg-transparent outline-none cursor-pointer border-b border-gray-200 pb-1 w-full">
+                <select value={prospect.crm_status || 'new'} onChange={async e => {
+                  await supabase.from('prospects').update({ crm_status: e.target.value }).eq('id', prospect.id)
+                  queryClient.invalidateQueries({ queryKey: ['prospects'] })
+                }} className="block mt-1 text-[13px] text-gray-600 bg-transparent outline-none cursor-pointer border-b border-gray-200 pb-1 w-full">
                   {CRM_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                 </select>
               </div>
