@@ -9,6 +9,7 @@ import { useCallMachine } from '@/hooks/useCallMachine'
 import { useProspectLists, useProspects } from '@/hooks/useProspects'
 import { useCallsByProspect } from '@/hooks/useCalls'
 import ProspectModal from '@/components/call/ProspectModal'
+import CSVImport from '@/components/import/CSVImport'
 import type { Prospect, CrmStatus } from '@/types/prospect'
 
 // ── Call status badges (Minari style) ─────────────────────────────
@@ -123,6 +124,7 @@ export default function Dialer() {
   const [selectedProspect, setSelectedProspect] = useState<Prospect | null>(null)
   const [search, setSearch] = useState('')
   const [sortBy, setSortBy] = useState<'name' | 'last_call' | 'status'>('last_call')
+  const [showCSVImport, setShowCSVImport] = useState(false)
   const { data: prospects } = useProspects(activeListId)
   const { data: callHistory } = useCallsByProspect(selectedProspect?.id ?? null)
   const duration = useTimer(cm.context.startedAt)
@@ -177,6 +179,12 @@ export default function Dialer() {
         </div>
 
         <div className="flex items-center gap-3">
+          {/* Import CSV */}
+          <button onClick={() => setShowCSVImport(true)}
+            className="px-3 py-1.5 rounded-lg text-xs font-medium text-gray-500 border border-gray-200 hover:bg-gray-50 transition-colors">
+            + Import CSV
+          </button>
+
           {/* Redial button */}
           {attempted > 0 && (
             <button className="px-3 py-1.5 rounded-lg text-xs font-medium text-emerald-600 border border-emerald-200 hover:bg-emerald-50 transition-colors">
@@ -271,6 +279,15 @@ export default function Dialer() {
           </div>
         )}
       </div>
+
+      {/* ── CSV Import Modal ── */}
+      {showCSVImport && activeListId && (
+        <CSVImport
+          listId={activeListId}
+          onClose={() => setShowCSVImport(false)}
+          onSuccess={(count) => { setShowCSVImport(false); console.log(`[Dialer] Imported ${count} contacts`) }}
+        />
+      )}
 
       {/* ── Prospect Modal ── */}
       {selectedProspect && (
