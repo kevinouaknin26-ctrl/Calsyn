@@ -228,8 +228,8 @@ export default function ProspectModal({
     <>
       {showConfetti && <Confetti />}
 
-      <div className="fixed inset-0 bg-black/20 flex items-start justify-center pt-[6vh] z-40" onClick={onClose}>
-        <div className="bg-white rounded-2xl shadow-xl w-[860px] max-h-[82vh] flex overflow-hidden" onClick={e => e.stopPropagation()}>
+      <div className="fixed inset-0 bg-black/20 flex items-start justify-center pt-[6vh] z-40">
+        <div className="bg-white rounded-2xl shadow-xl w-[860px] max-h-[82vh] flex overflow-hidden">
 
           {/* ── Gauche — Infos prospect (Minari exact) ── */}
           <div className="w-[280px] p-5 border-r border-gray-100 flex flex-col overflow-y-auto">
