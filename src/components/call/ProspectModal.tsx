@@ -150,13 +150,23 @@ function CallCard({ call, defaultOpen, onUpdate, onCelebrate }: { call: Call; de
           {/* From → To */}
           <p className="text-[12px] text-gray-400 mb-3">{call.from_number || ''} (vous) → {call.prospect_phone || ''}</p>
 
-          {/* Outcome + Meeting booked + Duration (Minari exact — même ligne) */}
-          <div className="flex items-center gap-6 mb-3">
+          {/* Outcome dropdown + Meeting booked checkbox + Duration (Minari Jonathan DIAS exact) */}
+          <div className="flex items-center gap-5 mb-3">
             <div>
               <p className="text-[11px] text-gray-400 mb-1">Résultat</p>
-              <span className="text-[13px] text-gray-700">{DISPOSITIONS.find(d => d.value === call.call_outcome)?.label || call.call_outcome || '—'}</span>
+              <select value={call.call_outcome || 'connected'}
+                onChange={async e => {
+                  await supabase.from('calls').update({ call_outcome: e.target.value }).eq('id', call.id)
+                  if (call.prospect_id) {
+                    await supabase.from('prospects').update({ last_call_outcome: e.target.value }).eq('id', call.prospect_id)
+                  }
+                  onUpdate()
+                }}
+                className="text-[13px] text-gray-700 border-b border-gray-200 pb-0.5 outline-none bg-transparent cursor-pointer">
+                {DISPOSITIONS.map(d => <option key={d.value} value={d.value}>{d.label}</option>)}
+              </select>
             </div>
-            <label className="flex items-center gap-1.5 cursor-pointer">
+            <label className="flex items-center gap-1.5 cursor-pointer mt-4">
               <input type="checkbox" checked={call.meeting_booked}
                 onChange={async e => {
                   const checked = e.target.checked
