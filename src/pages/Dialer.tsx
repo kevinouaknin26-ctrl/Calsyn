@@ -5,6 +5,7 @@
  */
 
 import { useState, useEffect, useCallback, memo } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { useCallMachine } from '@/hooks/useCallMachine'
 import { useProspectLists, useProspects } from '@/hooks/useProspects'
 import { useCallsByProspect } from '@/hooks/useCalls'
@@ -260,6 +261,7 @@ export default function Dialer() {
   const [showCallSettings, setShowCallSettings] = useState(false)
   const { data: prospects } = useProspects(activeListId)
   const { data: callHistory } = useCallsByProspect(selectedProspect?.id ?? null)
+  const queryClient = useQueryClient()
   const duration = useTimer(cm.context.startedAt)
   useRealtimeProspects()
 
@@ -373,7 +375,10 @@ export default function Dialer() {
           <div className="flex items-center gap-3">
             <h1 className="text-[17px] font-bold text-gray-800">{activeList?.name || 'Prospects'}</h1>
             <span className="text-[13px] text-gray-400">{prospects?.length || 0} contacts</span>
-            <button className="text-[13px] text-gray-400 hover:text-gray-600 flex items-center gap-1">
+            <button onClick={() => {
+              queryClient.invalidateQueries({ queryKey: ['prospects', activeListId] })
+              queryClient.invalidateQueries({ queryKey: ['prospect-lists'] })
+            }} className="text-[13px] text-gray-400 hover:text-gray-600 flex items-center gap-1">
               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
               Actualiser
             </button>
