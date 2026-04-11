@@ -99,7 +99,7 @@ function OutcomeBadge({ outcome, meeting }: { outcome: string | null; meeting: b
 }
 
 // ── Fiche appel accordéon (Minari exact) ────────────────────────
-function CallCard({ call, defaultOpen }: { call: Call; defaultOpen: boolean }) {
+function CallCard({ call, defaultOpen, onUpdate }: { call: Call; defaultOpen: boolean; onUpdate: () => void }) {
   const [open, setOpen] = useState(defaultOpen)
   const [showTranscript, setShowTranscript] = useState(false)
 
@@ -130,10 +130,18 @@ function CallCard({ call, defaultOpen }: { call: Call; defaultOpen: boolean }) {
               <p className="text-[11px] text-gray-400 mb-1">Résultat</p>
               <span className="text-[13px] text-gray-700">{DISPOSITIONS.find(d => d.value === call.call_outcome)?.label || call.call_outcome || '—'}</span>
             </div>
-            <div className="flex items-center gap-2">
-              <span className="text-[13px] text-gray-600">RDV pris</span>
-              <span className={`text-[13px] ${call.meeting_booked ? 'text-teal-600 font-semibold' : 'text-gray-400'}`}>{call.meeting_booked ? '✓' : '—'}</span>
-            </div>
+            <label className="flex items-center gap-1.5 cursor-pointer">
+              <input type="checkbox" checked={call.meeting_booked}
+                onChange={async e => {
+                  await supabase.from('calls').update({ meeting_booked: e.target.checked }).eq('id', call.id)
+                  if (e.target.checked && call.prospect_id) {
+                    await supabase.from('prospects').update({ last_call_outcome: 'meeting_booked' }).eq('id', call.prospect_id)
+                  }
+                  onUpdate()
+                }}
+                className="w-3.5 h-3.5 rounded border-gray-300 accent-teal-600" />
+              <span className={`text-[13px] ${call.meeting_booked ? 'text-teal-600 font-semibold' : 'text-gray-600'}`}>RDV pris</span>
+            </label>
             <div>
               <p className="text-[11px] text-gray-400 mb-1">Durée</p>
               <span className="text-[13px] text-gray-700">{formatDuration(call.call_duration)}</span>
@@ -453,6 +461,25 @@ export default function ProspectModal({
               </div>
             )}
 
+            {/* Meeting booked toggle (Minari : bouton cliquable dans la fiche) */}
+            <label className="flex items-center gap-2 mb-3 cursor-pointer px-3 py-2 rounded-lg border border-gray-200 hover:border-teal-200 transition-colors">
+              <input type="checkbox"
+                checked={prospect.last_call_outcome === 'meeting_booked' || prospect.crm_status === 'rdv'}
+                onChange={async e => {
+                  if (e.target.checked) {
+                    await supabase.from('prospects').update({ last_call_outcome: 'meeting_booked', crm_status: 'rdv' }).eq('id', prospect.id)
+                  } else {
+                    await supabase.from('prospects').update({ last_call_outcome: 'connected', crm_status: 'open' }).eq('id', prospect.id)
+                  }
+                  queryClient.invalidateQueries({ queryKey: ['prospects'] })
+                }}
+                className="w-4 h-4 rounded border-gray-300 accent-teal-600" />
+              <svg className="w-4 h-4 text-teal-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+              <span className={`text-[13px] font-medium ${(prospect.last_call_outcome === 'meeting_booked' || prospect.crm_status === 'rdv') ? 'text-teal-600' : 'text-gray-600'}`}>
+                RDV pris
+              </span>
+            </label>
+
             {/* Snooze badge (Minari : badge violet + "Remove snooze") */}
             {isSnoozed && (
               <div className="mb-3 px-3 py-2 rounded-lg bg-purple-50 border border-purple-100">
@@ -585,7 +612,7 @@ export default function ProspectModal({
 
               {/* Historique — fiches accordéon (Minari exact) */}
               {callHistory.map((c, i) => (
-                <CallCard key={c.id} call={c} defaultOpen={i === 0 && !isInCall && !isDisconnected} />
+                <CallCard key={c.id} call={c} defaultOpen={i === 0 && !isInCall && !isDisconnected} onUpdate={() => queryClient.invalidateQueries({ queryKey: ['calls-by-prospect'] })} />
               ))}
 
               {/* Vide */}
@@ -598,9 +625,35 @@ export default function ProspectModal({
               {/* ── Onglet Notes ── */}
               {activeTab === 'notes' && (
                 <div>
-                  <textarea placeholder="Écrire une note sur ce prospect..."
-                    className="w-full px-3 py-2 rounded-lg border border-gray-200 text-[13px] text-gray-700 outline-none resize-none placeholder:text-gray-400 min-h-[120px]" rows={5} />
-                  <p className="text-[11px] text-gray-400 mt-1">Les notes sont sauvegardées par appel dans l'onglet Activité</p>
+                  {/* Notes de tous les appels */}
+                  {callHistory.filter(c => c.note).length > 0 ? (
+                    <div className="space-y-2 mb-4">
+                      {callHistory.filter(c => c.note).map(c => (
+                        <div key={c.id} className="bg-gray-50 rounded-lg p-3">
+                          <div className="flex items-center gap-2 mb-1">
+                            <svg className="w-3 h-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" /></svg>
+                            <span className="text-[11px] text-gray-400">{formatDate(c.created_at)}</span>
+                          </div>
+                          <p className="text-[13px] text-gray-600">{c.note}</p>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-[13px] text-gray-400 mb-4">Aucune note pour ce prospect</p>
+                  )}
+                  {/* Ajouter une note libre */}
+                  <textarea placeholder="Ajouter une note..."
+                    onBlur={async e => {
+                      if (e.target.value.trim()) {
+                        await supabase.from('calls').insert({
+                          prospect_id: prospect.id, prospect_name: prospect.name, prospect_phone: prospect.phone,
+                          note: e.target.value.trim(), call_outcome: 'connected', call_duration: 0, provider: 'manual',
+                        })
+                        queryClient.invalidateQueries({ queryKey: ['calls-by-prospect'] })
+                        e.target.value = ''
+                      }
+                    }}
+                    className="w-full px-3 py-2 rounded-lg border border-gray-200 text-[13px] text-gray-700 outline-none resize-none placeholder:text-gray-400" rows={3} />
                 </div>
               )}
 
@@ -626,7 +679,7 @@ export default function ProspectModal({
               {activeTab === 'appels' && (
                 <div>
                   {callHistory.length > 0 ? callHistory.map(c => (
-                    <CallCard key={c.id} call={c} defaultOpen={false} />
+                    <CallCard key={c.id} call={c} defaultOpen={false} onUpdate={() => queryClient.invalidateQueries({ queryKey: ['calls-by-prospect'] })} />
                   )) : (
                     <p className="text-[13px] text-gray-400 text-center py-10">Aucun appel enregistré</p>
                   )}
