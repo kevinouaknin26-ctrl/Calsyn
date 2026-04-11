@@ -271,7 +271,9 @@ export default function Dialer() {
   const { isAdmin, isManager } = useAuth()
   const cm = useCallMachine()
   const { data: lists } = useProspectLists()
-  const [activeListId, setActiveListId] = useState<string | null>(null)
+  const [activeListId, setActiveListId] = useState<string | null>(() => {
+    try { return localStorage.getItem('callio_active_list') } catch { return null }
+  })
   const [selectedProspect, setSelectedProspect] = useState<Prospect | null>(null)
   const [search, setSearch] = useState('')
   const [sortBy, setSortBy] = useState<'last_call' | 'name' | 'status' | 'call_status' | 'calls' | 'company' | 'title'>('last_call')
@@ -305,8 +307,10 @@ export default function Dialer() {
   useRealtimeProspects()
 
   useEffect(() => {
-    if (lists?.length && !activeListId) setActiveListId(lists[0].id)
-    // Ouvrir les tabs seulement au premier chargement si aucun tab sauvegardé
+    if (lists?.length && !activeListId) {
+      setActiveListId(lists[0].id)
+      localStorage.setItem('callio_active_list', lists[0].id)
+    }
     if (lists?.length && openTabIds.length === 0) {
       const ids = lists.map(l => l.id)
       setOpenTabIds(ids)
@@ -393,7 +397,7 @@ export default function Dialer() {
           Nouvelle liste
         </button>
         {lists?.filter(l => openTabIds.includes(l.id)).map(l => (
-          <button key={l.id} onClick={() => setActiveListId(l.id)}
+          <button key={l.id} onClick={() => { setActiveListId(l.id); localStorage.setItem('callio_active_list', l.id) }}
             className={`flex items-center gap-2 px-3 py-2 text-[12px] whitespace-nowrap flex-shrink-0 transition-colors rounded-t-lg ${
               activeListId === l.id
                 ? 'text-gray-800 font-semibold bg-white shadow-[0_-1px_3px_rgba(0,0,0,0.08)] border border-gray-200 border-b-white -mb-px relative z-10'
