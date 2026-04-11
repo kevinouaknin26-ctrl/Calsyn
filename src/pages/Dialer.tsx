@@ -6,9 +6,10 @@
 
 import { useState, useEffect, useCallback, memo } from 'react'
 import { useCallMachine } from '@/hooks/useCallMachine'
-import { useProspectLists, useProspects, useCreateList } from '@/hooks/useProspects'
+import { useProspectLists, useProspects } from '@/hooks/useProspects'
 import { useCallsByProspect } from '@/hooks/useCalls'
 import CSVImport from '@/components/import/CSVImport'
+import SelectListPage from '@/components/dialer/SelectListPage'
 import ProspectModal from '@/components/call/ProspectModal'
 import { useRealtimeProspects } from '@/hooks/useRealtime'
 import type { Prospect } from '@/types/prospect'
@@ -250,12 +251,10 @@ export default function Dialer() {
   const [search, setSearch] = useState('')
   const [sortBy, setSortBy] = useState<'name' | 'last_call' | 'status'>('last_call')
   const [showCSVImport, setShowCSVImport] = useState(false)
-  const [showNewList, setShowNewList] = useState(false)
-  const [newListName, setNewListName] = useState('')
+  const [showSelectList, setShowSelectList] = useState(false)
   const [showCallSettings, setShowCallSettings] = useState(false)
   const { data: prospects } = useProspects(activeListId)
   const { data: callHistory } = useCallsByProspect(selectedProspect?.id ?? null)
-  const createList = useCreateList()
   const duration = useTimer(cm.context.startedAt)
   useRealtimeProspects()
 
@@ -286,6 +285,14 @@ export default function Dialer() {
       return a.status.localeCompare(b.status)
     })
 
+  // Page "Choisir une liste" (Minari frame 005)
+  if (showSelectList) {
+    return <SelectListPage
+      onSelect={(id) => { setActiveListId(id); setShowSelectList(false) }}
+      onClose={() => setShowSelectList(false)}
+    />
+  }
+
   return (
     <div className="min-h-screen bg-[#f0faf4] p-4 pl-2">
       {/* ── UN SEUL conteneur blanc arrondi (Minari exact) ── */}
@@ -293,7 +300,7 @@ export default function Dialer() {
 
       {/* ── Tabs listes ── */}
       <div className="border-b border-gray-100 flex items-center overflow-x-auto px-3">
-        <button onClick={() => { setNewListName(''); setShowNewList(true) }}
+        <button onClick={() => setShowSelectList(true)}
           className="flex items-center gap-1 px-3 py-2.5 text-[12px] font-medium text-emerald-600 hover:text-emerald-700 whitespace-nowrap flex-shrink-0">
           <span className="w-3.5 h-3.5 rounded-full bg-emerald-500 text-white flex items-center justify-center text-[9px] font-bold">+</span>
           Nouvelle liste
@@ -450,42 +457,6 @@ export default function Dialer() {
       </div>
 
       </div>{/* fin conteneur blanc global */}
-
-      {/* ── Modal Nouvelle liste ── */}
-      {showNewList && (
-        <div className="fixed inset-0 bg-black/20 flex items-center justify-center z-50">
-          <div className="bg-white rounded-2xl shadow-xl w-[400px] p-6">
-            <h3 className="text-[15px] font-bold text-gray-800 mb-4">Nouvelle liste</h3>
-            <input
-              autoFocus
-              type="text"
-              placeholder="Nom de la liste..."
-              value={newListName}
-              onChange={e => setNewListName(e.target.value)}
-              onKeyDown={async e => {
-                if (e.key === 'Enter' && newListName.trim()) {
-                  const l = await createList.mutateAsync(newListName.trim())
-                  setActiveListId(l.id)
-                  setShowNewList(false)
-                }
-              }}
-              className="w-full px-4 py-3 rounded-xl border border-gray-200 text-[14px] text-gray-800 outline-none focus:border-teal-400 mb-4"
-            />
-            <div className="flex justify-end gap-2">
-              <button onClick={() => setShowNewList(false)}
-                className="px-4 py-2 rounded-lg text-[13px] text-gray-500 hover:bg-gray-100">Annuler</button>
-              <button onClick={async () => {
-                if (newListName.trim()) {
-                  const l = await createList.mutateAsync(newListName.trim())
-                  setActiveListId(l.id)
-                  setShowNewList(false)
-                }
-              }} disabled={!newListName.trim()}
-                className="px-4 py-2 rounded-lg text-[13px] font-semibold bg-teal-600 text-white hover:bg-teal-700 disabled:opacity-40">Creer</button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* ── CSV Import Modal ── */}
       {showCSVImport && activeListId && (
