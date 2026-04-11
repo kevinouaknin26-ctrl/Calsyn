@@ -597,6 +597,58 @@ export default function Dialer() {
         </div>
       </div>
 
+      {/* ── Barre actions groupées (quand sélection active) ── */}
+      {selectedIds.size > 0 && (
+        <div className="px-5 py-2 bg-teal-50 border-y border-teal-100 flex items-center gap-3 animate-fade-in">
+          <span className="text-[13px] font-semibold text-teal-700">{selectedIds.size} sélectionné{selectedIds.size > 1 ? 's' : ''}</span>
+          <div className="h-4 w-px bg-teal-200" />
+
+          {/* Supprimer */}
+          <button onClick={async () => {
+            if (!confirm(`Supprimer ${selectedIds.size} contact${selectedIds.size > 1 ? 's' : ''} ?`)) return
+            await supabase.from('prospects').delete().in('id', Array.from(selectedIds))
+            setSelectedIds(new Set())
+            queryClient.invalidateQueries({ queryKey: ['prospects', activeListId] })
+          }} className="text-[12px] text-red-500 hover:text-red-700 flex items-center gap-1">
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+            Supprimer
+          </button>
+
+          {/* Ne plus appeler */}
+          <button onClick={async () => {
+            await supabase.from('prospects').update({ do_not_call: true }).in('id', Array.from(selectedIds))
+            setSelectedIds(new Set())
+            queryClient.invalidateQueries({ queryKey: ['prospects', activeListId] })
+          }} className="text-[12px] text-gray-600 hover:text-gray-800 flex items-center gap-1">
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" /></svg>
+            Ne plus appeler
+          </button>
+
+          {/* Exporter la sélection */}
+          {(isAdmin || isManager) && (
+            <button onClick={() => {
+              const selected = prospects?.filter(p => selectedIds.has(p.id))
+              if (!selected?.length) return
+              const headers = ['Nom', 'Téléphone', 'Email', 'Entreprise', 'Poste', 'Statut appel', 'Statut CRM']
+              const rows = selected.map(p => [p.name, p.phone, p.email || '', p.company || '', p.title || '', p.last_call_outcome || '', p.crm_status || ''])
+              const csv = [headers, ...rows].map(r => r.map(c => `"${c.replace(/"/g, '""')}"`).join(',')).join('\n')
+              const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8' })
+              const url = URL.createObjectURL(blob)
+              const a = document.createElement('a'); a.href = url; a.download = 'selection.csv'; a.click()
+              URL.revokeObjectURL(url)
+            }} className="text-[12px] text-gray-600 hover:text-gray-800 flex items-center gap-1">
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+              Exporter
+            </button>
+          )}
+
+          {/* Désélectionner */}
+          <button onClick={() => setSelectedIds(new Set())} className="ml-auto text-[12px] text-gray-400 hover:text-gray-600">
+            Désélectionner
+          </button>
+        </div>
+      )}
+
       {/* ── Table ── */}
       <div className="flex-1 overflow-auto">
           <table className="w-full">
