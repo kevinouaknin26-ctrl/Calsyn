@@ -648,7 +648,8 @@ export default function Dialer() {
 
       {/* ── Modal Ajouter un contact ── */}
       {showAddProspect && activeListId && (
-        <div className="fixed inset-0 bg-black/20 flex items-center justify-center z-50">
+        <div className="fixed inset-0 bg-black/20 flex items-center justify-center z-50"
+          onClick={e => { if (e.target === e.currentTarget) { setShowAddProspect(false); setNewProspect({ name: '', phone: '', email: '', company: '', title: '' }) } }}>
           <div className="bg-white rounded-2xl shadow-xl w-[440px] p-6 animate-fade-in-scale">
             <h3 className="text-[15px] font-bold text-gray-800 mb-4">Ajouter un contact</h3>
             <div className="space-y-3">

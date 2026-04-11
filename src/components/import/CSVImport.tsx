@@ -179,7 +179,8 @@ export default function CSVImport({ listId, onClose, onSuccess }: Props) {
   }
 
   return (
-    <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50">
+    <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50"
+      onClick={e => { if (e.target === e.currentTarget) onClose() }}>
       <div className="bg-white rounded-2xl shadow-xl w-[700px] max-h-[85vh] flex flex-col overflow-hidden animate-fade-in-scale">
 
         {/* Header */}

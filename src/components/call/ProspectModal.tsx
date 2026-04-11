@@ -314,6 +314,8 @@ export default function ProspectModal({
               )}
               {/* Popover inline pour ajouter URL */}
               {editingUrl && (
+                <>
+                <div className="fixed inset-0 z-[59]" onClick={() => setEditingUrl(null)} />
                 <div className="absolute top-7 left-0 bg-white rounded-lg shadow-lg border border-gray-200 z-[60] p-2 w-56 animate-slide-down">
                   <input autoFocus type="url" value={urlValue} onChange={e => setUrlValue(e.target.value)}
                     placeholder={editingUrl === 'linkedin' ? 'https://linkedin.com/in/...' : 'https://...'}
@@ -339,6 +341,7 @@ export default function ProspectModal({
                     }} className="px-2 py-1 text-[11px] font-semibold text-teal-600 hover:text-teal-700">Ajouter</button>
                   </div>
                 </div>
+                </>
               )}
             </div>
 
@@ -392,6 +395,8 @@ export default function ProspectModal({
                     <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                   </button>
                   {showSnoozeMenu && (
+                    <>
+                    <div className="fixed inset-0 z-[59]" onClick={() => setShowSnoozeMenu(false)} />
                     <div className="fixed bg-white rounded-xl shadow-lg border border-gray-200 z-[60] py-1.5 w-44 animate-slide-down" style={{ marginTop: 4 }}>
                       <p className="px-3 py-1 text-[10px] font-bold text-gray-400 uppercase">Mettre en pause</p>
                       {[{ days: 1, label: 'Demain' }, { days: 3, label: 'Dans 3 jours' }, { days: 7, label: 'Dans 1 semaine' }, { days: 14, label: 'Dans 2 semaines' }, { days: 30, label: 'Dans 1 mois' }].map(opt => (
@@ -431,6 +436,7 @@ export default function ProspectModal({
                         </div>
                       </div>
                     </div>
+                    </>
                   )}
                 </div>
                 {/* Ne plus appeler — toggle DNC */}
