@@ -431,14 +431,15 @@ export default function Dialer() {
     })
 
   // Page "Choisir une liste" (Minari frame 005)
-  if (showSelectList) {
+  // Si aucun tab ouvert → page de sélection
+  if (showSelectList || (openTabIds.length === 0 && !activeListId)) {
     return <SelectListPage
       onSelect={(id) => {
         setActiveListId(id)
         setOpenTabIds(prev => prev.includes(id) ? prev : [...prev, id])
         setShowSelectList(false)
       }}
-      onClose={() => setShowSelectList(false)}
+      onClose={() => { setShowSelectList(false); if (openTabIds.length > 0) setActiveListId(openTabIds[0]) }}
     />
   }
 
@@ -467,7 +468,10 @@ export default function Dialer() {
               const remaining = openTabIds.filter(id => id !== l.id)
               setOpenTabIds(remaining)
               if (activeListId === l.id) {
-                setActiveListId(remaining.length > 0 ? remaining[remaining.length - 1] : null)
+                const next = remaining.length > 0 ? remaining[remaining.length - 1] : null
+                setActiveListId(next)
+                if (next) localStorage.setItem('callio_active_list', next)
+                else localStorage.removeItem('callio_active_list')
               }
             }} className="text-gray-300 hover:text-gray-500 ml-0.5">&times;</button>
           </button>
