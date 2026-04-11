@@ -115,7 +115,25 @@ export function useImportProspects() {
   return useMutation({
     mutationFn: async ({ listId, prospects }: { listId: string; prospects: Array<{ name: string; phone: string; email?: string; company?: string; sector?: string }> }) => {
       if (!organisation?.id) throw new Error('No organisation')
-      const rows = prospects.map(p => ({
+
+      // Dédupliquer : récupérer les numéros déjà dans cette liste
+      const { data: existing } = await supabase
+        .from('prospects')
+        .select('phone')
+        .eq('list_id', listId)
+      const existingPhones = new Set(existing?.map(p => p.phone) || [])
+
+      // Dédupliquer aussi dans le CSV lui-même (garder le premier)
+      const seen = new Set<string>()
+      const unique = prospects.filter(p => {
+        if (existingPhones.has(p.phone) || seen.has(p.phone)) return false
+        seen.add(p.phone)
+        return true
+      })
+
+      if (unique.length === 0) return
+
+      const rows = unique.map(p => ({
         list_id: listId,
         organisation_id: organisation.id,
         name: p.name,
