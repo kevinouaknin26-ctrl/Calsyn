@@ -166,7 +166,7 @@ const ProspectRow = memo(function ProspectRow({ prospect, isActive, onSelect, on
 
   return (
     <tr onClick={() => onSelect(prospect)}
-      className={`border-b border-gray-100 cursor-pointer transition-colors ${
+      className={`border-b border-gray-50 cursor-pointer transition-colors ${
         isActive ? 'bg-emerald-50/60' : 'hover:bg-gray-50/60'
       }`}>
       {/* CALL STATUS — pill badge */}
@@ -251,10 +251,12 @@ export default function Dialer() {
     })
 
   return (
-    <div className="min-h-screen bg-[#f0faf4]">
-      {/* ── Tabs listes (Minari exact — detaches du haut, fond blanc) ── */}
-      <div className="pt-4 px-5 pb-0">
-      <div className="bg-white border-b border-gray-200 flex items-center overflow-x-auto px-2 rounded-t-lg">
+    <div className="min-h-screen bg-[#f0faf4] p-4 pl-2">
+      {/* ── UN SEUL conteneur blanc arrondi (Minari exact) ── */}
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-200/50 min-h-[calc(100vh-2rem)] flex flex-col overflow-hidden">
+
+      {/* ── Tabs listes ── */}
+      <div className="border-b border-gray-100 flex items-center overflow-x-auto px-3">
         <button onClick={async () => {
           const name = prompt('Nom de la nouvelle liste :')
           if (name?.trim()) { const l = await createList.mutateAsync(name.trim()); setActiveListId(l.id) }
@@ -276,7 +278,6 @@ export default function Dialer() {
         {(lists?.length || 0) > 8 && (
           <span className="px-2 py-2.5 text-[12px] text-gray-400 whitespace-nowrap flex-shrink-0">+{(lists?.length || 0) - 8} ▾</span>
         )}
-      </div>
       </div>
 
       {/* ── List header ── */}
@@ -380,9 +381,8 @@ export default function Dialer() {
         </div>
       </div>
 
-      {/* ── Table (Minari exact — white rounded card) ── */}
-      <div className="px-5 pb-5">
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200/60 overflow-hidden">
+      {/* ── Table ── */}
+      <div className="flex-1 overflow-auto">
           <table className="w-full">
             <thead>
               <tr className="border-b border-gray-100">
@@ -414,8 +414,9 @@ export default function Dialer() {
               <button onClick={() => setShowCSVImport(true)} className="text-[13px] text-emerald-600 hover:text-emerald-700 mt-2 font-medium">Import from CSV</button>
             </div>
           )}
-        </div>
       </div>
+
+      </div>{/* fin conteneur blanc global */}
 
       {/* ── CSV Import Modal ── */}
       {showCSVImport && activeListId && (
