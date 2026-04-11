@@ -314,7 +314,7 @@ export default function Dialer() {
             </div>
             {/* Barre de progression unique (Minari exact) */}
             {(prospects?.length || 0) > 0 && (
-              <div className="h-[3px] rounded-full overflow-hidden flex" style={{ width: 200 }}>
+              <div className="h-[3px] rounded-full overflow-hidden flex w-full">
                 <div className="h-full bg-emerald-500" style={{ width: `${(connected / (prospects?.length || 1)) * 100}%` }} />
                 <div className="h-full bg-orange-400" style={{ width: `${((attempted - connected) / (prospects?.length || 1)) * 100}%` }} />
                 <div className="h-full bg-gray-200 flex-1" />
