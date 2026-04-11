@@ -21,9 +21,9 @@ export function useCalls(limit = 200) {
         .order('created_at', { ascending: false })
         .limit(limit)
 
-      if (isManager && organisation?.id) {
-        query = query.eq('organisation_id', organisation.id)
-      } else {
+      // Admin voit tous les calls (y compris ceux sans org_id — webhook)
+      // SDR voit seulement ses propres calls
+      if (!isManager) {
         query = query.eq('sdr_id', profile.id)
       }
 
