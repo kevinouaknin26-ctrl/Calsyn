@@ -167,3 +167,83 @@
 - Fondateurs : Clement Bataille + Julien Schmitt (Montrouge FR)
 - Integrations : HubSpot, Lemlist, Salesforce
 - Support : Slack, email, live chat (lun-ven 9h-18h)
+- Trusted by 200+ sales organizations
+
+## 9. PAGE /DIALER — FEATURES DETAILLEES
+Source : minari.ai/dialer (lu integralement le 11 avril 2026)
+
+### A. Parallel calling (5 lignes)
+- "Call up to 5 prospects at once"
+- Skip auto : no-answers, wrong numbers, voicemails
+- Ne connecte que les humains
+- Stats affichees : 5X connects, 400% boost, 3X conversations
+
+### B. Rotation numeros / anti-spam
+- "More pickups, less spam flags"
+- Rotation sur plusieurs numeros dedies
+- Smart caller ID rotation
+- Prospects peuvent RAPPELER sur le meme numero
+- Moins de flags spam en repartissant le volume
+
+### C. Voicemail drop
+- "Never leave a voicemail manually again"
+- 1 clic = message pre-enregistre depose
+- Sans casser le flow d'appel
+- Messages consistants, haute qualite
+- Meilleur taux de rappel
+
+### D. Call logging + AI
+- "Every call, logged and ready"
+- Enregistrement + transcription de chaque appel
+- AI summaries depuis transcripts → sync CRM auto
+- Custom AI prompts pour insights business-specifiques
+- UI call log : From/To, Outcome dropdown, Direction (Outbound), Duration, Recording player, Note
+
+### E. International
+- "One tool, every market"
+- 100+ pays
+- Numeros locaux et internationaux
+- US, Canada, EMEA, LATAM, APAC
+
+## 10. PAGE /INTEGRATIONS — CRM & OUTILS
+Source : minari.ai/integrations
+
+### A. CRM sync bidirectionnelle
+- "Your CRM, always in sync"
+- Appels pushes auto avec recordings, transcripts, AI summaries
+- Champs CRM synces dans les deux sens
+- Choisir quels champs CRM afficher dans Minari
+- Editer les champs CRM DIRECTEMENT pendant l'appel
+- Integrations : HubSpot, Salesforce, Lemlist
+
+### B. Champs prospect dans Minari
+- Dial Status
+- Call Count
+- Prospect name
+- Contact URL
+- LinkedIn URL
+- Job Title
+- Company
+
+### C. Import CSV
+- Upload CSV simple
+- Mapping automatique des champs
+- Organisation auto des records
+- "Start calling in minutes"
+
+### D. Enrichissement contacts
+- "Built-in contact enrichment"
+- Enrichir directement dans Minari
+- Multiples sources d'enrichissement (waterfall)
+- Couverture internationale mobile + email
+
+### E. Analytics & Coaching
+- Integration avec Praiz, Modjo
+- Analyser les appels, coacher les reps
+- Ameliorer la performance
+
+### F. Webhooks
+- Events en temps reel vers vos systemes
+- Connected calls et conversations
+- Transcriptions et recordings
+- Compatible n8n, Make, Zapier
