@@ -234,21 +234,21 @@ const ProspectRow = memo(function ProspectRow({ prospect, isActive, liveStatus, 
       {/* NAME — chip cliquable (Minari exact) + icones après */}
       <td className="py-3.5 px-4">
         <div className="flex items-center gap-2">
-          {/* Nom dans une bulle cliquable */}
+          {/* Icone contact + Nom cliquable (pas de bulle — Minari exact) */}
+          <svg className="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
           <button onClick={() => onSelect(prospect)}
-            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-gray-50 hover:bg-gray-100 transition-colors cursor-pointer border border-gray-200/60">
-            <svg className="w-3 h-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
-            <span className="text-[13px] font-medium text-gray-800">{prospect.name}</span>
+            className="text-[13px] font-semibold text-gray-800 hover:text-teal-700 transition-colors cursor-pointer truncate">
+            {prospect.name}
           </button>
-          {/* Icones après le nom (Minari exact) */}
+          {/* Icones appeler + LinkedIn */}
           <button onClick={e => { e.stopPropagation(); onCall(prospect) }}
-            className="w-7 h-7 rounded-lg bg-gray-100 flex items-center justify-center flex-shrink-0 hover:bg-emerald-50 group">
-            <svg className="w-3.5 h-3.5 text-gray-400 group-hover:text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            className="w-6 h-6 rounded bg-gray-100 flex items-center justify-center flex-shrink-0 hover:bg-emerald-50 group">
+            <svg className="w-3 h-3 text-gray-400 group-hover:text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
             </svg>
           </button>
-          <div className="w-7 h-7 rounded-lg bg-blue-50 flex items-center justify-center flex-shrink-0">
-            <span className="text-[9px] font-bold text-blue-500">in</span>
+          <div className="w-6 h-6 rounded bg-blue-50 flex items-center justify-center flex-shrink-0">
+            <span className="text-[8px] font-bold text-blue-500">in</span>
           </div>
         </div>
       </td>

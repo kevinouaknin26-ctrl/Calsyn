@@ -194,6 +194,7 @@ function EditableField({ label, value, prospectId, field, copyable, mono }: {
 }) {
   const [editing, setEditing] = useState(false)
   const [localVal, setLocalVal] = useState(value)
+  const [copied, setCopied] = useState(false)
   const qc = useQueryClient()
 
   async function save() {
@@ -219,8 +220,13 @@ function EditableField({ label, value, prospectId, field, copyable, mono }: {
           </p>
         )}
         {copyable && localVal && (
-          <button onClick={() => navigator.clipboard.writeText(localVal)} className="text-gray-300 hover:text-gray-500 ml-1">
-            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
+          <button onClick={() => { navigator.clipboard.writeText(localVal); setCopied(true); setTimeout(() => setCopied(false), 1500) }}
+            className={`ml-1 transition-colors ${copied ? 'text-emerald-500' : 'text-gray-300 hover:text-gray-500'}`}>
+            {copied ? (
+              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+            ) : (
+              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
+            )}
           </button>
         )}
       </div>
