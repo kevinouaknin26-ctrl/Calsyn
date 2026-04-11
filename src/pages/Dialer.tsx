@@ -363,17 +363,26 @@ export default function Dialer() {
   useRealtimeProspects()
 
   useEffect(() => {
-    if (lists?.length && !activeListId) {
-      setActiveListId(lists[0].id)
-      localStorage.setItem('callio_active_list', lists[0].id)
-    }
-    // Ouvrir les tabs seulement si c'est la toute première visite (pas de clé callio_open_tabs)
-    if (lists?.length && openTabIds.length === 0 && localStorage.getItem('callio_open_tabs') === null) {
+    // Première visite : pas de clé callio_open_tabs → ouvrir toutes les listes
+    if (lists?.length && localStorage.getItem('callio_open_tabs') === null) {
       const ids = lists.map(l => l.id)
       setOpenTabIds(ids)
+      setActiveListId(ids[0])
       localStorage.setItem('callio_open_tabs', JSON.stringify(ids))
+      localStorage.setItem('callio_active_list', ids[0])
+      return
     }
-  }, [lists, activeListId, openTabIds.length])
+    // Si des tabs sont ouverts mais pas d'activeListId → prendre le premier tab
+    if (openTabIds.length > 0 && !activeListId) {
+      setActiveListId(openTabIds[0])
+      localStorage.setItem('callio_active_list', openTabIds[0])
+    }
+    // Si activeListId pointe sur un tab qui n'est plus ouvert → reset
+    if (activeListId && openTabIds.length > 0 && !openTabIds.includes(activeListId)) {
+      setActiveListId(openTabIds[0])
+      localStorage.setItem('callio_active_list', openTabIds[0])
+    }
+  }, [lists, activeListId, openTabIds])
 
   // Persister les tabs ouverts + nettoyer activeListId si plus de tabs
   useEffect(() => {

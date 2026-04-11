@@ -5,6 +5,8 @@
  */
 
 import { useState, useRef, type ChangeEvent } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
+import { supabase } from '@/config/supabase'
 import { useProspectLists, useCreateList, useImportProspects } from '@/hooks/useProspects'
 
 interface Props {
@@ -58,6 +60,7 @@ export default function SelectListPage({ onSelect, onClose }: Props) {
   const { data: lists } = useProspectLists()
   const createList = useCreateList()
   const importProspects = useImportProspects()
+  const queryClient = useQueryClient()
   const [search, setSearch] = useState('')
   const [importing, setImporting] = useState(false)
   const [creatingList, setCreatingList] = useState(false)
@@ -166,11 +169,24 @@ export default function SelectListPage({ onSelect, onClose }: Props) {
             )}
 
             {filtered?.map(l => (
-              <button key={l.id} onClick={() => onSelect(l.id)}
-                className="w-full text-left px-3 py-2.5 rounded-xl bg-white border border-gray-100 hover:border-teal-200 hover:bg-teal-50/30 transition-colors">
-                <p className="text-[13px] font-medium text-gray-800">{l.name}</p>
-                <p className="text-[11px] text-gray-400">contacts</p>
-              </button>
+              <div key={l.id} className="flex items-center gap-1">
+                <button onClick={() => onSelect(l.id)}
+                  className="flex-1 text-left px-3 py-2.5 rounded-xl bg-white border border-gray-100 hover:border-teal-200 hover:bg-teal-50/30 transition-colors">
+                  <p className="text-[13px] font-medium text-gray-800">{l.name}</p>
+                  <p className="text-[11px] text-gray-400">contacts</p>
+                </button>
+                <button onClick={async e => {
+                  e.stopPropagation()
+                  if (!confirm(`Supprimer "${l.name}" et tous ses contacts ?`)) return
+                  await supabase.from('prospects').delete().eq('list_id', l.id)
+                  await supabase.from('prospect_lists').delete().eq('id', l.id)
+                  queryClient.invalidateQueries({ queryKey: ['prospect-lists'] })
+                  queryClient.invalidateQueries({ queryKey: ['prospects'] })
+                }} title="Supprimer la liste"
+                  className="w-7 h-7 rounded-lg flex items-center justify-center text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors flex-shrink-0">
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                </button>
+              </div>
             ))}
             {!filtered?.length && <p className="text-[12px] text-gray-400 py-4 text-center">Aucune liste</p>}
           </div>
