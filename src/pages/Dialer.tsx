@@ -321,16 +321,18 @@ export default function Dialer() {
       setActiveListId(lists[0].id)
       localStorage.setItem('callio_active_list', lists[0].id)
     }
-    if (lists?.length && openTabIds.length === 0) {
+    // Ouvrir les tabs seulement au tout premier chargement (pas de clé dans localStorage)
+    if (lists?.length && openTabIds.length === 0 && !localStorage.getItem('callio_tabs_initialized')) {
       const ids = lists.map(l => l.id)
       setOpenTabIds(ids)
       localStorage.setItem('callio_open_tabs', JSON.stringify(ids))
+      localStorage.setItem('callio_tabs_initialized', 'true')
     }
   }, [lists, activeListId, openTabIds.length])
 
-  // Persister les tabs ouverts
+  // Persister les tabs ouverts (même si vide)
   useEffect(() => {
-    if (openTabIds.length > 0) localStorage.setItem('callio_open_tabs', JSON.stringify(openTabIds))
+    localStorage.setItem('callio_open_tabs', JSON.stringify(openTabIds))
   }, [openTabIds])
 
   const handleCall = useCallback((p: Prospect) => {
