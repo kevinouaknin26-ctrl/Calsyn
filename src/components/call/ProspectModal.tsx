@@ -1,0 +1,197 @@
+/**
+ * ProspectModal — Style Minari, tout en francais, autosave.
+ */
+
+import { useState } from 'react'
+import type { Prospect } from '@/types/prospect'
+import type { Disposition } from '@/types/call'
+import type { CallContext } from '@/machines/callMachine'
+
+interface Props {
+  prospect: Prospect
+  callContext: CallContext | null
+  isInCall: boolean
+  isDisconnected: boolean
+  onCall: (p: Prospect) => void
+  onClose: () => void
+  onSetDisposition: (d: Disposition) => void
+  onSetNotes: (n: string) => void
+  onSetMeeting: (m: boolean) => void
+  onReset: () => void
+  providerReady: boolean
+}
+
+const DISPOSITIONS: Array<{ value: Disposition; label: string }> = [
+  { value: 'connected', label: 'Connecte' },
+  { value: 'rdv', label: 'RDV pris' },
+  { value: 'callback', label: 'Rappel' },
+  { value: 'not_interested', label: 'Pas interesse' },
+  { value: 'voicemail', label: 'Messagerie' },
+  { value: 'no_answer', label: 'Pas de reponse' },
+  { value: 'busy', label: 'Occupe' },
+]
+
+function formatDuration(s: number) {
+  return `${Math.floor(s / 60).toString().padStart(2, '0')}:${(s % 60).toString().padStart(2, '0')}`
+}
+
+export default function ProspectModal({
+  prospect, callContext, isInCall, isDisconnected,
+  onCall, onClose, onSetDisposition, onSetNotes, onSetMeeting, onReset, providerReady,
+}: Props) {
+  const [activeTab, setActiveTab] = useState('activite')
+  const tabs = ['Activite', 'Notes', 'Taches', 'Historique', 'SMS']
+
+  return (
+    <div className="fixed inset-0 bg-black/20 flex items-start justify-center pt-[10vh] z-40" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-xl w-[820px] max-h-[75vh] flex overflow-hidden" onClick={e => e.stopPropagation()}>
+
+        {/* ── Gauche — Infos ── */}
+        <div className="w-[280px] p-5 border-r border-gray-100 flex flex-col">
+          <div className="flex items-center gap-2 mb-1">
+            <div className="w-6 h-6 rounded bg-gray-200 flex items-center justify-center text-[10px] text-gray-500">👤</div>
+            <h2 className="text-base font-bold text-gray-800 flex-1">{prospect.name}</h2>
+            <button className="text-gray-300 hover:text-gray-500 text-xs">✏️</button>
+          </div>
+
+          <div className="flex gap-2 mb-3 ml-8">
+            <button className="w-5 h-5 rounded bg-gray-100 flex items-center justify-center text-[10px] text-gray-400 hover:text-blue-500">in</button>
+            <button className="w-5 h-5 rounded bg-gray-100 flex items-center justify-center text-[10px] text-gray-400">⚙</button>
+          </div>
+
+          <p className="text-sm text-gray-600 mb-0.5">{prospect.sector || '—'}</p>
+          <p className="text-sm text-gray-400 mb-4">{prospect.company || '—'}</p>
+
+          <div className="flex gap-1 mb-5">
+            <button
+              onClick={() => onCall(prospect)}
+              disabled={!providerReady || isInCall}
+              className="flex-1 py-2.5 rounded-lg text-sm font-semibold bg-teal-600 text-white hover:bg-teal-700 disabled:opacity-40 transition-colors flex items-center justify-center gap-2"
+            >
+              📞 Appeler {prospect.phone}
+            </button>
+          </div>
+
+          <div className="space-y-4 text-sm flex-1">
+            <div>
+              <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Email</span>
+              <p className="text-gray-700 mt-0.5">{prospect.email || '—'}</p>
+            </div>
+            <div>
+              <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Statut</span>
+              <p className="text-gray-700 mt-0.5">{prospect.status}</p>
+            </div>
+            <div>
+              <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Telephone</span>
+              <div className="flex items-center gap-2 mt-0.5">
+                <p className="text-gray-700">{prospect.phone}</p>
+                <button onClick={() => navigator.clipboard.writeText(prospect.phone)} className="text-gray-300 hover:text-gray-500 text-[10px]">📋</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* ── Droite — Activite ── */}
+        <div className="flex-1 flex flex-col">
+          {/* Transcription live */}
+          {isInCall && (
+            <div className="px-5 py-3 bg-emerald-50 border-b border-emerald-100">
+              <p className="text-sm text-gray-600 italic">💬 Appel en cours...</p>
+            </div>
+          )}
+
+          {/* Tabs */}
+          <div className="flex items-center justify-between px-5 pt-4">
+            <div className="flex gap-5">
+              {tabs.map(tab => (
+                <button key={tab} onClick={() => setActiveTab(tab.toLowerCase())}
+                  className={`text-sm pb-2 transition-colors ${
+                    activeTab === tab.toLowerCase() ? 'text-gray-800 font-semibold border-b-2 border-gray-800' : 'text-gray-400 hover:text-gray-600'
+                  }`}>{tab}</button>
+              ))}
+            </div>
+            <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-lg">✕</button>
+          </div>
+          <div className="h-px bg-gray-100 mx-5" />
+
+          {/* Contenu */}
+          <div className="flex-1 overflow-y-auto px-5 py-4">
+
+            {/* Card appel en cours */}
+            {isInCall && (
+              <div className="border border-gray-200 rounded-xl p-4 mb-4">
+                <div className="flex items-center gap-3 mb-3">
+                  <span className="text-gray-400">📞</span>
+                  <span className="text-sm text-gray-700">Appel - Connecte</span>
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-100 text-emerald-600">En cours</span>
+                </div>
+                <textarea
+                  placeholder="Ecrire une note..."
+                  value={callContext?.notes || ''}
+                  onChange={e => onSetNotes(e.target.value)}
+                  rows={2}
+                  className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm text-gray-700 outline-none resize-none"
+                />
+              </div>
+            )}
+
+            {/* Card post-appel (disposition) */}
+            {isDisconnected && (
+              <div className="border border-gray-200 rounded-xl p-4 mb-4">
+                <div className="flex items-center gap-3 mb-3">
+                  <span className="text-gray-400">📞</span>
+                  <span className="text-sm text-gray-700">Appel termine</span>
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-gray-100 text-gray-500">
+                    {formatDuration(callContext?.duration || 0)}
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-4 mb-3">
+                  <div>
+                    <label className="text-xs text-gray-400">Resultat</label>
+                    <select
+                      value={callContext?.disposition || 'connected'}
+                      onChange={e => onSetDisposition(e.target.value as Disposition)}
+                      className="block mt-1 px-2 py-1.5 rounded-lg border border-gray-200 text-sm text-gray-700 outline-none"
+                    >
+                      {DISPOSITIONS.map(d => <option key={d.value} value={d.value}>{d.label}</option>)}
+                    </select>
+                  </div>
+                  <label className="flex items-center gap-2 mt-4 cursor-pointer">
+                    <input type="checkbox" checked={callContext?.meetingBooked || false}
+                      onChange={e => onSetMeeting(e.target.checked)} className="rounded border-gray-300" />
+                    <span className="text-sm text-gray-700">RDV pris</span>
+                  </label>
+                </div>
+
+                <div className="mb-3 px-3 py-2 rounded-lg bg-emerald-50 text-emerald-600 text-xs">
+                  Sauvegarde automatique...
+                </div>
+
+                <textarea
+                  placeholder="Ecrire une note..."
+                  value={callContext?.notes || ''}
+                  onChange={e => onSetNotes(e.target.value)}
+                  rows={3}
+                  className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm text-gray-700 outline-none resize-none mb-3"
+                />
+
+                <button onClick={() => { onReset(); onClose() }}
+                  className="w-full py-2.5 rounded-lg text-sm font-semibold bg-teal-600 text-white hover:bg-teal-700 transition-colors">
+                  Fermer et continuer
+                </button>
+              </div>
+            )}
+
+            {/* Historique vide */}
+            {!isInCall && !isDisconnected && (
+              <p className="text-sm text-gray-400 text-center py-10">
+                {prospect.call_count > 0 ? `${prospect.call_count} appels precedents` : 'Aucun appel enregistre'}
+              </p>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
