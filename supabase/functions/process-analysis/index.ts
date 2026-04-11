@@ -128,12 +128,28 @@ serve(async (req) => {
       attempts: job.attempts + 1,
     }).eq('id', job.id)
 
-    // Recuperer le recording_url
+    // Recuperer le recording_url + durée
     const { data: call } = await supabase
       .from('calls')
-      .select('recording_url')
+      .select('recording_url, call_duration')
       .eq('id', job.call_id)
       .single()
+
+    // Skip transcription si durée < 20 secondes (Minari rule)
+    if (call && call.call_duration < 20) {
+      await supabase.from('analysis_jobs').update({
+        status: 'completed',
+      }).eq('id', job.id)
+
+      await supabase.from('calls').update({
+        ai_analysis_status: 'completed',
+      }).eq('id', job.call_id)
+
+      console.log(`[process-analysis] Skipped: call ${job.call_id} duration ${call.call_duration}s < 20s`)
+      return new Response(JSON.stringify({ ok: true, skipped: 'duration < 20s' }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
 
     if (!call?.recording_url) {
       await supabase.from('analysis_jobs').update({

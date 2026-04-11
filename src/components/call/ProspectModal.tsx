@@ -512,6 +512,9 @@ export default function ProspectModal({
             {/* Contenu */}
             <div className="flex-1 overflow-y-auto px-5 py-3">
 
+              {/* ── Onglet Activité ── */}
+              {(activeTab === 'activite' || isInCall || isDisconnected) && (
+              <>
               {/* Card appel EN COURS */}
               {isInCall && (
                 <div className="border border-emerald-200 rounded-xl p-4 mb-2 bg-emerald-50/30">
@@ -588,6 +591,55 @@ export default function ProspectModal({
               {/* Vide */}
               {!isInCall && !isDisconnected && callHistory.length === 0 && (
                 <p className="text-[13px] text-gray-400 text-center py-10">Aucune activité</p>
+              )}
+              </>
+              )}
+
+              {/* ── Onglet Notes ── */}
+              {activeTab === 'notes' && (
+                <div>
+                  <textarea placeholder="Écrire une note sur ce prospect..."
+                    className="w-full px-3 py-2 rounded-lg border border-gray-200 text-[13px] text-gray-700 outline-none resize-none placeholder:text-gray-400 min-h-[120px]" rows={5} />
+                  <p className="text-[11px] text-gray-400 mt-1">Les notes sont sauvegardées par appel dans l'onglet Activité</p>
+                </div>
+              )}
+
+              {/* ── Onglet Tâches ── */}
+              {activeTab === 'taches' && (
+                <div className="text-center py-10">
+                  <svg className="w-8 h-8 text-gray-300 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" /></svg>
+                  <p className="text-[13px] text-gray-400">Aucune tâche</p>
+                  <p className="text-[11px] text-gray-300 mt-1">Les tâches seront disponibles prochainement</p>
+                </div>
+              )}
+
+              {/* ── Onglet Emails ── */}
+              {activeTab === 'emails' && (
+                <div className="text-center py-10">
+                  <svg className="w-8 h-8 text-gray-300 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
+                  <p className="text-[13px] text-gray-400">Aucun email</p>
+                  <p className="text-[11px] text-gray-300 mt-1">Connectez votre CRM pour voir les emails</p>
+                </div>
+              )}
+
+              {/* ── Onglet Appels (Call logs) ── */}
+              {activeTab === 'appels' && (
+                <div>
+                  {callHistory.length > 0 ? callHistory.map(c => (
+                    <CallCard key={c.id} call={c} defaultOpen={false} />
+                  )) : (
+                    <p className="text-[13px] text-gray-400 text-center py-10">Aucun appel enregistré</p>
+                  )}
+                </div>
+              )}
+
+              {/* ── Onglet SMS ── */}
+              {activeTab === 'sms' && (
+                <div className="text-center py-10">
+                  <svg className="w-8 h-8 text-gray-300 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>
+                  <p className="text-[13px] text-gray-400">Aucun SMS</p>
+                  <p className="text-[11px] text-gray-300 mt-1">L'envoi de SMS sera disponible prochainement</p>
+                </div>
               )}
             </div>
           </div>
