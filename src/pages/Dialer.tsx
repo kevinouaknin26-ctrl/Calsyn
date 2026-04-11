@@ -71,6 +71,7 @@ export default function Dialer() {
   const [activeListId, setActiveListId] = useState<string | null>(null)
   const [selectedProspect, setSelectedProspect] = useState<Prospect | null>(null)
   const [search, setSearch] = useState('')
+  const [sortBy, setSortBy] = useState<'name' | 'last_call' | 'status'>('name')
   const { data: prospects } = useProspects(activeListId)
   const duration = useTimer(cm.context.startedAt)
 
@@ -105,7 +106,12 @@ export default function Dialer() {
         <div className="flex items-center gap-4">
           <h1 className="text-lg font-bold text-gray-800">{lists?.find(l => l.id === activeListId)?.name || 'Prospects'}</h1>
           <span className="text-xs text-gray-400">{prospects?.length || 0} contacts</span>
-          <button className="text-xs text-gray-400 hover:text-gray-600">↻ Refresh</button>
+          <select value={sortBy} onChange={e => setSortBy(e.target.value as typeof sortBy)}
+            className="text-xs text-gray-500 bg-transparent outline-none cursor-pointer">
+            <option value="name">Tri : Nom</option>
+            <option value="last_call">Tri : Dernier appel</option>
+            <option value="status">Tri : Statut</option>
+          </select>
           <input
             type="text"
             placeholder="🔍 Rechercher..."
@@ -145,6 +151,12 @@ export default function Dialer() {
           <tbody>
             {prospects
               ?.filter(p => !search || p.name.toLowerCase().includes(search.toLowerCase()) || p.phone.includes(search) || (p.company || '').toLowerCase().includes(search.toLowerCase()))
+              .sort((a, b) => {
+                if (sortBy === 'name') return a.name.localeCompare(b.name)
+                if (sortBy === 'last_call') return (b.last_call_at || '').localeCompare(a.last_call_at || '')
+                if (sortBy === 'status') return a.status.localeCompare(b.status)
+                return 0
+              })
               .map(p => (
               <ProspectRow key={p.id} prospect={p} onSelect={setSelectedProspect} onCall={handleCall} />
             ))}
