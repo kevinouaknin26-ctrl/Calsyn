@@ -252,26 +252,29 @@ export default function Dialer() {
 
   return (
     <div className="min-h-screen bg-[#f0faf4]">
-      {/* ── Tabs listes (Minari chips with × close) ── */}
-      <div className="px-5 pt-4 pb-0 flex items-center gap-1.5 overflow-x-auto">
+      {/* ── Tabs listes (Minari exact — marque-pages plats fond gris fonce) ── */}
+      <div className="bg-[#2d2d2d] flex items-center overflow-x-auto">
         <button onClick={async () => {
           const name = prompt('Nom de la nouvelle liste :')
           if (name?.trim()) { const l = await createList.mutateAsync(name.trim()); setActiveListId(l.id) }
-        }} className="flex items-center gap-1 px-3 py-1.5 rounded-full text-[12px] font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 whitespace-nowrap flex-shrink-0">
+        }} className="flex items-center gap-1 px-4 py-2.5 text-[12px] font-medium text-emerald-400 hover:text-emerald-300 whitespace-nowrap flex-shrink-0">
           <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
           New list
         </button>
         {lists?.map(l => (
           <button key={l.id} onClick={() => setActiveListId(l.id)}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12px] whitespace-nowrap flex-shrink-0 transition-colors ${
+            className={`flex items-center gap-2 px-4 py-2.5 text-[12px] whitespace-nowrap flex-shrink-0 transition-colors border-b-2 ${
               activeListId === l.id
-                ? 'bg-white text-gray-800 font-semibold shadow-sm border border-gray-200'
-                : 'text-gray-500 hover:bg-white/60 border border-transparent'
+                ? 'bg-white text-gray-800 font-semibold border-transparent rounded-t-lg -mb-px'
+                : 'text-white/60 hover:text-white/80 border-transparent'
             }`}>
             {l.name}
-            <span className="text-gray-300 hover:text-gray-500 ml-0.5">&times;</span>
+            <span className="text-current opacity-40 hover:opacity-80 ml-0.5">&times;</span>
           </button>
         ))}
+        {(lists?.length || 0) > 8 && (
+          <span className="px-3 py-2.5 text-[12px] text-white/40 whitespace-nowrap flex-shrink-0">+{(lists?.length || 0) - 8}</span>
+        )}
       </div>
 
       {/* ── List header ── */}
@@ -296,6 +299,16 @@ export default function Dialer() {
           </div>
         </div>
       </div>
+
+      {/* ── Progress bar (Minari exact — under stats) ── */}
+      {(prospects?.length || 0) > 0 && (
+        <div className="px-5 pt-1 pb-0">
+          <div className="h-1 w-full bg-gray-200 rounded-full overflow-hidden flex">
+            {connected > 0 && <div className="h-full bg-emerald-500 transition-all" style={{ width: `${(connected / (prospects?.length || 1)) * 100}%` }} />}
+            {attempted > 0 && <div className="h-full bg-orange-400 transition-all" style={{ width: `${((attempted - connected) / (prospects?.length || 1)) * 100}%` }} />}
+          </div>
+        </div>
+      )}
 
       {/* ── Toolbar (Minari exact layout) ── */}
       <div className="px-5 pb-3 flex items-center justify-between">
