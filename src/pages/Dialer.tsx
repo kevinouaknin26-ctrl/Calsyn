@@ -818,17 +818,31 @@ export default function Dialer() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
               </svg>
             </button>
-            {/* Raccrocher */}
-            <button onClick={cm.hangup}
+            {/* Raccrocher ROUGE = arrêter l'appel ET la session */}
+            <button onClick={() => { cm.hangup(); setSelectedProspect(null) }} title="Raccrocher et arrêter"
               className="w-11 h-11 rounded-full bg-red-500 text-white flex items-center justify-center hover:bg-red-600 transition-colors">
               <svg className="w-5 h-5 rotate-[135deg]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
               </svg>
             </button>
-            {/* Transfer */}
-            <button className="w-10 h-10 rounded-full bg-blue-500 text-white flex items-center justify-center hover:bg-blue-600 transition-colors">
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+            {/* Raccrocher BLEU >> = raccrocher et passer au suivant (Minari exact) */}
+            <button onClick={() => {
+              cm.hangup()
+              // Attendre le disconnect puis appeler le suivant
+              setTimeout(() => {
+                cm.reset()
+                setSelectedProspect(null)
+                queryClient.invalidateQueries({ queryKey: ['prospects', activeListId] })
+                const next = prospects?.find(p => p.call_count === 0 && !p.do_not_call && !(p.snoozed_until && new Date(p.snoozed_until) > new Date()) && p.id !== cm.context.prospect?.id)
+                if (next) setTimeout(() => handleCall(next), 300)
+              }, 500)
+            }} title="Raccrocher et continuer"
+              className="w-12 h-11 rounded-full bg-blue-500 text-white flex items-center justify-center gap-0.5 hover:bg-blue-600 transition-colors">
+              <svg className="w-4 h-4 rotate-[135deg]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+              </svg>
+              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M13 5l7 7-7 7M5 5l7 7-7 7" />
               </svg>
             </button>
           </div>
