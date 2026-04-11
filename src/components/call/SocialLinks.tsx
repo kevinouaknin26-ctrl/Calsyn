@@ -106,7 +106,7 @@ export default function SocialLinks({ prospectId }: Props) {
 
   return (
     <div>
-      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Réseaux sociaux</span>
+      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Liens</span>
       <div className="mt-1 space-y-1.5">
         {socials?.map(s => (
           <div key={s.id} className="flex items-center gap-1.5 group">
@@ -147,7 +147,7 @@ export default function SocialLinks({ prospectId }: Props) {
           <button onClick={() => setAdding(true)}
             className="text-[11px] text-gray-400 hover:text-violet-600 flex items-center gap-1 mt-0.5">
             <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
-            Ajouter un réseau social
+            Ajouter un lien
           </button>
         )}
       </div>

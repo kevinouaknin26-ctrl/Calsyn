@@ -8,7 +8,7 @@
 
 import { useState, useRef } from 'react'
 import { useQueryClient, useQuery } from '@tanstack/react-query'
-import SocialLinks from './SocialLinks'
+import SocialLinks, { PlatformIcon } from './SocialLinks'
 import { supabase } from '@/config/supabase'
 import type { Prospect, CrmStatus } from '@/types/prospect'
 import type { Disposition, Call } from '@/types/call'
@@ -302,6 +302,29 @@ function CallCard({ call, defaultOpen, onUpdate, onCelebrate }: { call: Call; de
   )
 }
 
+// ── Logos réseaux en barre (en haut de la fiche, petits, cliquables) ──
+function SocialIconsBar({ prospectId }: { prospectId: string }) {
+  const { data: socials } = useQuery({
+    queryKey: ['prospect-socials', prospectId],
+    queryFn: async () => {
+      const { data } = await supabase.from('prospect_socials').select('*').eq('prospect_id', prospectId).order('created_at')
+      return data || []
+    },
+  })
+
+  if (!socials || socials.length === 0) return <div className="mb-2" />
+
+  return (
+    <div className="flex gap-1 mb-2 ml-9">
+      {socials.map((s: { id: string; platform: string; url: string }) => (
+        <a key={s.id} href={s.url.startsWith('http') ? s.url : `https://${s.url}`} target="_blank" rel="noopener noreferrer">
+          <PlatformIcon platform={s.platform} />
+        </a>
+      ))}
+    </div>
+  )
+}
+
 // ── Nom éditable (inline, clic pour modifier) ──
 function NameEditor({ name, prospectId }: { name: string; prospectId: string }) {
   const [editing, setEditing] = useState(false)
@@ -449,28 +472,26 @@ export default function ProspectModal({
           {/* ── GAUCHE — Infos prospect ── */}
           <div className="w-[300px] p-5 border-r border-gray-100 flex flex-col overflow-y-auto">
 
-            {/* Nom + copier */}
-            <div className="flex items-center gap-2 mb-2">
-              <div className="w-7 h-7 rounded bg-gray-200 flex items-center justify-center">
+            {/* ── EN HAUT : Nom + logos réseaux + poste/entreprise ── */}
+            <div className="flex items-center gap-2 mb-1">
+              <div className="w-7 h-7 rounded bg-gray-200 flex items-center justify-center flex-shrink-0">
                 <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
               </div>
               <NameEditor name={prospect.name} prospectId={prospect.id} />
             </div>
 
-            {/* Réseaux sociaux dynamiques */}
-            <div className="mb-3">
-              <SocialLinks prospectId={prospect.id} />
-            </div>
+            {/* Logos réseaux en ligne (petits, cliquables — ouvrir le lien) */}
+            <SocialIconsBar prospectId={prospect.id} />
 
-            {/* Titre + Entreprise */}
+            {/* Poste + Entreprise */}
             {prospect.title && (
               <div className="flex items-center gap-1.5 mb-0.5">
-                <svg className="w-3.5 h-3.5 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
+                <svg className="w-3.5 h-3.5 text-gray-300 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
                 <span className="text-[13px] text-gray-600">{prospect.title}</span>
               </div>
             )}
             <div className="flex items-center gap-1.5 mb-4">
-              <svg className="w-3.5 h-3.5 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>
+              <svg className="w-3.5 h-3.5 text-gray-300 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>
               <span className="text-[13px] text-gray-600">{prospect.company || '-'}</span>
             </div>
 
@@ -589,6 +610,19 @@ export default function ProspectModal({
               <EditableField label="Téléphone 3" value={prospect.phone3 || ''} prospectId={prospect.id} field="phone3" mono />
               <EditableField label="Téléphone 4" value={prospect.phone4 || ''} prospectId={prospect.id} field="phone4" mono />
               <EditableField label="Téléphone 5" value={prospect.phone5 || ''} prospectId={prospect.id} field="phone5" mono />
+
+              {/* ── Section Liens (réseaux sociaux + sites) ── */}
+              <div className="pt-3 border-t border-gray-100 mt-3">
+                <SocialLinks prospectId={prospect.id} />
+              </div>
+
+              {/* ── Section Adresse ── */}
+              <div className="pt-3 border-t border-gray-100 mt-3">
+                <EditableField label="Adresse" value={prospect.address || ''} prospectId={prospect.id} field="address" />
+                <EditableField label="Ville" value={prospect.city || ''} prospectId={prospect.id} field="city" />
+                <EditableField label="Code postal" value={prospect.postal_code || ''} prospectId={prospect.id} field="postal_code" />
+                <EditableField label="Pays" value={prospect.country || ''} prospectId={prospect.id} field="country" />
+              </div>
             </div>
           </div>
 
