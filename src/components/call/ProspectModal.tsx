@@ -112,7 +112,7 @@ function OutcomeBadge({ outcome, meeting }: { outcome: string | null; meeting: b
 }
 
 // ── Fiche appel accordéon (Minari exact) ────────────────────────
-function CallCard({ call, defaultOpen, onUpdate }: { call: Call; defaultOpen: boolean; onUpdate: () => void }) {
+function CallCard({ call, defaultOpen, onUpdate, onCelebrate }: { call: Call; defaultOpen: boolean; onUpdate: () => void; onCelebrate: () => void }) {
   const [open, setOpen] = useState(defaultOpen)
   const [showTranscript, setShowTranscript] = useState(false)
 
@@ -149,6 +149,7 @@ function CallCard({ call, defaultOpen, onUpdate }: { call: Call; defaultOpen: bo
                   await supabase.from('calls').update({ meeting_booked: e.target.checked }).eq('id', call.id)
                   if (e.target.checked && call.prospect_id) {
                     await supabase.from('prospects').update({ last_call_outcome: 'meeting_booked' }).eq('id', call.prospect_id)
+                    onCelebrate()
                   }
                   onUpdate()
                 }}
@@ -606,7 +607,7 @@ export default function ProspectModal({
 
               {/* Historique — fiches accordéon (Minari exact) */}
               {callHistory.map((c, i) => (
-                <CallCard key={c.id} call={c} defaultOpen={i === 0 && !isInCall && !isDisconnected} onUpdate={() => queryClient.invalidateQueries({ queryKey: ['calls-by-prospect'] })} />
+                <CallCard key={c.id} call={c} defaultOpen={i === 0 && !isInCall && !isDisconnected} onUpdate={() => queryClient.invalidateQueries({ queryKey: ['calls-by-prospect'] })} onCelebrate={() => { setShowCelebration(true); setTimeout(() => setShowCelebration(false), 2500) }} />
               ))}
 
               {/* Vide */}
@@ -673,7 +674,7 @@ export default function ProspectModal({
               {activeTab === 'appels' && (
                 <div>
                   {callHistory.length > 0 ? callHistory.map(c => (
-                    <CallCard key={c.id} call={c} defaultOpen={false} onUpdate={() => queryClient.invalidateQueries({ queryKey: ['calls-by-prospect'] })} />
+                    <CallCard key={c.id} call={c} defaultOpen={false} onUpdate={() => queryClient.invalidateQueries({ queryKey: ['calls-by-prospect'] })} onCelebrate={() => { setShowCelebration(true); setTimeout(() => setShowCelebration(false), 2500) }} />
                   )) : (
                     <p className="text-[13px] text-gray-400 text-center py-10">Aucun appel enregistré</p>
                   )}
