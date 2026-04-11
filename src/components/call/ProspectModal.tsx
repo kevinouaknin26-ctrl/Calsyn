@@ -35,6 +35,12 @@ function formatPhone(phone: string): string {
   return phone
 }
 
+/** Transforme une URL Twilio recording en URL proxy pour éviter l'auth browser */
+function proxyRecordingUrl(url: string): string {
+  if (!url || !url.includes('twilio.com')) return url
+  return `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/recording-proxy?url=${encodeURIComponent(url)}`
+}
+
 function formatDuration(s: number) {
   if (!s) return '0sec'
   if (s < 60) return `${s}sec`
@@ -194,7 +200,7 @@ function CallCard({ call, defaultOpen, onUpdate, onCelebrate }: { call: Call; de
               </button>
               <div className="flex-1 h-1.5 bg-gray-200 rounded-full"><div className="h-1.5 bg-gray-400 rounded-full" style={{ width: '0%' }} /></div>
               <span className="text-[12px] text-gray-400 font-mono">{formatDurationShort(call.call_duration)}</span>
-              <a href={call.recording_url} target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-gray-600">
+              <a href={proxyRecordingUrl(call.recording_url!)} target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-gray-600">
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
               </a>
               <span className="text-[11px] text-gray-400 font-mono">x1</span>

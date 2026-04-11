@@ -133,7 +133,7 @@ export default function History() {
               <div><p className="text-[10px] font-bold text-gray-400 uppercase mb-1">Notes</p><p className="text-gray-600">{selectedCall.note}</p></div>
             )}
             {selectedCall.recording_url && (
-              <div><p className="text-[10px] font-bold text-gray-400 uppercase mb-1">Enregistrement</p><audio controls src={selectedCall.recording_url} className="w-full h-8" /></div>
+              <div><p className="text-[10px] font-bold text-gray-400 uppercase mb-1">Enregistrement</p><audio controls src={`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/recording-proxy?url=${encodeURIComponent(selectedCall.recording_url!)}`} className="w-full h-8" /></div>
             )}
           </div>
           <AIAnalysis call={selectedCall} />
