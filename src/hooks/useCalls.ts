@@ -35,6 +35,24 @@ export function useCalls(limit = 200) {
   })
 }
 
+export function useCallsByProspect(prospectId: string | null) {
+  return useQuery({
+    queryKey: ['calls-by-prospect', prospectId],
+    queryFn: async () => {
+      if (!prospectId) return []
+      const { data, error } = await supabase
+        .from('calls')
+        .select('*')
+        .eq('prospect_id', prospectId)
+        .order('created_at', { ascending: false })
+        .limit(50)
+      if (error) throw error
+      return data as Call[]
+    },
+    enabled: !!prospectId,
+  })
+}
+
 export function useCallsByProspectPhone(phone: string | null) {
   const { organisation } = useAuth()
 

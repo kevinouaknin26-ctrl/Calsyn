@@ -68,8 +68,7 @@ export class TwilioProvider implements CallProvider {
     this.device = new Device(token, {
       logLevel: 1,
       codecPreferences: [Call.Codec.Opus, Call.Codec.PCMU],
-      enableRingingState: true,
-    })
+    } as ConstructorParameters<typeof Device>[1])
 
     this.device.on('registered', () => {
       this.emit('onReady')

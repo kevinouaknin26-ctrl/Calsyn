@@ -23,7 +23,7 @@ export default function Team() {
         .select('id, email, full_name, role, is_active, created_at')
         .eq('organisation_id', organisation.id).order('created_at', { ascending: true })
       if (error) throw error
-      return data as Profile[]
+      return data as unknown as Profile[]
     },
     enabled: !!organisation?.id,
   })
