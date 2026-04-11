@@ -367,12 +367,11 @@ export default function Dialer() {
       setActiveListId(lists[0].id)
       localStorage.setItem('callio_active_list', lists[0].id)
     }
-    // Ouvrir les tabs seulement au tout premier chargement (pas de clé dans localStorage)
-    if (lists?.length && openTabIds.length === 0 && !localStorage.getItem('callio_tabs_initialized')) {
+    // Ouvrir les tabs seulement si c'est la toute première visite (pas de clé callio_open_tabs)
+    if (lists?.length && openTabIds.length === 0 && localStorage.getItem('callio_open_tabs') === null) {
       const ids = lists.map(l => l.id)
       setOpenTabIds(ids)
       localStorage.setItem('callio_open_tabs', JSON.stringify(ids))
-      localStorage.setItem('callio_tabs_initialized', 'true')
     }
   }, [lists, activeListId, openTabIds.length])
 
