@@ -7,7 +7,7 @@
  */
 
 import { useState, useRef } from 'react'
-import { useQueryClient } from '@tanstack/react-query'
+import { useQueryClient, useQuery } from '@tanstack/react-query'
 import { supabase } from '@/config/supabase'
 import type { Prospect, CrmStatus } from '@/types/prospect'
 import type { Disposition, Call } from '@/types/call'
@@ -301,6 +301,34 @@ function CallCard({ call, defaultOpen, onUpdate, onCelebrate }: { call: Call; de
   )
 }
 
+// ── Nom éditable (inline, clic pour modifier) ──
+function NameEditor({ name, prospectId }: { name: string; prospectId: string }) {
+  const [editing, setEditing] = useState(false)
+  const [val, setVal] = useState(name)
+  const qc = useQueryClient()
+
+  async function save() {
+    if (val.trim() && val !== name) {
+      await supabase.from('prospects').update({ name: val.trim() }).eq('id', prospectId)
+      await supabase.from('activity_logs').insert({
+        prospect_id: prospectId, action: 'name_changed',
+        details: `"${name}" → "${val.trim()}"`,
+      })
+      qc.invalidateQueries({ queryKey: ['prospects'] })
+    }
+    setEditing(false)
+  }
+
+  return editing ? (
+    <input autoFocus type="text" value={val} onChange={e => setVal(e.target.value)}
+      onBlur={save} onKeyDown={e => { if (e.key === 'Enter') save(); if (e.key === 'Escape') { setVal(name); setEditing(false) } }}
+      className="text-[15px] font-bold text-gray-800 flex-1 outline-none border-b-2 border-violet-400 bg-transparent" />
+  ) : (
+    <h2 onClick={() => setEditing(true)}
+      className="text-[15px] font-bold text-gray-800 flex-1 truncate cursor-pointer hover:text-violet-700 transition-colors">{name}</h2>
+  )
+}
+
 // ── Champ éditable (clic pour modifier, blur pour sauvegarder) ──
 function EditableField({ label, value, prospectId, field, copyable, mono }: {
   label: string; value: string; prospectId: string; field: string; copyable?: boolean; mono?: boolean
@@ -313,7 +341,14 @@ function EditableField({ label, value, prospectId, field, copyable, mono }: {
   async function save() {
     if (localVal !== value) {
       await supabase.from('prospects').update({ [field]: localVal || null }).eq('id', prospectId)
+      // Log d'activité pour l'admin
+      await supabase.from('activity_logs').insert({
+        prospect_id: prospectId,
+        action: 'field_updated',
+        details: `${label} : "${value || ''}" → "${localVal || ''}"`,
+      })
       qc.invalidateQueries({ queryKey: ['prospects'] })
+      qc.invalidateQueries({ queryKey: ['activity-logs'] })
     }
     setEditing(false)
   }
@@ -371,6 +406,7 @@ export default function ProspectModal({
     const until = new Date()
     until.setDate(until.getDate() + days)
     await supabase.from('prospects').update({ snoozed_until: until.toISOString() }).eq('id', prospect.id)
+    await supabase.from('activity_logs').insert({ prospect_id: prospect.id, action: 'snoozed', details: `En pause jusqu'au ${until.toLocaleDateString('fr-FR')}` })
     setLocalSnoozedUntil(until.toISOString())
     setShowSnoozeMenu(false)
     queryClient.invalidateQueries({ queryKey: ['prospects'] })
@@ -378,6 +414,7 @@ export default function ProspectModal({
 
   async function handleRemoveSnooze() {
     await supabase.from('prospects').update({ snoozed_until: null }).eq('id', prospect.id)
+    await supabase.from('activity_logs').insert({ prospect_id: prospect.id, action: 'snooze_removed', details: 'Pause retirée' })
     setLocalSnoozedUntil(null)
     queryClient.invalidateQueries({ queryKey: ['prospects'] })
   }
@@ -385,12 +422,22 @@ export default function ProspectModal({
   async function handleToggleDNC() {
     const newValue = !localDoNotCall
     await supabase.from('prospects').update({ do_not_call: newValue }).eq('id', prospect.id)
+    await supabase.from('activity_logs').insert({ prospect_id: prospect.id, action: newValue ? 'calls_disabled' : 'calls_enabled', details: newValue ? 'Appels désactivés' : 'Appels réactivés' })
     setLocalDoNotCall(newValue)
     queryClient.invalidateQueries({ queryKey: ['prospects'] })
   }
 
   const callsDisabled = localDoNotCall
   const isSnoozed = localSnoozedUntil && new Date(localSnoozedUntil) > new Date()
+
+  // Activity logs
+  const { data: activityLogs } = useQuery({
+    queryKey: ['activity-logs', prospect.id],
+    queryFn: async () => {
+      const { data } = await supabase.from('activity_logs').select('*').eq('prospect_id', prospect.id).order('created_at', { ascending: false }).limit(50)
+      return data || []
+    },
+  })
 
   return (
     <>
@@ -408,7 +455,7 @@ export default function ProspectModal({
               <div className="w-7 h-7 rounded bg-gray-200 flex items-center justify-center">
                 <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
               </div>
-              <h2 className="text-[15px] font-bold text-gray-800 flex-1 truncate">{prospect.name}</h2>
+              <NameEditor name={prospect.name} prospectId={prospect.id} />
             </div>
 
             {/* Icones LinkedIn + globe — à gauche, avec popover inline pour ajouter */}
@@ -701,8 +748,22 @@ export default function ProspectModal({
                 <CallCard key={c.id} call={c} defaultOpen={i === 0 && !isInCall && !isDisconnected} onUpdate={() => queryClient.invalidateQueries({ queryKey: ['calls-by-prospect'] })} onCelebrate={() => { setShowCelebration(true); setTimeout(() => setShowCelebration(false), 2500) }} />
               ))}
 
+              {/* Logs d'activité (modifications de champs, snooze, DNC) */}
+              {activityLogs && activityLogs.length > 0 && (
+                <div className="mt-3 space-y-1">
+                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Historique des modifications</p>
+                  {activityLogs.map((log: { id: string; action: string; details: string; created_at: string }) => (
+                    <div key={log.id} className="flex items-center gap-2 text-[11px] text-gray-400 py-1 border-b border-gray-50">
+                      <svg className="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                      <span className="flex-1">{log.details}</span>
+                      <span className="text-[10px] text-gray-300">{formatDate(log.created_at)}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
               {/* Vide */}
-              {!isInCall && !isDisconnected && callHistory.length === 0 && (
+              {!isInCall && !isDisconnected && callHistory.length === 0 && (!activityLogs || activityLogs.length === 0) && (
                 <p className="text-[13px] text-gray-400 text-center py-10">Aucune activité</p>
               )}
               </>
