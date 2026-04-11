@@ -17,6 +17,7 @@ import type { Prospect } from '@/types/prospect'
 // CALL STATUS = resultat du DERNIER APPEL, pas le statut du prospect
 // "Pending" si jamais appele (call_count === 0)
 const CALL_OUTCOME_BADGE: Record<string, { bg: string; text: string; label: string }> = {
+  // Etats idle (resultat dernier appel)
   pending:        { bg: '#f3f4f6', text: '#6b7280', label: 'Pending' },
   connected:      { bg: '#d1fae5', text: '#059669', label: 'Connected' },
   rdv:            { bg: '#ccfbf1', text: '#0d9488', label: 'Meeting booked' },
@@ -27,6 +28,10 @@ const CALL_OUTCOME_BADGE: Record<string, { bg: string; text: string; label: stri
   busy:           { bg: '#f3f4f6', text: '#6b7280', label: 'Busy' },
   wrong_number:   { bg: '#fecaca', text: '#dc2626', label: 'Wrong Number' },
   dnc:            { bg: '#fecaca', text: '#dc2626', label: 'Do not call' },
+  // Etats LIVE pendant session (frame 010/015)
+  'in-progress':  { bg: '#fee2e2', text: '#dc2626', label: 'In-progress' },
+  ringing:        { bg: '#fecaca', text: '#dc2626', label: 'Ringing' },
+  cancelled:      { bg: '#f3f4f6', text: '#6b7280', label: 'Cancelled' },
 }
 
 // ── Timer ──────────────────────────────────────────────────────────
