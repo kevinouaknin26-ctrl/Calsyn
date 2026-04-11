@@ -234,13 +234,15 @@ const ProspectRow = memo(function ProspectRow({ prospect, isActive, liveStatus, 
       {/* NAME — chip cliquable (Minari exact) + icones après */}
       <td className="py-3.5 px-4">
         <div className="flex items-center gap-2">
-          {/* Icone contact + Nom cliquable (pas de bulle — Minari exact) */}
-          <svg className="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+          {/* Nom dans bulle cliquable */}
           <button onClick={() => onSelect(prospect)}
-            className="text-[13px] font-semibold text-gray-800 hover:text-teal-700 transition-colors cursor-pointer truncate">
-            {prospect.name}
+            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-gray-50 hover:bg-gray-100 transition-colors cursor-pointer border border-gray-200/60">
+            <svg className="w-3 h-3 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+            <span className="text-[13px] font-medium text-gray-800">{prospect.name}</span>
           </button>
-          {/* Icones appeler + LinkedIn */}
+          {/* Spacer pour pousser les icones à droite */}
+          <div className="flex-1" />
+          {/* Icones appeler + LinkedIn — alignées à droite comme une colonne */}
           <button onClick={e => { e.stopPropagation(); onCall(prospect) }}
             className="w-6 h-6 rounded bg-gray-100 flex items-center justify-center flex-shrink-0 hover:bg-emerald-50 group">
             <svg className="w-3 h-3 text-gray-400 group-hover:text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
