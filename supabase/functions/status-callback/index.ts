@@ -1,11 +1,6 @@
 /**
- * status-callback — Recoit les events de progression d'appel de Twilio.
- *
- * C'est ici que la DB est mise a jour (source de verite = webhooks, pas le client).
- * Si l'agent ferme son onglet, cet endpoint sauve quand meme le call.
- *
- * Auth : Signature Twilio (X-Twilio-Signature)
- * TODO: validation signature
+ * status-callback — Events de progression d'appel Twilio.
+ * Source de verite pour la DB. Cherche le prospect par numero pour enrichir le call.
  */
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
@@ -35,7 +30,6 @@ serve(async (req) => {
 
     console.log(`[status-callback] ${callSid}: ${callStatus} (${duration}s)`)
 
-    // Seulement traiter les status finaux
     if (!['completed', 'busy', 'no-answer', 'canceled', 'failed'].includes(callStatus)) {
       return new Response(JSON.stringify({ ok: true }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -47,7 +41,6 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '',
     )
 
-    // Mapper le status Twilio vers notre disposition
     const outcomeMap: Record<string, string> = {
       'completed': 'connected',
       'busy': 'busy',
@@ -56,7 +49,47 @@ serve(async (req) => {
       'failed': 'no_answer',
     }
 
-    // Upsert le call (idempotent via UNIQUE call_sid)
+    // Chercher le prospect par numero pour enrichir le call
+    let prospectName: string | null = null
+    let prospectId: string | null = null
+    let organisationId: string | null = null
+    let sdrId: string | null = null
+
+    if (to) {
+      const { data: prospect } = await supabase
+        .from('prospects')
+        .select('id, name, organisation_id, list_id')
+        .eq('phone', to)
+        .limit(1)
+        .single()
+
+      if (prospect) {
+        prospectName = prospect.name
+        prospectId = prospect.id
+        organisationId = prospect.organisation_id
+
+        // Trouver le SDR via la liste du prospect
+        if (prospect.list_id) {
+          const { data: list } = await supabase
+            .from('prospect_lists')
+            .select('created_by')
+            .eq('id', prospect.list_id)
+            .single()
+          if (list?.created_by) sdrId = list.created_by
+        }
+
+        // Mettre a jour le prospect
+        await supabase
+          .from('prospects')
+          .update({
+            last_call_at: new Date().toISOString(),
+            call_count: prospect.id ? undefined : 0, // increment via RPC plus tard
+          })
+          .eq('id', prospect.id)
+      }
+    }
+
+    // Upsert le call enrichi
     const { error } = await supabase
       .from('calls')
       .upsert({
@@ -65,6 +98,10 @@ serve(async (req) => {
         call_duration: duration,
         call_outcome: outcomeMap[callStatus] || callStatus,
         prospect_phone: to,
+        prospect_name: prospectName,
+        prospect_id: prospectId,
+        organisation_id: organisationId,
+        sdr_id: sdrId,
         from_number: from,
         provider: 'twilio',
       }, {
@@ -74,17 +111,6 @@ serve(async (req) => {
 
     if (error) {
       console.error('[status-callback] Upsert error:', error)
-    }
-
-    // Mettre a jour le prospect (call_count, last_call_at)
-    if (to) {
-      await supabase
-        .from('prospects')
-        .update({
-          call_count: supabase.rpc ? undefined : undefined, // sera fait via RPC plus tard
-          last_call_at: new Date().toISOString(),
-        })
-        .eq('phone', to)
     }
 
     return new Response(JSON.stringify({ ok: true }), {
