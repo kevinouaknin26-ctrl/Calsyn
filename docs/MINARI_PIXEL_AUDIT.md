@@ -155,3 +155,15 @@
 - "Complete task when contact dialed"
 - Multiple from numbers avec rotation
 - Statuts CRM personnalisables par compte
+- Voicemail drop en 1 clic (message pre-enregistre)
+- Custom AI prompts (insights business-specifiques)
+- Analytics par rep et par session (calls, connected rate, meetings, revenue)
+- Import depuis Lemlist (integration native)
+
+## 8. BUSINESS INFO MINARI
+- Prix : 300€/mois par poste (info Kevin)
+- 0 → 1M€ ARR en < 18 mois, bootstrappe (pas de levee)
+- 467K appels en novembre seul
+- Fondateurs : Clement Bataille + Julien Schmitt (Montrouge FR)
+- Integrations : HubSpot, Lemlist, Salesforce
+- Support : Slack, email, live chat (lun-ven 9h-18h)
