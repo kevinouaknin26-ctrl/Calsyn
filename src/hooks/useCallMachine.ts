@@ -129,6 +129,7 @@ export function useCallMachine() {
 
   const hangup = useCallback(() => {
     providerRef.current?.disconnectAll()
+    sessionRef.current = null
     send({ type: 'HANG_UP' })
   }, [send])
 
