@@ -313,7 +313,8 @@ export default function Dialer() {
                 : 'text-gray-400 hover:text-gray-600'
             }`}>
             {l.name}
-            <span className="text-gray-300 hover:text-gray-500">&times;</span>
+            <button onClick={e => { e.stopPropagation(); if (activeListId === l.id && lists && lists.length > 1) { const other = lists.find(x => x.id !== l.id); if (other) setActiveListId(other.id) } }}
+              className="text-gray-300 hover:text-gray-500 ml-0.5">&times;</button>
           </button>
         ))}
         {(lists?.length || 0) > 8 && (

@@ -41,7 +41,15 @@ function mapHeader(normalized: string): keyof ParsedRow | 'first_name' | 'last_n
     title: 'title', poste: 'title', jobtitle: 'title', fonction: 'title', role: 'title',
     sector: 'sector', secteur: 'sector', industry: 'sector', industrie: 'sector',
   }
-  return MAP[normalized] || null
+  if (MAP[normalized]) return MAP[normalized]
+  // Match partiel
+  if (normalized.includes('nom') || normalized.includes('artiste') || normalized.includes('contact') || normalized.includes('name')) return 'name'
+  if (normalized.includes('prenom') || normalized.includes('first')) return 'first_name'
+  if (normalized.includes('phone') || normalized.includes('tel') || normalized.includes('mobile') || normalized.includes('numero')) return 'phone'
+  if (normalized.includes('mail')) return 'email'
+  if (normalized.includes('entreprise') || normalized.includes('societe') || normalized.includes('company')) return 'company'
+  if (normalized.includes('poste') || normalized.includes('title') || normalized.includes('fonction')) return 'title'
+  return null
 }
 
 /** Nettoie un numéro de téléphone */

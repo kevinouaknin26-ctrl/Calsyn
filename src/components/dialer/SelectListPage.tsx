@@ -27,14 +27,24 @@ function normalizeHeader(h: string): string {
 }
 
 function mapHeader(n: string): string | null {
-  const m: Record<string, string> = {
+  // Match exact
+  const exact: Record<string, string> = {
     name: 'name', nom: 'name', fullname: 'name', firstname: 'first_name', prenom: 'first_name',
     lastname: 'last_name', nomdefamille: 'last_name', phone: 'phone', telephone: 'phone', tel: 'phone',
     mobile: 'phone', numero: 'phone', email: 'email', mail: 'email', company: 'company',
     entreprise: 'company', societe: 'company', title: 'title', poste: 'title', jobtitle: 'title',
-    sector: 'sector', secteur: 'sector',
+    sector: 'sector', secteur: 'sector', source: 'sector', commentaire: 'notes',
+    statut: 'notes', confirmation: 'notes',
   }
-  return m[n] || null
+  if (exact[n]) return exact[n]
+  // Match partiel (contient le mot cle)
+  if (n.includes('nom') || n.includes('artiste') || n.includes('contact') || n.includes('name')) return 'name'
+  if (n.includes('prenom') || n.includes('first')) return 'first_name'
+  if (n.includes('phone') || n.includes('tel') || n.includes('mobile') || n.includes('numero')) return 'phone'
+  if (n.includes('mail')) return 'email'
+  if (n.includes('entreprise') || n.includes('societe') || n.includes('company')) return 'company'
+  if (n.includes('poste') || n.includes('title') || n.includes('fonction')) return 'title'
+  return null
 }
 
 function cleanPhone(raw: string): string {
