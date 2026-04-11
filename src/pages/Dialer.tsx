@@ -115,6 +115,19 @@ function CallSettingsDropdown({ open, onToggle }: { open: boolean; onToggle: () 
   const [attemptPeriod, setAttemptPeriod] = useCallSetting('attempt_period', 'jour')
   const [phoneField, setPhoneField] = useCallSetting('phone_field', 'phone')
 
+  // From phone numbers (multi-numéros avec compteur)
+  const [fromNumbers] = useState([
+    { number: '+33 1 59 58 01 89', calls: 0 },
+  ])
+  const [selectedFromNumber, setSelectedFromNumber] = useCallSetting('from_number', '+33 1 59 58 01 89')
+
+  // Voicemail drop — enregistrement message
+  const [vmType, setVmType] = useCallSetting('vm_type', 'type1')
+  const [vmRecording, setVmRecording] = useState(false)
+  const [vmAudioUrl, setVmAudioUrl] = useState<string | null>(null)
+  const vmRecorderRef = useRef<MediaRecorder | null>(null)
+  const vmChunksRef = useRef<Blob[]>([])
+
   // Microphone — vrais périphériques audio
   const [micDevices, setMicDevices] = useState<MediaDeviceInfo[]>([])
   const [selectedMic, setSelectedMic] = useCallSetting('mic_device', '')
@@ -212,30 +225,74 @@ function CallSettingsDropdown({ open, onToggle }: { open: boolean; onToggle: () 
             </div>
           </div>
 
-          {/* From phone number (Minari exact — point vert + numéro) */}
-          <div className="flex items-center justify-between">
-            <span className="text-[13px] text-gray-700">Numéro appelant</span>
-            <div className="flex items-center gap-1.5">
+          {/* From phone number (Minari — dropdown multi-numéros + compteur appels) */}
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-[13px] text-gray-700">Numéro appelant</span>
+              <select value={selectedFromNumber} onChange={e => setSelectedFromNumber(e.target.value)}
+                className="text-[12px] text-gray-600 bg-transparent border border-gray-200 rounded-lg px-2 py-1 outline-none">
+                {fromNumbers.map((num, i) => (
+                  <option key={i} value={num.number}>{num.number} ({num.calls} appels)</option>
+                ))}
+              </select>
+            </div>
+            <div className="flex items-center gap-1 justify-end">
               <span className="w-2 h-2 rounded-full bg-emerald-500" />
-              <span className="text-[13px] text-gray-600">+33 1 59 58 01 89</span>
+              <span className="text-[11px] text-gray-400">Actif</span>
             </div>
           </div>
 
-          {/* Voicemail (Minari exact — icone + type dropdown) */}
-          <div className="flex items-center justify-between">
-            <span className="text-[13px] text-gray-700">Messagerie vocale</span>
-            <div className="flex items-center gap-2">
-              <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" /></svg>
-              {voicemail ? (
-                <select className="text-[12px] text-gray-600 bg-transparent border border-gray-200 rounded-lg px-2 py-1 outline-none">
-                  <option>Message type 1</option>
-                  <option>Message type 2</option>
-                </select>
-              ) : (
-                <span className="text-[13px] text-gray-400">Désactivé</span>
-              )}
-              <Toggle value={voicemail} onChange={setVoicemail} />
+          {/* Voicemail drop (Minari — message pré-enregistré + toggle) */}
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <span className="text-[13px] text-gray-700">Messagerie vocale</span>
+              <div className="flex items-center gap-2">
+                <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" /></svg>
+                <Toggle value={voicemail} onChange={setVoicemail} />
+              </div>
             </div>
+            {voicemail && (
+              <div className="bg-gray-50 rounded-lg p-2.5 space-y-2">
+                <select value={vmType} onChange={e => setVmType(e.target.value)}
+                  className="w-full text-[12px] text-gray-600 bg-white border border-gray-200 rounded-lg px-2 py-1.5 outline-none">
+                  <option value="type1">Message type 1</option>
+                  <option value="type2">Message type 2</option>
+                  <option value="custom">Message personnalisé</option>
+                </select>
+                <div className="flex items-center gap-2">
+                  <button onClick={async () => {
+                    if (vmRecording) {
+                      vmRecorderRef.current?.stop()
+                      setVmRecording(false)
+                      return
+                    }
+                    try {
+                      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+                      vmChunksRef.current = []
+                      const recorder = new MediaRecorder(stream)
+                      recorder.ondataavailable = e => vmChunksRef.current.push(e.data)
+                      recorder.onstop = () => {
+                        stream.getTracks().forEach(t => t.stop())
+                        const blob = new Blob(vmChunksRef.current, { type: 'audio/webm' })
+                        setVmAudioUrl(URL.createObjectURL(blob))
+                      }
+                      vmRecorderRef.current = recorder
+                      recorder.start()
+                      setVmRecording(true)
+                      setTimeout(() => { if (recorder.state === 'recording') { recorder.stop(); setVmRecording(false) } }, 30000)
+                    } catch { alert('Impossible d\'accéder au microphone') }
+                  }} className={`px-2 py-1 rounded-lg border text-[11px] ${vmRecording ? 'border-red-300 text-red-500 bg-red-50' : 'border-gray-200 text-gray-500 hover:bg-white'}`}>
+                    {vmRecording ? '⏹ Arrêter' : '🎤 Enregistrer'}
+                  </button>
+                  <button onClick={() => { if (vmAudioUrl) new Audio(vmAudioUrl).play() }}
+                    disabled={!vmAudioUrl}
+                    className="px-2 py-1 rounded-lg border border-gray-200 text-[11px] text-gray-500 hover:bg-white disabled:opacity-30">
+                    ▶ Écouter
+                  </button>
+                  {vmAudioUrl && <span className="text-[10px] text-emerald-500">✓ Enregistré</span>}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Contact phone number field */}
