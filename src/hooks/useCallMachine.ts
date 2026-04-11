@@ -161,7 +161,24 @@ export function useCallMachine() {
   const setDisposition = useCallback((d: Disposition) => send({ type: 'SET_DISPOSITION', disposition: d }), [send])
   const setNotes = useCallback((n: string) => send({ type: 'SET_NOTES', notes: n }), [send])
   const setMeeting = useCallback((m: boolean) => send({ type: 'SET_MEETING', meetingBooked: m }), [send])
-  const reset = useCallback(() => { audioSamplesRef.current = []; send({ type: 'RESET' }) }, [send])
+  const reset = useCallback(() => {
+    // Save final avec la disposition mise a jour par l'utilisateur
+    if (state.matches('disconnected')) {
+      saveCallDisposition({
+        callSid: state.context.callSid,
+        conferenceSid: state.context.conferenceSid,
+        prospectId: state.context.prospect?.id ?? null,
+        prospectName: state.context.prospect?.name ?? null,
+        prospectPhone: state.context.prospect?.phone ?? null,
+        duration: state.context.duration,
+        disposition: state.context.disposition || 'connected',
+        notes: state.context.notes,
+        meetingBooked: state.context.meetingBooked,
+      }).catch(err => console.error('[useCallMachine] Final save failed:', err))
+    }
+    audioSamplesRef.current = []
+    send({ type: 'RESET' })
+  }, [send, state])
 
   const sendDTMF = useCallback((digit: string) => { sessionRef.current?.sendDTMF(digit) }, [])
 

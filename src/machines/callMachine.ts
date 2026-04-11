@@ -128,6 +128,8 @@ export const callMachine = createMachine({
               context.startedAt ? Math.round((Date.now() - context.startedAt) / 1000) : 0,
           }),
         },
+        // CallSid peut arriver apres ANSWERED
+        RINGING: { actions: assign({ callSid: ({ event }) => event.callSid }) },
         // Pendant l'appel, on peut deja noter des trucs
         SET_NOTES: { actions: assign({ notes: ({ event }) => event.notes }) },
         SET_DISPOSITION: { actions: assign({ disposition: ({ event }) => event.disposition }) },

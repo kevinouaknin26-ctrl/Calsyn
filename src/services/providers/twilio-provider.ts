@@ -158,11 +158,6 @@ export class TwilioProvider implements CallProvider {
 
   disconnectAll(): void {
     if (this.device) {
-      // Nettoyer les listeners de tous les appels actifs avant de deconnecter
-      // Sinon le Device peut garder une reference a un call "fantome"
-      this.device.calls?.forEach(call => {
-        try { call.removeAllListeners() } catch {}
-      })
       this.device.disconnectAll()
     }
   }

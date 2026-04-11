@@ -13,8 +13,8 @@ export type AnalysisStatus = 'pending' | 'processing' | 'completed' | 'error'
 
 export interface Call {
   id: string
-  organisation_id: string
-  sdr_id: string
+  organisation_id: string | null
+  sdr_id: string | null
   prospect_id: string | null
   prospect_name: string | null
   prospect_phone: string | null
