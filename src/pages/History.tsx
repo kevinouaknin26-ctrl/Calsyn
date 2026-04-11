@@ -51,7 +51,7 @@ export default function History() {
   const filtered = calls?.filter(c => filter === 'all' || c.call_outcome === filter) || []
 
   return (
-    <div className="min-h-screen bg-[#f8f9fa] flex">
+    <div className="min-h-screen bg-[#f8f9fa] dark:bg-[#0f0f1a] flex">
       <div className="flex-1 p-6">
         <div className="flex items-center justify-between mb-6">
           <div>
@@ -79,7 +79,7 @@ export default function History() {
         )}
 
         {filtered.length > 0 && (
-          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+          <div className="bg-white dark:bg-[#1a1a2e] rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
             <table className="w-full">
               <thead>
                 <tr className="text-[10px] font-bold text-gray-400 uppercase tracking-wider border-b border-gray-100">

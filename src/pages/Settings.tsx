@@ -23,7 +23,7 @@ export default function Settings() {
       <div className="max-w-2xl space-y-6">
 
         {/* ── Call Settings (Minari style) ── */}
-        <div className="bg-white rounded-xl border border-gray-200 p-5">
+        <div className="bg-white dark:bg-[#1a1a2e] rounded-xl border border-gray-200 dark:border-gray-700 p-5">
           <h2 className="text-sm font-bold text-gray-800 mb-5">Paramètres d'appel</h2>
 
           {/* Appels parallèles */}
@@ -104,7 +104,7 @@ export default function Settings() {
         </div>
 
         {/* ── Resume IA Settings ── */}
-        <div className="bg-white rounded-xl border border-gray-200 p-5">
+        <div className="bg-white dark:bg-[#1a1a2e] rounded-xl border border-gray-200 dark:border-gray-700 p-5">
           <h2 className="text-sm font-bold text-gray-800 mb-4">Resume IA</h2>
           <p className="text-xs text-gray-400 mb-3">Les transcriptions sont generees pour les appels de 20 secondes minimum. Langues auto-detectees : FR, EN, DE, IT, ES.</p>
           <div className="p-3 rounded-lg bg-gray-50 border border-gray-200">
@@ -115,7 +115,7 @@ export default function Settings() {
         </div>
 
         {/* ── Appels entrants (Callback) ── */}
-        <div className="bg-white rounded-xl border border-gray-200 p-5">
+        <div className="bg-white dark:bg-[#1a1a2e] rounded-xl border border-gray-200 dark:border-gray-700 p-5">
           <h2 className="text-sm font-bold text-gray-800 mb-4">Appels entrants</h2>
           <div className="space-y-3">
             <label className="flex items-start gap-3 p-3 rounded-lg border border-gray-200 cursor-pointer hover:bg-gray-50">
@@ -143,7 +143,7 @@ export default function Settings() {
         </div>
 
         {/* ── Organisation ── */}
-        <div className="bg-white rounded-xl border border-gray-200 p-5">
+        <div className="bg-white dark:bg-[#1a1a2e] rounded-xl border border-gray-200 dark:border-gray-700 p-5">
           <h2 className="text-sm font-bold text-gray-800 mb-4">Organisation</h2>
           <div className="grid grid-cols-2 gap-4 text-sm">
             <div><label className="text-[10px] font-bold text-gray-400 uppercase">Nom</label><p className="text-gray-700 mt-1">{organisation?.name || '—'}</p></div>
@@ -154,7 +154,7 @@ export default function Settings() {
         </div>
 
         {/* ── Mon profil ── */}
-        <div className="bg-white rounded-xl border border-gray-200 p-5">
+        <div className="bg-white dark:bg-[#1a1a2e] rounded-xl border border-gray-200 dark:border-gray-700 p-5">
           <h2 className="text-sm font-bold text-gray-800 mb-4">Mon profil</h2>
           <div className="grid grid-cols-2 gap-4 text-sm">
             <div><label className="text-[10px] font-bold text-gray-400 uppercase">Nom</label><p className="text-gray-700 mt-1">{profile?.full_name || '—'}</p></div>
@@ -164,7 +164,7 @@ export default function Settings() {
         </div>
 
         {/* ── Twilio Config ── */}
-        <div className="bg-white rounded-xl border border-gray-200 p-5">
+        <div className="bg-white dark:bg-[#1a1a2e] rounded-xl border border-gray-200 dark:border-gray-700 p-5">
           <h2 className="text-sm font-bold text-gray-800 mb-4">Configuration VoIP</h2>
           <p className="text-xs text-gray-400 mb-3">Les secrets sont configures cote serveur.</p>
           <div className="space-y-2">

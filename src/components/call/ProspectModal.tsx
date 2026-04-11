@@ -467,14 +467,14 @@ export default function ProspectModal({
 
       <div className="fixed inset-0 bg-black/15 flex items-start justify-center pt-[5vh] z-40"
         onClick={e => { if (e.target === e.currentTarget && !isInCall) onClose() }}>
-        <div className="bg-white rounded-2xl shadow-xl w-[880px] max-h-[85vh] flex animate-fade-in-scale">
+        <div className="bg-white dark:bg-[#1a1a2e] rounded-2xl shadow-xl w-[880px] max-h-[85vh] flex animate-fade-in-scale">
 
           {/* ── GAUCHE — Infos prospect ── */}
-          <div className="w-[300px] p-5 border-r border-gray-100 flex flex-col overflow-y-auto">
+          <div className="w-[300px] p-5 border-r border-gray-100 dark:border-gray-700 flex flex-col overflow-y-auto">
 
             {/* ── EN HAUT : Nom + logos réseaux + poste/entreprise ── */}
             <div className="flex items-center gap-2 mb-1">
-              <div className="w-7 h-7 rounded bg-gray-200 flex items-center justify-center flex-shrink-0">
+              <div className="w-7 h-7 rounded bg-gray-200 dark:bg-gray-700 flex items-center justify-center flex-shrink-0">
                 <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
               </div>
               <NameEditor name={prospect.name} prospectId={prospect.id} />

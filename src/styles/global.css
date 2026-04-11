@@ -7,10 +7,44 @@
 @layer base {
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
   html, body, #root { height: 100%; font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; -webkit-font-smoothing: antialiased; }
-  body { background: #f5f3ff; color: #1a1a2e; }
   ::-webkit-scrollbar { width: 6px; }
   ::-webkit-scrollbar-track { background: transparent; }
   ::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.12); border-radius: 3px; }
+
+  /* Mode clair (défaut) */
+  :root {
+    --bg-page: #f5f3ff;
+    --bg-card: #ffffff;
+    --bg-sidebar: #fafafa;
+    --bg-input: #ffffff;
+    --bg-hover: rgba(0,0,0,0.03);
+    --bg-table-header: rgba(249,250,251,0.8);
+    --border: #e5e7eb;
+    --border-light: rgba(229,231,235,0.5);
+    --text-primary: #1f2937;
+    --text-secondary: #6b7280;
+    --text-muted: #9ca3af;
+    --text-placeholder: #d1d5db;
+  }
+
+  /* Mode sombre */
+  .dark {
+    --bg-page: #0f0f1a;
+    --bg-card: #1a1a2e;
+    --bg-sidebar: #12121f;
+    --bg-input: #1e1e35;
+    --bg-hover: rgba(255,255,255,0.05);
+    --bg-table-header: rgba(30,30,50,0.8);
+    --border: #2d2d4a;
+    --border-light: rgba(45,45,74,0.5);
+    --text-primary: #e5e7eb;
+    --text-secondary: #9ca3af;
+    --text-muted: #6b7280;
+    --text-placeholder: #4b5563;
+  }
+
+  body { background: var(--bg-page); color: var(--text-primary); }
+  .dark ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); }
 }
 
 /* Animations globales */
@@ -62,9 +96,4 @@ table tbody tr {
 /* Boutons avec feedback tactile */
 button:active:not(:disabled) {
   transform: scale(0.98);
-}
-
-/* Badges avec transition */
-.badge-transition {
-  transition: all 0.2s ease;
 }

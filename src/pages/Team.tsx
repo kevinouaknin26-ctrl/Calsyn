@@ -29,13 +29,13 @@ export default function Team() {
   })
 
   return (
-    <div className="min-h-screen bg-[#f8f9fa] p-6">
+    <div className="min-h-screen bg-[#f8f9fa] dark:bg-[#0f0f1a] p-6">
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-xl font-bold text-gray-800">Equipe</h1>
         <span className="text-sm text-gray-400">{members?.length || 0} membres</span>
       </div>
 
-      <div className="bg-white rounded-xl border border-gray-200 p-4 mb-6 flex gap-3">
+      <div className="bg-white dark:bg-[#1a1a2e] rounded-xl border border-gray-200 dark:border-gray-700 p-4 mb-6 flex gap-3">
         <input type="email" placeholder="Email du nouveau membre..."
           value={inviteEmail} onChange={e => setInviteEmail(e.target.value)}
           className="flex-1 px-4 py-2.5 rounded-lg bg-gray-50 text-sm text-gray-700 outline-none border border-gray-200" />
