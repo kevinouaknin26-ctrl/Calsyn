@@ -390,37 +390,39 @@ const ProspectRow = memo(function ProspectRow({ prospect, isActive, liveStatus, 
             <svg className="w-3 h-3 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
             <span className="text-[13px] font-medium text-gray-800">{prospect.name}</span>
           </button>
-          {/* Spacer */}
-          <div className="flex-1" />
-          {/* Téléphone + Mail (colonne fixe) */}
-          <div className="flex items-center gap-0.5 flex-shrink-0">
-            <button onClick={e => { e.stopPropagation(); onCall(prospect) }}
+        </div>
+      </td>
+      {/* Colonne téléphone + mail */}
+      <td className="py-3.5 px-1">
+        <div className="flex items-center gap-0.5">
+          <button onClick={e => { e.stopPropagation(); onCall(prospect) }}
+            className="w-5 h-5 rounded bg-gray-100 flex items-center justify-center flex-shrink-0 hover:bg-violet-50 group">
+            <svg className="w-3 h-3 text-gray-400 group-hover:text-violet-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+            </svg>
+          </button>
+          {prospect.email && (
+            <a href={`mailto:${prospect.email}`} onClick={e => e.stopPropagation()} title={prospect.email}
               className="w-5 h-5 rounded bg-gray-100 flex items-center justify-center flex-shrink-0 hover:bg-violet-50 group">
-              <svg className="w-3 h-3 text-gray-400 group-hover:text-violet-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+              <svg className="w-2.5 h-2.5 text-gray-400 group-hover:text-violet-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
               </svg>
-            </button>
-            {prospect.email && (
-              <a href={`mailto:${prospect.email}`} onClick={e => e.stopPropagation()} title={prospect.email}
-                className="w-5 h-5 rounded bg-gray-100 flex items-center justify-center flex-shrink-0 hover:bg-violet-50 group">
-                <svg className="w-2.5 h-2.5 text-gray-400 group-hover:text-violet-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                </svg>
-              </a>
-            )}
-          </div>
-          {/* Réseaux sociaux (colonne séparée) */}
-          {socials.length > 0 && (
-            <div className="flex flex-wrap gap-0.5 max-w-[120px] flex-shrink-0 ml-1 pl-1 border-l border-gray-200 dark:border-[#d4cade]">
-              {socials.map((s, i) => (
-                <a key={i} href={s.url.startsWith('http') ? s.url : `https://${s.url}`} target="_blank" rel="noopener noreferrer"
-                  onClick={e => e.stopPropagation()}>
-                  <PlatformIcon platform={s.platform} size="sm" />
-                </a>
-              ))}
-            </div>
+            </a>
           )}
         </div>
+      </td>
+      {/* Colonne réseaux sociaux */}
+      <td className="py-3.5 px-1">
+        {socials.length > 0 && (
+          <div className="flex flex-wrap gap-0.5 max-w-[130px]">
+            {socials.map((s, i) => (
+              <a key={i} href={s.url.startsWith('http') ? s.url : `https://${s.url}`} target="_blank" rel="noopener noreferrer"
+                onClick={e => e.stopPropagation()}>
+                <PlatformIcon platform={s.platform} size="sm" />
+              </a>
+            ))}
+          </div>
+        )}
       </td>
       {/* TITLE */}
       <td className="py-3.5 px-4 text-[13px] text-gray-500 truncate max-w-[180px]">{prospect.title || '-'}</td>
