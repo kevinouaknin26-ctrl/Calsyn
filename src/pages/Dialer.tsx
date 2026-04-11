@@ -7,7 +7,7 @@
 import { useState, useEffect, useCallback, memo } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useCallMachine } from '@/hooks/useCallMachine'
-import { useProspectLists, useProspects } from '@/hooks/useProspects'
+import { useProspectLists, useProspects, useAddProspect } from '@/hooks/useProspects'
 import { useCallsByProspect } from '@/hooks/useCalls'
 import CSVImport from '@/components/import/CSVImport'
 import SelectListPage from '@/components/dialer/SelectListPage'
@@ -264,6 +264,9 @@ export default function Dialer() {
   const [showCSVImport, setShowCSVImport] = useState(false)
   const [showSelectList, setShowSelectList] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
+  const [showAddProspect, setShowAddProspect] = useState(false)
+  const [newProspect, setNewProspect] = useState({ name: '', phone: '', email: '', company: '', title: '' })
+  const addProspect = useAddProspect()
 
   // Statut live de l'appel pour animer la row (Minari: Initié → En sonnerie → En cours)
   function getLiveCallStatus(prospectId: string): string | undefined {
@@ -506,6 +509,10 @@ export default function Dialer() {
         </div>
 
         <div className="flex items-center gap-3">
+          {/* Ajouter un contact */}
+          <button onClick={() => setShowAddProspect(true)}
+            className="text-[13px] text-gray-400 hover:text-gray-600">+ Contact</button>
+
           {/* Import CSV */}
           <button onClick={() => setShowCSVImport(true)}
             className="text-[13px] text-gray-400 hover:text-gray-600">+ Importer</button>
@@ -552,6 +559,65 @@ export default function Dialer() {
       </div>
 
       </div>{/* fin conteneur blanc global */}
+
+      {/* ── Modal Ajouter un contact ── */}
+      {showAddProspect && activeListId && (
+        <div className="fixed inset-0 bg-black/20 flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl shadow-xl w-[440px] p-6 animate-fade-in-scale">
+            <h3 className="text-[15px] font-bold text-gray-800 mb-4">Ajouter un contact</h3>
+            <div className="space-y-3">
+              <div>
+                <label className="text-[11px] font-bold text-gray-400 uppercase">Nom *</label>
+                <input autoFocus type="text" value={newProspect.name} onChange={e => setNewProspect({ ...newProspect, name: e.target.value })}
+                  placeholder="Nom complet" className="w-full mt-1 px-3 py-2 rounded-lg border border-gray-200 text-[13px] outline-none focus:border-teal-400" />
+              </div>
+              <div>
+                <label className="text-[11px] font-bold text-gray-400 uppercase">Téléphone *</label>
+                <input type="tel" value={newProspect.phone} onChange={e => setNewProspect({ ...newProspect, phone: e.target.value })}
+                  placeholder="+33 6 12 34 56 78" className="w-full mt-1 px-3 py-2 rounded-lg border border-gray-200 text-[13px] outline-none focus:border-teal-400" />
+              </div>
+              <div>
+                <label className="text-[11px] font-bold text-gray-400 uppercase">Email</label>
+                <input type="email" value={newProspect.email} onChange={e => setNewProspect({ ...newProspect, email: e.target.value })}
+                  placeholder="email@exemple.fr" className="w-full mt-1 px-3 py-2 rounded-lg border border-gray-200 text-[13px] outline-none focus:border-teal-400" />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[11px] font-bold text-gray-400 uppercase">Entreprise</label>
+                  <input type="text" value={newProspect.company} onChange={e => setNewProspect({ ...newProspect, company: e.target.value })}
+                    placeholder="Société" className="w-full mt-1 px-3 py-2 rounded-lg border border-gray-200 text-[13px] outline-none focus:border-teal-400" />
+                </div>
+                <div>
+                  <label className="text-[11px] font-bold text-gray-400 uppercase">Poste</label>
+                  <input type="text" value={newProspect.title} onChange={e => setNewProspect({ ...newProspect, title: e.target.value })}
+                    placeholder="Fonction" className="w-full mt-1 px-3 py-2 rounded-lg border border-gray-200 text-[13px] outline-none focus:border-teal-400" />
+                </div>
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 mt-5">
+              <button onClick={() => { setShowAddProspect(false); setNewProspect({ name: '', phone: '', email: '', company: '', title: '' }) }}
+                className="px-4 py-2 rounded-lg text-[13px] text-gray-500 hover:bg-gray-100">Annuler</button>
+              <button onClick={async () => {
+                if (newProspect.name.trim() && newProspect.phone.trim()) {
+                  let phone = newProspect.phone.replace(/[\s\-\.\(\)]/g, '')
+                  if (phone.startsWith('0') && phone.length === 10) phone = '+33' + phone.substring(1)
+                  await addProspect.mutateAsync({
+                    listId: activeListId,
+                    name: newProspect.name.trim(),
+                    phone,
+                    email: newProspect.email.trim() || undefined,
+                    company: newProspect.company.trim() || undefined,
+                    sector: newProspect.title.trim() || undefined,
+                  })
+                  setShowAddProspect(false)
+                  setNewProspect({ name: '', phone: '', email: '', company: '', title: '' })
+                }
+              }} disabled={!newProspect.name.trim() || !newProspect.phone.trim()}
+                className="px-5 py-2 rounded-lg text-[13px] font-semibold bg-teal-600 text-white hover:bg-teal-700 disabled:opacity-40">Ajouter</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── CSV Import Modal ── */}
       {showCSVImport && activeListId && (
