@@ -67,31 +67,44 @@ const CRM_OPTIONS: Array<{ value: CrmStatus; label: string }> = [
   { value: 'callback', label: 'Rappel' }, { value: 'rdv', label: 'RDV' }, { value: 'mail_sent', label: 'Mail envoyé' },
 ]
 
-// ── Celebration emojis (montent du bas vers le haut) ────────────
+// ── Celebration emojis 3D (montent du bas, tailles variées, perspective) ──
 function Celebration() {
-  const emojis = ['🔥', '🎉', '💪', '🚀', '⭐', '🏆', '💰', '✨', '🎯', '👏']
-  const pieces = Array.from({ length: 25 }, (_, i) => ({
-    emoji: emojis[i % emojis.length],
-    x: 5 + Math.random() * 90,
-    delay: Math.random() * 0.8,
-    duration: 1.5 + Math.random() * 1,
-    size: 20 + Math.random() * 16,
-    wobble: -20 + Math.random() * 40,
-  }))
+  const emojis = ['🔥', '🎉', '💪', '🚀', '⭐', '🏆', '💰', '✨', '🎯', '👏', '🥳', '💥', '🙌']
+  const pieces = Array.from({ length: 35 }, (_, i) => {
+    const layer = Math.random() // 0 = loin (petit), 1 = proche (gros)
+    return {
+      emoji: emojis[i % emojis.length],
+      x: 2 + Math.random() * 96,
+      delay: Math.random() * 1,
+      duration: 1.2 + Math.random() * 1.5,
+      size: layer < 0.3 ? 14 + Math.random() * 10 : layer < 0.7 ? 24 + Math.random() * 16 : 40 + Math.random() * 24,
+      opacity: layer < 0.3 ? 0.4 : layer < 0.7 ? 0.7 : 1,
+      blur: layer < 0.3 ? 2 : 0,
+      wobbleX: -30 + Math.random() * 60,
+      rotation: -40 + Math.random() * 80,
+    }
+  })
   return (
-    <div className="fixed inset-0 pointer-events-none z-[9999] overflow-hidden">
+    <div className="fixed inset-0 pointer-events-none z-[9999] overflow-hidden" style={{ perspective: '600px' }}>
       {pieces.map((p, i) => (
         <div key={i} style={{
-          position: 'absolute', left: `${p.x}%`, bottom: -50,
+          position: 'absolute', left: `${p.x}%`, bottom: -80,
           fontSize: p.size,
-          animation: `emojiRise ${p.duration}s ${p.delay}s ease-out forwards`,
-        }}>{p.emoji}</div>
+          opacity: 0,
+          filter: p.blur ? `blur(${p.blur}px)` : undefined,
+          animation: `emojiRise3D ${p.duration}s ${p.delay}s ease-out forwards`,
+          '--wobbleX': `${p.wobbleX}px`,
+          '--rotation': `${p.rotation}deg`,
+          '--scaleEnd': `${0.8 + Math.random() * 0.6}`,
+        } as React.CSSProperties}>{p.emoji}</div>
       ))}
       <style>{`
-        @keyframes emojiRise {
-          0% { transform: translateY(0) rotate(0deg); opacity: 1; }
-          70% { opacity: 1; }
-          100% { transform: translateY(-110vh) rotate(${Math.random() > 0.5 ? '' : '-'}30deg); opacity: 0; }
+        @keyframes emojiRise3D {
+          0% { transform: translateY(0) translateX(0) scale(0.3) rotate(0deg); opacity: 1; }
+          20% { opacity: 1; transform: translateY(-20vh) translateX(calc(var(--wobbleX) * 0.3)) scale(1.2) rotate(calc(var(--rotation) * 0.3)); }
+          50% { opacity: 1; transform: translateY(-50vh) translateX(var(--wobbleX)) scale(var(--scaleEnd)) rotate(calc(var(--rotation) * 0.7)); }
+          80% { opacity: 0.7; }
+          100% { transform: translateY(-115vh) translateX(calc(var(--wobbleX) * 1.2)) scale(0.5) rotate(var(--rotation)); opacity: 0; }
         }
       `}</style>
     </div>
@@ -146,11 +159,12 @@ function CallCard({ call, defaultOpen, onUpdate, onCelebrate }: { call: Call; de
             <label className="flex items-center gap-1.5 cursor-pointer">
               <input type="checkbox" checked={call.meeting_booked}
                 onChange={async e => {
-                  await supabase.from('calls').update({ meeting_booked: e.target.checked }).eq('id', call.id)
-                  if (e.target.checked && call.prospect_id) {
-                    await supabase.from('prospects').update({ last_call_outcome: 'meeting_booked' }).eq('id', call.prospect_id)
-                    onCelebrate()
+                  const checked = e.target.checked
+                  await supabase.from('calls').update({ meeting_booked: checked }).eq('id', call.id)
+                  if (call.prospect_id) {
+                    await supabase.from('prospects').update({ last_call_outcome: checked ? 'meeting_booked' : 'connected' }).eq('id', call.prospect_id)
                   }
+                  if (checked) onCelebrate()
                   onUpdate()
                 }}
                 className="w-3.5 h-3.5 rounded border-gray-300 accent-teal-600" />
