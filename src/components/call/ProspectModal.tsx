@@ -315,7 +315,7 @@ function SocialIconsBar({ prospectId }: { prospectId: string }) {
   if (!socials || socials.length === 0) return <div className="mb-2" />
 
   return (
-    <div className="flex gap-1 mb-2 ml-9">
+    <div className="flex gap-1 mb-2">
       {socials.map((s: { id: string; platform: string; url: string }) => (
         <a key={s.id} href={s.url.startsWith('http') ? s.url : `https://${s.url}`} target="_blank" rel="noopener noreferrer">
           <PlatformIcon platform={s.platform} />
