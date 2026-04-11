@@ -20,7 +20,7 @@ import type { Prospect } from '@/types/prospect'
 const CALL_STATUS_BADGE: Record<string, { bg: string; text: string; label: string; icon: string }> = {
   pending:        { bg: '#f3f4f6', text: '#6b7280', label: 'En attente', icon: 'group' },
   connected:      { bg: '#d1fae5', text: '#059669', label: 'Connecte', icon: 'phone' },
-  attempted:      { bg: '#f3f4f6', text: '#6b7280', label: 'Tente', icon: 'phone' },
+  attempted:      { bg: '#f3f4f6', text: '#6b7280', label: 'Tentative', icon: 'phone' },
   voicemail:      { bg: '#f3f4f6', text: '#6b7280', label: 'Messagerie', icon: 'voicemail' },
   meeting_booked: { bg: '#ccfbf1', text: '#0d9488', label: 'RDV pris', icon: 'phone' },
   // Live pendant session
@@ -309,7 +309,7 @@ export default function Dialer() {
                 {meetings} RDV
               </span>
               <span className="text-gray-500"><span className="inline-block w-2 h-2 rounded-full bg-emerald-500 mr-1" />Connectes {connected}</span>
-              <span className="text-gray-500"><span className="inline-block w-2 h-2 rounded-full bg-orange-400 mr-1" />Tentes {attempted}</span>
+              <span className="text-gray-500"><span className="inline-block w-2 h-2 rounded-full bg-orange-400 mr-1" />Tentatives {attempted}</span>
               <span className="text-gray-400">En attente {pending}</span>
             </div>
             {/* Barre de progression unique (Minari exact) */}
