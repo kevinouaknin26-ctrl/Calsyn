@@ -728,14 +728,15 @@ export default function Dialer() {
               if (dialSession.isActive) {
                 // Session en cours — appeler le prospect courant
                 const pid = dialSession.currentProspectId
-                const p = prospects?.find(pr => pr.id === pid)
+                const p = (filtered || prospects)?.find(pr => pr.id === pid)
                 if (p) handleCall(p)
               } else {
-                // Nouvelle session — snapshot la liste dans l'ordre actuel
-                if (prospects?.length) {
-                  const s = await dialSession.startSession(prospects, activeListId)
+                // Nouvelle session — snapshot la liste FILTRÉE dans l'ordre affiché
+                const visibleList = filtered?.length ? filtered : prospects
+                if (visibleList?.length) {
+                  const s = await dialSession.startSession(visibleList, activeListId)
                   if (s && s.prospects.length > 0) {
-                    const p = prospects.find(pr => pr.id === s.prospects[0])
+                    const p = visibleList.find(pr => pr.id === s.prospects[0])
                     if (p) handleCall(p)
                   }
                 }
