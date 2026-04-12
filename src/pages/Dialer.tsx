@@ -126,10 +126,11 @@ function CallSettingsDropdown({ open, onToggle }: { open: boolean; onToggle: () 
   ])
   const [selectedFromNumber, setSelectedFromNumber] = useCallSetting('from_number', '+33 1 59 58 01 89')
 
-  // Voicemail drop — enregistrement message
-  const [vmType, setVmType] = useCallSetting('vm_type', 'type1')
+  // Voicemail drop — messages enregistrés persistés en localStorage
+  const [vmMessages, setVmMessages] = useCallSetting<Array<{ id: string; name: string; url: string; created: string }>>('vm_messages', [])
+  const [vmSelectedId, setVmSelectedId] = useCallSetting('vm_selected', '')
   const [vmRecording, setVmRecording] = useState(false)
-  const [vmAudioUrl, setVmAudioUrl] = useState<string | null>(null)
+  const [vmNewName, setVmNewName] = useState('')
   const vmRecorderRef = useRef<MediaRecorder | null>(null)
   const vmChunksRef = useRef<Blob[]>([])
 
@@ -247,7 +248,7 @@ function CallSettingsDropdown({ open, onToggle }: { open: boolean; onToggle: () 
             </div>
           </div>
 
-          {/* Voicemail drop (Minari — message pré-enregistré + toggle) */}
+          {/* Voicemail drop (Minari — messages pré-enregistrés + toggle) */}
           <div>
             <div className="flex items-center justify-between mb-1.5">
               <span className="text-[13px] text-gray-700">Messagerie vocale</span>
@@ -257,14 +258,34 @@ function CallSettingsDropdown({ open, onToggle }: { open: boolean; onToggle: () 
               </div>
             </div>
             {voicemail && (
-              <div className="bg-gray-50 rounded-lg p-2.5 space-y-2">
-                <select value={vmType} onChange={e => setVmType(e.target.value)}
-                  className="w-full text-[12px] text-gray-600 bg-white border border-gray-200 rounded-lg px-2 py-1.5 outline-none">
-                  <option value="type1">Message type 1</option>
-                  <option value="type2">Message type 2</option>
-                  <option value="custom">Message personnalisé</option>
-                </select>
+              <div className="bg-gray-50 rounded-lg p-2.5 space-y-2.5">
+                {/* Liste des messages enregistrés */}
+                {vmMessages.length > 0 && (
+                  <div className="space-y-1.5">
+                    {vmMessages.map(msg => (
+                      <div key={msg.id} className={`flex items-center gap-2 px-2 py-1.5 rounded-lg border transition-colors cursor-pointer ${
+                        vmSelectedId === msg.id ? 'border-violet-300 bg-violet-50' : 'border-gray-200 bg-white hover:bg-gray-50'
+                      }`} onClick={() => setVmSelectedId(msg.id)}>
+                        <input type="radio" checked={vmSelectedId === msg.id} onChange={() => setVmSelectedId(msg.id)}
+                          className="w-3 h-3 accent-violet-500" />
+                        <span className="text-[12px] text-gray-700 flex-1 truncate">{msg.name}</span>
+                        <button onClick={e => { e.stopPropagation(); new Audio(msg.url).play() }}
+                          className="text-[10px] text-gray-400 hover:text-violet-500">▶</button>
+                        <button onClick={e => {
+                          e.stopPropagation()
+                          setVmMessages(vmMessages.filter(m => m.id !== msg.id))
+                          if (vmSelectedId === msg.id) setVmSelectedId('')
+                        }} className="text-[10px] text-gray-300 hover:text-red-500">✕</button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {vmMessages.length === 0 && <p className="text-[11px] text-gray-400 italic">Aucun message enregistré</p>}
+
+                {/* Enregistrer un nouveau message */}
                 <div className="flex items-center gap-2">
+                  <input type="text" placeholder="Nom du message..." value={vmNewName} onChange={e => setVmNewName(e.target.value)}
+                    className="flex-1 text-[11px] border border-gray-200 rounded-lg px-2 py-1 outline-none bg-white" />
                   <button onClick={async () => {
                     if (vmRecording) {
                       vmRecorderRef.current?.stop()
@@ -279,22 +300,21 @@ function CallSettingsDropdown({ open, onToggle }: { open: boolean; onToggle: () 
                       recorder.onstop = () => {
                         stream.getTracks().forEach(t => t.stop())
                         const blob = new Blob(vmChunksRef.current, { type: 'audio/webm' })
-                        setVmAudioUrl(URL.createObjectURL(blob))
+                        const url = URL.createObjectURL(blob)
+                        const name = vmNewName.trim() || `Message ${vmMessages.length + 1}`
+                        const newMsg = { id: crypto.randomUUID(), name, url, created: new Date().toISOString() }
+                        setVmMessages([...vmMessages, newMsg])
+                        setVmSelectedId(newMsg.id)
+                        setVmNewName('')
                       }
                       vmRecorderRef.current = recorder
                       recorder.start()
                       setVmRecording(true)
-                      setTimeout(() => { if (recorder.state === 'recording') { recorder.stop(); setVmRecording(false) } }, 30000)
+                      setTimeout(() => { if (recorder.state === 'recording') { recorder.stop(); setVmRecording(false) } }, 60000)
                     } catch { alert('Impossible d\'accéder au microphone') }
-                  }} className={`px-2 py-1 rounded-lg border text-[11px] ${vmRecording ? 'border-red-300 text-red-500 bg-red-50' : 'border-gray-200 text-gray-500 hover:bg-white'}`}>
-                    {vmRecording ? '⏹ Arrêter' : '🎤 Enregistrer'}
+                  }} className={`px-2.5 py-1 rounded-lg border text-[11px] whitespace-nowrap ${vmRecording ? 'border-red-300 text-red-500 bg-red-50 animate-pulse' : 'border-gray-200 text-gray-500 hover:bg-white'}`}>
+                    {vmRecording ? '⏹ Stop' : '🎤 Enregistrer'}
                   </button>
-                  <button onClick={() => { if (vmAudioUrl) new Audio(vmAudioUrl).play() }}
-                    disabled={!vmAudioUrl}
-                    className="px-2 py-1 rounded-lg border border-gray-200 text-[11px] text-gray-500 hover:bg-white disabled:opacity-30">
-                    ▶ Écouter
-                  </button>
-                  {vmAudioUrl && <span className="text-[10px] text-violet-500">✓ Enregistré</span>}
                 </div>
               </div>
             )}
