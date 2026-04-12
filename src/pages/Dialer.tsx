@@ -320,14 +320,18 @@ function CallSettingsDropdown({ open, onToggle }: { open: boolean; onToggle: () 
             )}
           </div>
 
-          {/* Contact phone number field */}
-          <div className="flex items-center justify-between">
-            <span className="text-[13px] text-gray-700">Champ téléphone</span>
+          {/* Contact phone number field — séquence d'appel */}
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-[13px] text-gray-700">Séquence téléphone</span>
+            </div>
+            <p className="text-[11px] text-gray-400 mb-1.5">Ordre dans lequel le dialer essaie les numéros du prospect</p>
             <select value={phoneField} onChange={e => setPhoneField(e.target.value)}
-              className="text-[12px] text-gray-600 bg-transparent border border-gray-200 rounded-lg px-2 py-1 outline-none">
-              <option value="phone">Téléphone</option>
-              <option value="phone2">Téléphone 2</option>
-              <option value="phone3">Téléphone 3</option>
+              className="w-full text-[12px] text-gray-600 bg-white border border-gray-200 rounded-lg px-2 py-1.5 outline-none">
+              <option value="phone">Téléphone principal uniquement</option>
+              <option value="phone,phone2">Principal → Téléphone 2</option>
+              <option value="phone,phone2,phone3">Principal → Tél 2 → Tél 3</option>
+              <option value="phone,phone2,phone3,phone4,phone5">Tous les numéros (1→5)</option>
             </select>
           </div>
 
