@@ -71,10 +71,17 @@ serve(async (req) => {
       'failed': 'failed',
     }
 
-    // Detection voicemail : completed + duree < 8 secondes = probablement repondeur (Minari rule)
+    // Detection voicemail : Twilio AnsweredBy OU duree courte
+    const answeredBy = params.AnsweredBy || ''
     let outcome = outcomeMap[callStatus] || 'no_answer'
-    if (callStatus === 'completed' && duration > 0 && duration <= 8) {
-      outcome = 'voicemail' // Recategorise auto < 8s (comme Minari)
+
+    // AMD Twilio : si Twilio detecte une machine
+    if (answeredBy.startsWith('machine')) {
+      outcome = 'voicemail'
+    }
+    // Heuristique duree : < 8s = probablement repondeur qui a decroché (Minari rule)
+    else if (callStatus === 'completed' && duration > 0 && duration <= 8) {
+      outcome = 'voicemail'
     }
 
     // ── 1. Chercher le prospect par numero ──

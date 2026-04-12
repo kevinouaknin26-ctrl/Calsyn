@@ -44,6 +44,7 @@ serve(async (req) => {
     }
 
     // Mono-line : Dial direct avec recording
+    // AMD est gere par process-analysis (detection messagerie par transcription)
     const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   <Dial callerId="${from}"

@@ -200,10 +200,49 @@ serve(async (req) => {
       ? utterances.map(u => `Speaker ${u.speaker}: ${u.text}`).join('\n')
       : transcript
 
-    // Analyser
-    console.log(`[process-analysis] Analyzing with Claude...`)
-    const analysis = await analyze(formattedTranscript)
-    console.log(`[process-analysis] Score: ${analysis.score_global}`)
+    // ── Detection messagerie par contenu de transcription ──
+    const vmKeywords = [
+      'messagerie', 'laissez un message', 'laisser un message', 'après le bip',
+      'après le signal', 'boîte vocale', 'pas disponible', 'n\'est pas disponible',
+      'rappeler ultérieurement', 'rappeler plus tard', 'votre correspondant',
+      'répondeur', 'veuillez laisser', 'enregistrez votre message',
+      'ce correspondant', 'actuellement indisponible', 'absence',
+    ]
+    const transcriptLower = formattedTranscript.toLowerCase()
+    const isVoicemail = vmKeywords.some(kw => transcriptLower.includes(kw))
+
+    if (isVoicemail) {
+      console.log(`[process-analysis] Voicemail detected for call ${job.call_id} — auto-correcting status`)
+      // Corriger le statut de l'appel et du prospect
+      const { data: callData } = await supabase.from('calls').select('prospect_id, call_outcome').eq('id', job.call_id).single()
+      if (callData && callData.call_outcome !== 'voicemail') {
+        await supabase.from('calls').update({ call_outcome: 'voicemail' }).eq('id', job.call_id)
+        if (callData.prospect_id) {
+          // Ne downgrade pas si le prospect a déjà un meilleur statut
+          const { data: prospect } = await supabase.from('prospects').select('last_call_outcome').eq('id', callData.prospect_id).single()
+          const betterStatuses = ['meeting_booked', 'rdv', 'connected', 'callback']
+          if (prospect && !betterStatuses.includes(prospect.last_call_outcome || '')) {
+            await supabase.from('prospects').update({ last_call_outcome: 'voicemail' }).eq('id', callData.prospect_id)
+          }
+        }
+      }
+    }
+
+    // Analyser (sauf si messagerie — pas besoin de coaching)
+    let analysis: any
+    if (isVoicemail) {
+      analysis = {
+        summary: ['Messagerie vocale détectée automatiquement'],
+        score_global: null, score_accroche: null, score_objection: null, score_closing: null,
+        points_forts: [], points_amelioration: [],
+        intention_prospect: 'Messagerie', prochaine_etape: 'Rappeler',
+      }
+      console.log(`[process-analysis] Skipping Claude analysis (voicemail)`)
+    } else {
+      console.log(`[process-analysis] Analyzing with Claude...`)
+      analysis = await analyze(formattedTranscript)
+      console.log(`[process-analysis] Score: ${analysis.score_global}`)
+    }
 
     // Sauvegarder
     await supabase.from('calls').update({
