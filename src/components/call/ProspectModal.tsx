@@ -269,72 +269,90 @@ function CallCard({ call, defaultOpen, onUpdate, onCelebrate }: { call: Call; de
           {/* Player audio (Minari exact — ▶ barre + durée + download + vitesse) */}
           {call.recording_url && <AudioPlayer url={proxyRecordingUrl(call.recording_url!)} date={call.created_at} prospectName={call.prospect_name || undefined} />}
 
-          {/* ── Bulle 1 : Transcription + Résumé IA ── */}
-          {call.recording_url && (
-            <div className="mt-3 rounded-xl border border-indigo-100 bg-indigo-50/40 p-4 space-y-3">
-              <div className="flex items-center gap-2">
-                <svg className="w-4 h-4 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" /></svg>
-                <span className="text-[13px] font-semibold text-indigo-700">Transcription & Résumé</span>
-                <span className="px-1.5 py-0.5 rounded text-[8px] font-bold bg-indigo-100 text-indigo-600 uppercase">Beta</span>
-                {call.ai_analysis_status === 'pending' && <span className="ml-auto text-[11px] text-gray-400">En attente...</span>}
+          {/* ── Bulle Notes & Résumé (toujours ouverte) ── */}
+          <div className="mt-3 rounded-xl border border-indigo-100 bg-indigo-50/40 p-4 space-y-3">
+            {/* Notes personnelles du commercial */}
+            <div>
+              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">Vos notes</p>
+              <textarea
+                defaultValue={call.note || ''}
+                placeholder="Ajoutez vos notes ici..."
+                onBlur={async e => {
+                  const val = e.target.value.trim()
+                  if (val !== (call.note || '')) {
+                    await supabase.from('calls').update({ note: val || null }).eq('id', call.id)
+                    onUpdate()
+                  }
+                }}
+                className="w-full text-[12px] text-gray-700 bg-white/70 border border-indigo-100 rounded-lg p-2.5 resize-none outline-none focus:border-indigo-300 focus:ring-1 focus:ring-indigo-200 transition-all placeholder:text-gray-300"
+                rows={2}
+              />
+            </div>
+
+            {/* Séparateur */}
+            <div className="flex items-center gap-2">
+              <div className="flex-1 h-px bg-indigo-200/60" />
+              <div className="flex items-center gap-1.5">
+                <svg className="w-3.5 h-3.5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+                <span className="text-[10px] font-bold text-indigo-400 uppercase tracking-wider">Résumé IA</span>
+                {call.ai_analysis_status === 'pending' && <span className="text-[10px] text-gray-400 ml-1">· En attente</span>}
                 {call.ai_analysis_status === 'processing' && (
-                  <span className="ml-auto flex items-center gap-1.5 text-[11px] text-indigo-500">
-                    <span className="w-3 h-3 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin" />
-                    En cours...
+                  <span className="flex items-center gap-1 text-[10px] text-indigo-500 ml-1">
+                    · <span className="w-2.5 h-2.5 border-[1.5px] border-indigo-400 border-t-transparent rounded-full animate-spin" /> En cours
                   </span>
                 )}
-                {call.ai_analysis_status === 'error' && <span className="ml-auto text-[11px] text-red-400">Erreur</span>}
+                {call.ai_analysis_status === 'error' && <span className="text-[10px] text-red-400 ml-1">· Erreur</span>}
               </div>
-
-              {/* Résumé IA */}
-              {call.ai_summary && call.ai_summary.length > 0 && (
-                <div className="space-y-1">
-                  {call.ai_summary.map((s, i) => (
-                    <p key={i} className="text-[12px] text-gray-700 leading-relaxed flex gap-2"><span className="text-indigo-400">—</span>{s}</p>
-                  ))}
-                </div>
-              )}
-
-              {/* Transcription expandable + download */}
-              {call.ai_transcript && (
-                <>
-                  <div className="flex items-center gap-3">
-                    <button onClick={() => setShowTranscript(!showTranscript)}
-                      className="text-[12px] text-indigo-500 hover:text-indigo-700 flex items-center gap-1.5">
-                      {showTranscript ? 'Masquer' : 'Voir'} la transcription
-                      <svg className={`w-3 h-3 transition-transform ${showTranscript ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
-                    </button>
-                    <button onClick={() => {
-                      const blob = new Blob([call.ai_transcript!], { type: 'text/plain;charset=utf-8' })
-                      const a = document.createElement('a')
-                      a.href = URL.createObjectURL(blob)
-                      const d = call.created_at ? new Date(call.created_at) : new Date()
-                      const dateStr = `${d.getFullYear()}-${(d.getMonth()+1).toString().padStart(2,'0')}-${d.getDate().toString().padStart(2,'0')}_${d.getHours().toString().padStart(2,'0')}h${d.getMinutes().toString().padStart(2,'0')}`
-                      const name = (call.prospect_name || 'inconnu').replace(/[^a-zA-Z0-9àâäéèêëïîôùûüçÀÂÄÉÈÊËÏÎÔÙÛÜÇ -]/g, '').replace(/\s+/g, '_')
-                      a.download = `transcription_${name}_${dateStr}.txt`
-                      a.click()
-                      URL.revokeObjectURL(a.href)
-                    }} className="text-[11px] text-gray-400 hover:text-indigo-500 flex items-center gap-1">
-                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
-                      Télécharger
-                    </button>
-                  </div>
-                  {showTranscript && (
-                    <div className="max-h-48 overflow-y-auto text-[12px] leading-relaxed p-3 rounded-lg bg-white/60 border border-indigo-100 animate-fade-in">
-                      {call.ai_transcript.split('\n').map((line, i) => (
-                        <p key={i} className={`mb-1 ${line.startsWith('Speaker 0') ? 'text-indigo-600 font-medium' : 'text-gray-500'}`}>{line}</p>
-                      ))}
-                    </div>
-                  )}
-                </>
-              )}
-
-              {/* État vide — pas encore de transcript ni résumé */}
-              {!call.ai_transcript && !call.ai_summary && call.ai_analysis_status !== 'pending' && call.ai_analysis_status !== 'processing' && (
-                <p className="text-[11px] text-gray-400 italic">Aucune transcription disponible pour cet appel.</p>
-              )}
+              <div className="flex-1 h-px bg-indigo-200/60" />
             </div>
-          )}
+
+            {/* Résumé IA */}
+            {call.ai_summary && call.ai_summary.length > 0 ? (
+              <div className="space-y-1">
+                {call.ai_summary.map((s, i) => (
+                  <p key={i} className="text-[12px] text-gray-700 leading-relaxed flex gap-2"><span className="text-indigo-400">—</span>{s}</p>
+                ))}
+              </div>
+            ) : (
+              <p className="text-[11px] text-gray-400 italic">
+                {call.ai_analysis_status === 'pending' || call.ai_analysis_status === 'processing' ? 'Le résumé apparaîtra ici automatiquement...' : 'Aucun résumé disponible.'}
+              </p>
+            )}
+
+            {/* Transcription expandable + download */}
+            {call.ai_transcript && (
+              <>
+                <div className="flex items-center gap-3">
+                  <button onClick={() => setShowTranscript(!showTranscript)}
+                    className="text-[12px] text-indigo-500 hover:text-indigo-700 flex items-center gap-1.5">
+                    {showTranscript ? 'Masquer' : 'Voir'} la transcription
+                    <svg className={`w-3 h-3 transition-transform ${showTranscript ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                  </button>
+                  <button onClick={() => {
+                    const blob = new Blob([call.ai_transcript!], { type: 'text/plain;charset=utf-8' })
+                    const a = document.createElement('a')
+                    a.href = URL.createObjectURL(blob)
+                    const d = call.created_at ? new Date(call.created_at) : new Date()
+                    const dateStr = `${d.getFullYear()}-${(d.getMonth()+1).toString().padStart(2,'0')}-${d.getDate().toString().padStart(2,'0')}_${d.getHours().toString().padStart(2,'0')}h${d.getMinutes().toString().padStart(2,'0')}`
+                    const name = (call.prospect_name || 'inconnu').replace(/[^a-zA-Z0-9àâäéèêëïîôùûüçÀÂÄÉÈÊËÏÎÔÙÛÜÇ -]/g, '').replace(/\s+/g, '_')
+                    a.download = `transcription_${name}_${dateStr}.txt`
+                    a.click()
+                    URL.revokeObjectURL(a.href)
+                  }} className="text-[11px] text-gray-400 hover:text-indigo-500 flex items-center gap-1">
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                    Télécharger
+                  </button>
+                </div>
+                {showTranscript && (
+                  <div className="max-h-48 overflow-y-auto text-[12px] leading-relaxed p-3 rounded-lg bg-white/60 border border-indigo-100 animate-fade-in">
+                    {call.ai_transcript.split('\n').map((line, i) => (
+                      <p key={i} className={`mb-1 ${line.startsWith('Speaker 0') ? 'text-indigo-600 font-medium' : 'text-gray-500'}`}>{line}</p>
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
+          </div>
 
           {/* ── Bulle 2 : Analyse & Coaching IA ── */}
           {call.recording_url && (
@@ -389,8 +407,6 @@ function CallCard({ call, defaultOpen, onUpdate, onCelebrate }: { call: Call; de
             </div>
           )}
 
-          {/* Note */}
-          {call.note && <p className="text-[12px] text-gray-500 italic mt-2 bg-gray-50 rounded-lg p-2">{call.note}</p>}
         </div>
       )}
     </div>
