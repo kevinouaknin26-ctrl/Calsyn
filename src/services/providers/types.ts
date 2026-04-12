@@ -54,7 +54,7 @@ export interface ConnectParams {
   /** Numero de l'appelant */
   from: string
   /** ID de conference pour le double-leg */
-  conferenceId: string
+  conferenceId?: string
 }
 
 export interface CallProvider {

@@ -10,7 +10,7 @@ import { useMachine } from '@xstate/react'
 import { useEffect, useRef, useCallback, useState } from 'react'
 import { callMachine } from '@/machines/callMachine'
 import { createProvider, type CallProvider, type CallSession, type AudioSample } from '@/services/providers'
-import { fetchVoiceToken, saveCallDisposition, initiateCallWithAMD, callEdgeFunction } from '@/services/api'
+import { fetchVoiceToken, saveCallDisposition } from '@/services/api'
 import { useAuth } from '@/hooks/useAuth'
 import { MOS_ALERT_THRESHOLD } from '@/config/constants'
 import type { Prospect } from '@/types/prospect'
@@ -140,58 +140,32 @@ export function useCallMachine() {
       return
     }
 
+    // POWER DIALER : appel direct via SDK client (pas de conférence, pas d'AMD temps réel)
+    // Le SDR entend la sonnerie et parle dès le décroché — 0 latence
+    // La détection messagerie se fait post-appel via process-analysis (transcription Deepgram)
     const fromNumber = organisation?.from_number || '+33159580189'
     console.log(`[useCallMachine] Calling ${prospect.name} from ${fromNumber}`)
     send({ type: 'CALL', prospect })
 
-    const conferenceName = `callio_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
+    const session = await provider.connect({
+      to: prospect.phone,
+      from: fromNumber,
+    })
 
-    try {
-      // 1. Initier l'appel prospect côté serveur (avec AMD en background)
-      const result = await initiateCallWithAMD({
-        to: prospect.phone,
-        from: fromNumber,
-        prospectId: prospect.id,
-        prospectName: prospect.name,
-        conferenceName,
-      })
-
-      console.log(`[useCallMachine] Prospect call initiated: ${result.callSid}, conference: ${conferenceName}`)
-      send({ type: 'RINGING', callSid: result.callSid })
-
-      // 2. POWER DIALER : le SDR rejoint la conférence IMMÉDIATEMENT
-      // Il entend la sonnerie et parle dès que le prospect décroche (0 latence)
-      // L'AMD tourne en background et met à jour le statut automatiquement
-      const session = await provider.connect({
-        to: prospect.phone,
-        from: fromNumber,
-        conferenceId: conferenceName,
-      })
-
-      if (session) {
-        sessionRef.current = session
-      } else {
-        send({ type: 'ERROR', message: 'Failed to connect SDR to conference' })
-      }
-    } catch (err) {
-      console.error('[useCallMachine] initiate-call failed:', err)
-      send({ type: 'ERROR', message: (err as Error).message })
+    if (session) {
+      sessionRef.current = session
+    } else {
+      send({ type: 'ERROR', message: 'Failed to connect' })
     }
   }, [send, organisation])
 
   const hangup = useCallback(() => {
-    const prospectCallSid = state.context.callSid
+    const sid = sessionRef.current?.id
+    if (sid) send({ type: 'RINGING', callSid: sid })
     providerRef.current?.disconnectAll()
     sessionRef.current = null
     send({ type: 'HANG_UP' })
-
-    // Terminer l'appel prospect côté serveur
-    if (prospectCallSid) {
-      callEdgeFunction('end-call', { callSid: prospectCallSid }).catch(err => {
-        console.error('[useCallMachine] end-call failed:', err)
-      })
-    }
-  }, [send, state])
+  }, [send])
 
   const mute = useCallback(() => {
     sessionRef.current?.mute()

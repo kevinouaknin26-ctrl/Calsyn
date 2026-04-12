@@ -17,7 +17,6 @@ import SelectListPage from '@/components/dialer/SelectListPage'
 import ProspectModal from '@/components/call/ProspectModal'
 import { useRealtimeProspects } from '@/hooks/useRealtime'
 import { useDialingSession } from '@/hooks/useDialingSession'
-// callEdgeFunction disponible via api.ts si besoin
 import type { Prospect } from '@/types/prospect'
 
 // ── Call status badges (Minari exact) ──────────────────────────────
@@ -538,48 +537,10 @@ export default function Dialer() {
     }
   }, [cm])
 
-  // POWER DIALER : le SDR est dans la conférence dès le début
-  // L'AMD tourne en background et met à jour le statut + popup automatiquement
-  useEffect(() => {
-    const callSid = cm.context.callSid
-    if (!(cm.isDialing || cm.isConnected) || !callSid) return
-
-    const channel = supabase
-      .channel(`amd-${callSid}`)
-      .on('postgres_changes', {
-        event: 'UPDATE',
-        schema: 'public',
-        table: 'calls',
-        filter: `call_sid=eq.${callSid}`,
-      }, (payload: any) => {
-        const amdResult = payload.new?.amd_result
-
-        if (amdResult === 'human' && cm.context.prospect && !selectedProspect) {
-          console.log('[Dialer] AMD: HUMAN confirmed → opening modal')
-          setSelectedProspect(cm.context.prospect)
-        } else if (amdResult === 'machine') {
-          console.log('[Dialer] AMD: MACHINE detected → statut updated, SDR peut raccrocher')
-          // Le SDR entend la messagerie, il peut raccrocher manuellement
-          // Le statut est déjà "voicemail" grâce à amd-callback
-          queryClient.invalidateQueries({ queryKey: ['prospects'] })
-        }
-      })
-      .subscribe()
-
-    return () => { supabase.removeChannel(channel) }
-  }, [cm.isDialing, cm.isConnected, cm.context.callSid, cm.context.prospect, selectedProspect])
-
-  // Ouvrir le modal quand le prospect décroche (fallback si AMD pas encore reçu)
+  // Ouvrir le modal automatiquement quand le prospect DÉCROCHE (Minari exact)
   useEffect(() => {
     if (cm.isConnected && cm.context.prospect && !selectedProspect) {
-      // Délai 3s : si l'AMD n'a pas encore répondu, on ouvre quand même
-      const timer = setTimeout(() => {
-        if (cm.isConnected && !selectedProspect) {
-          console.log('[Dialer] Fallback 3s → opening modal')
-          setSelectedProspect(cm.context.prospect)
-        }
-      }, 3000)
-      return () => clearTimeout(timer)
+      setSelectedProspect(cm.context.prospect)
     }
   }, [cm.isConnected, cm.context.prospect, selectedProspect])
 
