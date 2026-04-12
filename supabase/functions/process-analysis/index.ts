@@ -20,16 +20,40 @@ const corsHeaders = {
 
 // ── Deepgram transcription (R17 — instantane, pas de polling) ──────
 async function transcribe(audioUrl: string): Promise<{ text: string; utterances: Array<{ speaker: number; text: string }> }> {
-  const apiKey = Deno.env.get('DEEPGRAM_API_KEY')
-  if (!apiKey) throw new Error('DEEPGRAM_API_KEY not configured')
+  const dgKey = Deno.env.get('DEEPGRAM_API_KEY')
+  if (!dgKey) throw new Error('DEEPGRAM_API_KEY not configured')
+
+  // Twilio recordings need Basic Auth — download the audio first then send raw bytes to Deepgram
+  const twilioSid = Deno.env.get('TWILIO_ACCOUNT_SID') || ''
+  const twilioToken = Deno.env.get('TWILIO_AUTH_TOKEN') || ''
+  const isTwilioUrl = audioUrl.includes('api.twilio.com') || audioUrl.includes('recordings')
+
+  let audioBody: BodyInit
+  let contentType: string
+
+  if (isTwilioUrl && twilioSid && twilioToken) {
+    console.log('[process-analysis] Downloading audio from Twilio with auth...')
+    const audioRes = await fetch(audioUrl, {
+      headers: {
+        'Authorization': 'Basic ' + btoa(`${twilioSid}:${twilioToken}`),
+      },
+    })
+    if (!audioRes.ok) throw new Error(`Twilio download error (${audioRes.status})`)
+    audioBody = await audioRes.arrayBuffer()
+    contentType = 'audio/mpeg'
+  } else {
+    // URL publique — envoyer l'URL directement
+    audioBody = JSON.stringify({ url: audioUrl })
+    contentType = 'application/json'
+  }
 
   const res = await fetch('https://api.deepgram.com/v1/listen?model=nova-3&language=fr&diarize=true&punctuate=true&utterances=true', {
     method: 'POST',
     headers: {
-      'Authorization': `Token ${apiKey}`,
-      'Content-Type': 'application/json',
+      'Authorization': `Token ${dgKey}`,
+      'Content-Type': contentType,
     },
-    body: JSON.stringify({ url: audioUrl }),
+    body: audioBody,
   })
 
   if (!res.ok) {
