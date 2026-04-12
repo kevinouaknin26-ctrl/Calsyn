@@ -103,14 +103,24 @@ export function useCallMachine() {
     if (isDisconnectedState) {
       console.log(`[useCallMachine] Autosave trigger — callSid: ${contextCallSid}, prospect: ${contextProspectId}`)
       // Save meme sans callSid — le prospect_id suffit pour identifier l'appel
+      // Déterminer le default outcome intelligemment :
+      // - Si le SDR a choisi un outcome → l'utiliser
+      // - Si l'appel a été "answered" mais < 5s → c'est un rejet/messagerie, pas un vrai appel
+      // - Si l'appel a été answered et >= 5s → vrai appel connecté
+      // - Si jamais answered → no_answer
+      const dur = state.context.duration || 0
+      const defaultOutcome = state.context.wasAnswered
+        ? (dur >= 5 ? 'connected' : 'no_answer')
+        : 'no_answer'
+
       saveCallDisposition({
         callSid: state.context.callSid,
         conferenceSid: state.context.conferenceSid,
         prospectId: state.context.prospect?.id ?? null,
         prospectName: state.context.prospect?.name ?? null,
         prospectPhone: state.context.prospect?.phone ?? null,
-        duration: state.context.duration,
-        disposition: state.context.disposition || (state.context.wasAnswered ? 'connected' : 'no_answer'),
+        duration: dur,
+        disposition: state.context.disposition || defaultOutcome,
         notes: state.context.notes,
         meetingBooked: state.context.meetingBooked,
       }).then(() => {
@@ -176,14 +186,18 @@ export function useCallMachine() {
     // Ici on fait juste un re-save pour capturer les derniers changements de disposition/notes
     // AVANT de reset vers idle (le useEffect ne se re-declenchera pas car isDisconnectedState est deja true).
     if (state.matches('disconnected')) {
+      const dur = state.context.duration || 0
+      const defaultOutcome = state.context.wasAnswered
+        ? (dur >= 5 ? 'connected' : 'no_answer')
+        : 'no_answer'
       saveCallDisposition({
         callSid: state.context.callSid,
         conferenceSid: state.context.conferenceSid,
         prospectId: state.context.prospect?.id ?? null,
         prospectName: state.context.prospect?.name ?? null,
         prospectPhone: state.context.prospect?.phone ?? null,
-        duration: state.context.duration,
-        disposition: state.context.disposition || (state.context.wasAnswered ? 'connected' : 'no_answer'),
+        duration: dur,
+        disposition: state.context.disposition || defaultOutcome,
         notes: state.context.notes,
         meetingBooked: state.context.meetingBooked,
       }).catch(err => console.error('[useCallMachine] Final save failed:', err))

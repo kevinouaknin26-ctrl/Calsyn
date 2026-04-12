@@ -538,9 +538,16 @@ export default function Dialer() {
   }, [cm])
 
   // Ouvrir le modal automatiquement quand le prospect DECROCHE (Minari exact)
+  // Délai 3s pour filtrer les rejets/messageries (Twilio fire accept même pour 1-2s)
   useEffect(() => {
     if (cm.isConnected && cm.context.prospect && !selectedProspect) {
-      setSelectedProspect(cm.context.prospect)
+      const timer = setTimeout(() => {
+        // Vérifier qu'on est toujours connecté après 3s (pas un rejet rapide)
+        if (cm.isConnected) {
+          setSelectedProspect(cm.context.prospect)
+        }
+      }, 3000)
+      return () => clearTimeout(timer)
     }
   }, [cm.isConnected, cm.context.prospect, selectedProspect])
 
