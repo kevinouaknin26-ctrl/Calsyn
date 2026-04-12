@@ -269,44 +269,123 @@ function CallCard({ call, defaultOpen, onUpdate, onCelebrate }: { call: Call; de
           {/* Player audio (Minari exact — ▶ barre + durée + download + vitesse) */}
           {call.recording_url && <AudioPlayer url={proxyRecordingUrl(call.recording_url!)} date={call.created_at} prospectName={call.prospect_name || undefined} />}
 
-          {/* Show full transcription + BETA badge + télécharger */}
-          {call.ai_transcript && (
-            <>
-              <div className="flex items-center gap-3 mb-2">
-                <button onClick={() => setShowTranscript(!showTranscript)}
-                  className="text-[12px] text-gray-500 hover:text-gray-700 flex items-center gap-1.5 underline decoration-dotted">
-                  Voir la transcription complète
-                  <svg className={`w-3 h-3 transition-transform ${showTranscript ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
-                  <span className="px-1.5 py-0.5 rounded text-[8px] font-bold bg-violet-100 text-violet-600 uppercase no-underline">Beta</span>
-                </button>
-                <button onClick={() => {
-                  const blob = new Blob([call.ai_transcript!], { type: 'text/plain;charset=utf-8' })
-                  const a = document.createElement('a')
-                  a.href = URL.createObjectURL(blob)
-                  const d = call.created_at ? new Date(call.created_at) : new Date()
-                  const dateStr = `${d.getFullYear()}-${(d.getMonth()+1).toString().padStart(2,'0')}-${d.getDate().toString().padStart(2,'0')}_${d.getHours().toString().padStart(2,'0')}h${d.getMinutes().toString().padStart(2,'0')}`
-                  const name = (call.prospect_name || 'inconnu').replace(/[^a-zA-Z0-9àâäéèêëïîôùûüçÀÂÄÉÈÊËÏÎÔÙÛÜÇ -]/g, '').replace(/\s+/g, '_')
-                  a.download = `transcription_${name}_${dateStr}.txt`
-                  a.click()
-                  URL.revokeObjectURL(a.href)
-                }} className="text-[11px] text-gray-400 hover:text-gray-600 flex items-center gap-1">
-                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
-                  Télécharger
-                </button>
+          {/* ── Bulle 1 : Transcription + Résumé IA ── */}
+          {call.recording_url && (
+            <div className="mt-3 rounded-xl border border-indigo-100 bg-indigo-50/40 p-4 space-y-3">
+              <div className="flex items-center gap-2">
+                <svg className="w-4 h-4 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" /></svg>
+                <span className="text-[13px] font-semibold text-indigo-700">Transcription & Résumé</span>
+                <span className="px-1.5 py-0.5 rounded text-[8px] font-bold bg-indigo-100 text-indigo-600 uppercase">Beta</span>
+                {call.ai_analysis_status === 'pending' && <span className="ml-auto text-[11px] text-gray-400">En attente...</span>}
+                {call.ai_analysis_status === 'processing' && (
+                  <span className="ml-auto flex items-center gap-1.5 text-[11px] text-indigo-500">
+                    <span className="w-3 h-3 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin" />
+                    En cours...
+                  </span>
+                )}
+                {call.ai_analysis_status === 'error' && <span className="ml-auto text-[11px] text-red-400">Erreur</span>}
               </div>
-              {showTranscript && (
-                <div className="text-[12px] text-gray-600 bg-gray-50 rounded-lg p-3 mb-2 whitespace-pre-wrap animate-fade-in">{call.ai_transcript}</div>
+
+              {/* Résumé IA */}
+              {call.ai_summary && call.ai_summary.length > 0 && (
+                <div className="space-y-1">
+                  {call.ai_summary.map((s, i) => (
+                    <p key={i} className="text-[12px] text-gray-700 leading-relaxed flex gap-2"><span className="text-indigo-400">—</span>{s}</p>
+                  ))}
+                </div>
               )}
-            </>
+
+              {/* Transcription expandable + download */}
+              {call.ai_transcript && (
+                <>
+                  <div className="flex items-center gap-3">
+                    <button onClick={() => setShowTranscript(!showTranscript)}
+                      className="text-[12px] text-indigo-500 hover:text-indigo-700 flex items-center gap-1.5">
+                      {showTranscript ? 'Masquer' : 'Voir'} la transcription
+                      <svg className={`w-3 h-3 transition-transform ${showTranscript ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                    </button>
+                    <button onClick={() => {
+                      const blob = new Blob([call.ai_transcript!], { type: 'text/plain;charset=utf-8' })
+                      const a = document.createElement('a')
+                      a.href = URL.createObjectURL(blob)
+                      const d = call.created_at ? new Date(call.created_at) : new Date()
+                      const dateStr = `${d.getFullYear()}-${(d.getMonth()+1).toString().padStart(2,'0')}-${d.getDate().toString().padStart(2,'0')}_${d.getHours().toString().padStart(2,'0')}h${d.getMinutes().toString().padStart(2,'0')}`
+                      const name = (call.prospect_name || 'inconnu').replace(/[^a-zA-Z0-9àâäéèêëïîôùûüçÀÂÄÉÈÊËÏÎÔÙÛÜÇ -]/g, '').replace(/\s+/g, '_')
+                      a.download = `transcription_${name}_${dateStr}.txt`
+                      a.click()
+                      URL.revokeObjectURL(a.href)
+                    }} className="text-[11px] text-gray-400 hover:text-indigo-500 flex items-center gap-1">
+                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                      Télécharger
+                    </button>
+                  </div>
+                  {showTranscript && (
+                    <div className="max-h-48 overflow-y-auto text-[12px] leading-relaxed p-3 rounded-lg bg-white/60 border border-indigo-100 animate-fade-in">
+                      {call.ai_transcript.split('\n').map((line, i) => (
+                        <p key={i} className={`mb-1 ${line.startsWith('Speaker 0') ? 'text-indigo-600 font-medium' : 'text-gray-500'}`}>{line}</p>
+                      ))}
+                    </div>
+                  )}
+                </>
+              )}
+
+              {/* État vide — pas encore de transcript ni résumé */}
+              {!call.ai_transcript && !call.ai_summary && call.ai_analysis_status !== 'pending' && call.ai_analysis_status !== 'processing' && (
+                <p className="text-[11px] text-gray-400 italic">Aucune transcription disponible pour cet appel.</p>
+              )}
+            </div>
           )}
 
-          {/* AI Summary (Minari exact) */}
-          {call.ai_summary && call.ai_summary.length > 0 && (
-            <div className="mt-2 mb-2">
-              <p className="text-[12px] text-gray-400 mb-1">Résumé IA Callio :</p>
-              {call.ai_summary.map((s, i) => (
-                <p key={i} className="text-[12px] text-gray-600 leading-relaxed">- {s}</p>
-              ))}
+          {/* ── Bulle 2 : Analyse & Coaching IA ── */}
+          {call.recording_url && (
+            <div className="mt-2 rounded-xl border border-violet-100 bg-violet-50/40 p-4 space-y-3">
+              <div className="flex items-center gap-2">
+                <svg className="w-4 h-4 text-violet-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
+                <span className="text-[13px] font-semibold text-violet-700">Analyse & Coaching</span>
+                <span className="px-1.5 py-0.5 rounded text-[8px] font-bold bg-violet-100 text-violet-600 uppercase">Callio+</span>
+                {call.ai_score_global && (
+                  <span className="ml-auto px-2.5 py-0.5 rounded-full bg-violet-100 text-violet-700 text-[12px] font-bold">{call.ai_score_global}/100</span>
+                )}
+                {!call.ai_score_global && call.ai_analysis_status === 'pending' && <span className="ml-auto text-[11px] text-gray-400">En attente...</span>}
+                {!call.ai_score_global && call.ai_analysis_status === 'processing' && (
+                  <span className="ml-auto flex items-center gap-1.5 text-[11px] text-violet-500">
+                    <span className="w-3 h-3 border-2 border-violet-400 border-t-transparent rounded-full animate-spin" />
+                    Analyse en cours...
+                  </span>
+                )}
+              </div>
+
+              {/* Barres de score */}
+              {(call.ai_score_accroche != null || call.ai_score_objection != null || call.ai_score_closing != null) && (
+                <div className="space-y-2">
+                  {call.ai_score_accroche != null && (
+                    <div className="flex items-center gap-3">
+                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider w-20">Accroche</span>
+                      <div className="flex-1 h-2 rounded-full bg-gray-100"><div className="h-full rounded-full bg-emerald-500 transition-all duration-500" style={{ width: `${call.ai_score_accroche}%` }} /></div>
+                      <span className="text-xs font-bold w-8 text-right text-emerald-600">{call.ai_score_accroche}</span>
+                    </div>
+                  )}
+                  {call.ai_score_objection != null && (
+                    <div className="flex items-center gap-3">
+                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider w-20">Objection</span>
+                      <div className="flex-1 h-2 rounded-full bg-gray-100"><div className="h-full rounded-full bg-amber-500 transition-all duration-500" style={{ width: `${call.ai_score_objection}%` }} /></div>
+                      <span className="text-xs font-bold w-8 text-right text-amber-600">{call.ai_score_objection}</span>
+                    </div>
+                  )}
+                  {call.ai_score_closing != null && (
+                    <div className="flex items-center gap-3">
+                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider w-20">Closing</span>
+                      <div className="flex-1 h-2 rounded-full bg-gray-100"><div className="h-full rounded-full bg-sky-500 transition-all duration-500" style={{ width: `${call.ai_score_closing}%` }} /></div>
+                      <span className="text-xs font-bold w-8 text-right text-sky-600">{call.ai_score_closing}</span>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* État vide — pas encore de scores */}
+              {call.ai_score_global == null && call.ai_analysis_status !== 'pending' && call.ai_analysis_status !== 'processing' && (
+                <p className="text-[11px] text-gray-400 italic">Analyse non disponible (appel trop court ou sans enregistrement).</p>
+              )}
             </div>
           )}
 
