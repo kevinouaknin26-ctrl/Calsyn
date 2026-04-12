@@ -10,7 +10,7 @@ import { useMachine } from '@xstate/react'
 import { useEffect, useRef, useCallback, useState } from 'react'
 import { callMachine } from '@/machines/callMachine'
 import { createProvider, type CallProvider, type CallSession, type AudioSample } from '@/services/providers'
-import { fetchVoiceToken, saveCallDisposition, initiateCallWithAMD } from '@/services/api'
+import { fetchVoiceToken, saveCallDisposition, initiateCallWithAMD, callEdgeFunction } from '@/services/api'
 import { useAuth } from '@/hooks/useAuth'
 import { MOS_ALERT_THRESHOLD } from '@/config/constants'
 import type { Prospect } from '@/types/prospect'
@@ -179,13 +179,19 @@ export function useCallMachine() {
   }, [send, organisation])
 
   const hangup = useCallback(() => {
-    // Capturer le callSid avant de deconnecter
-    const sid = sessionRef.current?.id
-    if (sid) send({ type: 'RINGING', callSid: sid })
+    // Capturer le callSid du prospect avant de déconnecter
+    const prospectCallSid = state.context.callSid
     providerRef.current?.disconnectAll()
     sessionRef.current = null
     send({ type: 'HANG_UP' })
-  }, [send])
+
+    // Terminer l'appel prospect côté serveur (sinon il continue vers la messagerie)
+    if (prospectCallSid) {
+      callEdgeFunction('end-call', { callSid: prospectCallSid }).catch(err => {
+        console.error('[useCallMachine] end-call failed:', err)
+      })
+    }
+  }, [send, state])
 
   const mute = useCallback(() => {
     sessionRef.current?.mute()
