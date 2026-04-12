@@ -68,15 +68,33 @@ serve(async (req) => {
     }
 
     // ── 1. Chercher le call existant ──
+    // Le callSid du frontend est celui du leg SDR (inbound).
+    // Le callSid en DB est celui du leg prospect (outbound-dial, créé par status-callback).
+    // Ils sont DIFFÉRENTS. On cherche par : callSid → conferenceSid → prospect récent.
     let callId: string | null = null
 
     if (callSid) {
-      const { data } = await supabase.from('calls').select('id').eq('call_sid', callSid).single()
+      const { data } = await supabase.from('calls').select('id').eq('call_sid', callSid).maybeSingle()
       if (data) callId = data.id
     }
     if (!callId && conferenceSid) {
-      const { data } = await supabase.from('calls').select('id').eq('conference_sid', conferenceSid).single()
+      const { data } = await supabase.from('calls').select('id').eq('conference_sid', conferenceSid).maybeSingle()
       if (data) callId = data.id
+    }
+    // Fallback : chercher le call le plus récent pour ce prospect (< 2 minutes)
+    if (!callId && prospectId) {
+      const twoMinAgo = new Date(Date.now() - 120000).toISOString()
+      const { data } = await supabase.from('calls')
+        .select('id')
+        .eq('prospect_id', prospectId)
+        .gte('created_at', twoMinAgo)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+      if (data) {
+        callId = data.id
+        console.log(`[save-call] Found call by prospect fallback: ${callId}`)
+      }
     }
 
     // ── 2. Mapper la disposition vers le call outcome ──
@@ -98,15 +116,11 @@ serve(async (req) => {
     if (callId) {
       const { error } = await supabase.from('calls').update(callData).eq('id', callId)
       if (error) throw error
+      console.log(`[save-call] Updated call ${callId}: outcome=${callOutcome}`)
     } else {
-      const { data: newCall, error } = await supabase.from('calls').insert({
-        ...callData,
-        call_sid: callSid,
-        conference_sid: conferenceSid,
-        provider: 'twilio',
-      }).select('id').single()
-      if (error) throw error
-      callId = newCall.id
+      // Le call devrait déjà exister (créé par status-callback).
+      // Ne PAS créer de nouveau call pour éviter les doublons.
+      console.warn(`[save-call] Call not found for sid=${callSid}, prospect=${prospectId}. Skipping insert.`)
     }
 
     // ── 3. Mettre a jour le prospect — recomputer le meilleur outcome ──
