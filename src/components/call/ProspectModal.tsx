@@ -269,15 +269,31 @@ function CallCard({ call, defaultOpen, onUpdate, onCelebrate }: { call: Call; de
           {/* Player audio (Minari exact — ▶ barre + durée + download + vitesse) */}
           {call.recording_url && <AudioPlayer url={proxyRecordingUrl(call.recording_url!)} date={call.created_at} prospectName={call.prospect_name || undefined} />}
 
-          {/* Show full transcription + BETA badge */}
+          {/* Show full transcription + BETA badge + télécharger */}
           {call.ai_transcript && (
             <>
-              <button onClick={() => setShowTranscript(!showTranscript)}
-                className="text-[12px] text-gray-500 hover:text-gray-700 flex items-center gap-1.5 mb-2 underline decoration-dotted">
-                Voir la transcription complète
-                <svg className={`w-3 h-3 transition-transform ${showTranscript ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
-                <span className="px-1.5 py-0.5 rounded text-[8px] font-bold bg-violet-100 text-violet-600 uppercase no-underline">Beta</span>
-              </button>
+              <div className="flex items-center gap-3 mb-2">
+                <button onClick={() => setShowTranscript(!showTranscript)}
+                  className="text-[12px] text-gray-500 hover:text-gray-700 flex items-center gap-1.5 underline decoration-dotted">
+                  Voir la transcription complète
+                  <svg className={`w-3 h-3 transition-transform ${showTranscript ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                  <span className="px-1.5 py-0.5 rounded text-[8px] font-bold bg-violet-100 text-violet-600 uppercase no-underline">Beta</span>
+                </button>
+                <button onClick={() => {
+                  const blob = new Blob([call.ai_transcript!], { type: 'text/plain;charset=utf-8' })
+                  const a = document.createElement('a')
+                  a.href = URL.createObjectURL(blob)
+                  const d = call.created_at ? new Date(call.created_at) : new Date()
+                  const dateStr = `${d.getFullYear()}-${(d.getMonth()+1).toString().padStart(2,'0')}-${d.getDate().toString().padStart(2,'0')}_${d.getHours().toString().padStart(2,'0')}h${d.getMinutes().toString().padStart(2,'0')}`
+                  const name = (call.prospect_name || 'inconnu').replace(/[^a-zA-Z0-9àâäéèêëïîôùûüçÀÂÄÉÈÊËÏÎÔÙÛÜÇ -]/g, '').replace(/\s+/g, '_')
+                  a.download = `transcription_${name}_${dateStr}.txt`
+                  a.click()
+                  URL.revokeObjectURL(a.href)
+                }} className="text-[11px] text-gray-400 hover:text-gray-600 flex items-center gap-1">
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                  Télécharger
+                </button>
+              </div>
               {showTranscript && (
                 <div className="text-[12px] text-gray-600 bg-gray-50 rounded-lg p-3 mb-2 whitespace-pre-wrap animate-fade-in">{call.ai_transcript}</div>
               )}
