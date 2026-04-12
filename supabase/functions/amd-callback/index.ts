@@ -41,6 +41,20 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '',
     )
 
+    // Vérifier d'abord que l'appel a bien été répondu (pas juste le ringback)
+    const { data: existingCall } = await supabase
+      .from('calls')
+      .select('id, call_outcome, call_duration')
+      .eq('call_sid', callSid)
+      .single()
+
+    // Si l'appel n'existe pas encore ou est encore en "no_answer" avec durée 0,
+    // c'est peut-être un faux positif AMD sur le ringback. On stocke le résultat
+    // mais on ne change PAS le call_outcome tant que status-callback n'a pas confirmé "answered".
+    const callStatus = params.CallStatus || ''
+    const isActuallyAnswered = callStatus === 'in-progress' || callStatus === 'completed' ||
+      (existingCall && existingCall.call_duration > 0)
+
     const isMachine = answeredBy.startsWith('machine') || answeredBy === 'fax'
     const isHuman = answeredBy === 'human'
 
@@ -49,9 +63,12 @@ serve(async (req) => {
       amd_detected_at: new Date().toISOString(),
     }
 
-    // Si machine → corriger le call_outcome
-    if (isMachine) {
+    // Si machine ET l'appel a été réellement répondu → corriger le call_outcome
+    if (isMachine && isActuallyAnswered) {
       updates.call_outcome = 'voicemail'
+      console.log(`[amd-callback] Machine confirmed (call answered) → voicemail`)
+    } else if (isMachine && !isActuallyAnswered) {
+      console.log(`[amd-callback] Machine detected but call not answered yet — storing result only`)
     }
 
     // Update le call par call_sid
@@ -66,8 +83,8 @@ serve(async (req) => {
       console.error('[amd-callback] Update error:', error)
     }
 
-    // Si machine → mettre à jour le prospect aussi (avec priorité)
-    if (isMachine && call?.prospect_id) {
+    // Si machine ET réellement répondu → mettre à jour le prospect aussi (avec priorité)
+    if (isMachine && isActuallyAnswered && call?.prospect_id) {
       const outcomePriority: Record<string, number> = {
         'connected': 100, 'callback': 60, 'not_interested': 50,
         'voicemail': 40, 'busy': 35, 'no_answer': 30,

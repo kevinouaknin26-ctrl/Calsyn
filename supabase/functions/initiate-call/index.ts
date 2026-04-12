@@ -89,8 +89,8 @@ serve(async (req) => {
       From: from,
       Url: twimlUrl,
       // AMD — Answering Machine Detection
-      MachineDetection: 'DetectMessageEnd',
-      MachineDetectionTimeout: '5',
+      MachineDetection: 'Enable',
+      MachineDetectionTimeout: '3',
       AsyncAmd: 'true',
       AsyncAmdStatusCallback: `${supabaseUrl}/functions/v1/amd-callback`,
       AsyncAmdStatusCallbackMethod: 'POST',
