@@ -17,7 +17,7 @@ import SelectListPage from '@/components/dialer/SelectListPage'
 import ProspectModal from '@/components/call/ProspectModal'
 import { useRealtimeProspects } from '@/hooks/useRealtime'
 import { useDialingSession } from '@/hooks/useDialingSession'
-import { callEdgeFunction } from '@/services/api'
+// callEdgeFunction disponible via api.ts si besoin
 import type { Prospect } from '@/types/prospect'
 
 // ── Call status badges (Minari exact) ──────────────────────────────
@@ -538,61 +538,50 @@ export default function Dialer() {
     }
   }, [cm])
 
-  // Écouter le résultat AMD via Supabase Realtime
-  // Le SDR n'est PAS encore dans la conférence — il attend le signal AMD
+  // POWER DIALER : le SDR est dans la conférence dès le début
+  // L'AMD tourne en background et met à jour le statut + popup automatiquement
   useEffect(() => {
-    if (!cm.isDialing || !cm.context.callSid || selectedProspect) return
+    const callSid = cm.context.callSid
+    if (!(cm.isDialing || cm.isConnected) || !callSid) return
 
     const channel = supabase
-      .channel(`amd-${cm.context.callSid}`)
+      .channel(`amd-${callSid}`)
       .on('postgres_changes', {
         event: 'UPDATE',
         schema: 'public',
         table: 'calls',
-        filter: `call_sid=eq.${cm.context.callSid}`,
+        filter: `call_sid=eq.${callSid}`,
       }, (payload: any) => {
         const amdResult = payload.new?.amd_result
-        const callOutcome = payload.new?.call_outcome
 
-        if (amdResult === 'human') {
-          console.log('[Dialer] AMD: HUMAN → bridging SDR + opening modal')
-          cm.bridgeToConference()
-          if (cm.context.prospect) setSelectedProspect(cm.context.prospect)
+        if (amdResult === 'human' && cm.context.prospect && !selectedProspect) {
+          console.log('[Dialer] AMD: HUMAN confirmed → opening modal')
+          setSelectedProspect(cm.context.prospect)
         } else if (amdResult === 'machine') {
-          console.log('[Dialer] AMD: MACHINE → killing call, no bridge')
-          // Kill l'appel prospect — le SDR n'entend rien
-          callEdgeFunction('end-call', { callSid: cm.context.callSid }).catch(() => {})
-          cm.hangup()
-          setTimeout(() => cm.reset(), 300)
-          // Invalider pour refresh le statut dans la table
-          queryClient.invalidateQueries({ queryKey: ['prospects'] })
-        }
-
-        // Si l'appel se termine (no_answer, busy, etc.) sans AMD
-        if (callOutcome && ['no_answer', 'busy', 'cancelled', 'failed'].includes(callOutcome) && !amdResult) {
-          console.log('[Dialer] Call ended without AMD result → reset')
-          cm.hangup()
-          setTimeout(() => cm.reset(), 300)
+          console.log('[Dialer] AMD: MACHINE detected → statut updated, SDR peut raccrocher')
+          // Le SDR entend la messagerie, il peut raccrocher manuellement
+          // Le statut est déjà "voicemail" grâce à amd-callback
           queryClient.invalidateQueries({ queryKey: ['prospects'] })
         }
       })
       .subscribe()
 
-    // Fallback 30s : si ni AMD ni call end → timeout (l'appel sonne trop longtemps)
-    const fallback = setTimeout(() => {
-      if (cm.isDialing && !selectedProspect) {
-        console.log('[Dialer] AMD timeout 30s → killing call')
-        callEdgeFunction('end-call', { callSid: cm.context.callSid }).catch(() => {})
-        cm.hangup()
-        setTimeout(() => cm.reset(), 300)
-      }
-    }, 30000)
+    return () => { supabase.removeChannel(channel) }
+  }, [cm.isDialing, cm.isConnected, cm.context.callSid, cm.context.prospect, selectedProspect])
 
-    return () => {
-      supabase.removeChannel(channel)
-      clearTimeout(fallback)
+  // Ouvrir le modal quand le prospect décroche (fallback si AMD pas encore reçu)
+  useEffect(() => {
+    if (cm.isConnected && cm.context.prospect && !selectedProspect) {
+      // Délai 3s : si l'AMD n'a pas encore répondu, on ouvre quand même
+      const timer = setTimeout(() => {
+        if (cm.isConnected && !selectedProspect) {
+          console.log('[Dialer] Fallback 3s → opening modal')
+          setSelectedProspect(cm.context.prospect)
+        }
+      }, 3000)
+      return () => clearTimeout(timer)
     }
-  }, [cm.isDialing, cm.context.callSid, selectedProspect])
+  }, [cm.isConnected, cm.context.prospect, selectedProspect])
 
   const isInCall = cm.isDialing || cm.isConnected
   const meetings = prospects?.filter(p => (p as any).meeting_booked).length || 0
