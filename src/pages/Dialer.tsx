@@ -897,7 +897,7 @@ export default function Dialer() {
                     else next.add(id)
                     return next
                   })}
-                  onSelect={setSelectedProspect}
+                  onSelect={(p) => { if (cm.isDisconnected) cm.reset(); setSelectedProspect(p) }}
                   onCall={handleCall}
                 />
               ))}
@@ -984,7 +984,7 @@ export default function Dialer() {
         <ProspectModal
           prospect={selectedProspect} callContext={cm.context} callHistory={callHistory || []}
           isInCall={isInCall} isDisconnected={cm.isDisconnected}
-          onCall={handleCall} onClose={() => { if (!isInCall) setSelectedProspect(null) }}
+          onCall={handleCall} onClose={() => { if (!isInCall) { if (cm.isDisconnected) cm.reset(); setSelectedProspect(null) } }}
           onSetDisposition={cm.setDisposition} onSetNotes={cm.setNotes} onSetMeeting={cm.setMeeting}
           onReset={cm.reset}
           onNextCall={async () => {
