@@ -105,12 +105,13 @@ export function useCallMachine() {
       // Save meme sans callSid — le prospect_id suffit pour identifier l'appel
       // Déterminer le default outcome intelligemment :
       // - Si le SDR a choisi un outcome → l'utiliser
-      // - Si l'appel a été "answered" mais < 5s → c'est un rejet/messagerie, pas un vrai appel
-      // - Si l'appel a été answered et >= 5s → vrai appel connecté
-      // - Si jamais answered → no_answer
+      // Minari rule : raccrochage < 8 secondes → auto "voicemail" (bible ligne 60)
+      // Si l'appel a été answered mais < 8s → c'est un rejet/messagerie
+      // Si answered et >= 8s → vrai appel connecté
+      // Si jamais answered → no_answer
       const dur = state.context.duration || 0
       const defaultOutcome = state.context.wasAnswered
-        ? (dur >= 5 ? 'connected' : 'no_answer')
+        ? (dur >= 8 ? 'connected' : 'voicemail')
         : 'no_answer'
 
       saveCallDisposition({
