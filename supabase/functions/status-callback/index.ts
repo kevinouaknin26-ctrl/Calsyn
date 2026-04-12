@@ -33,12 +33,26 @@ serve(async (req) => {
     const conferenceSid = params.ConferenceSid || null
     const from = params.From || ''
     const to = params.To || ''
+    const direction = params.Direction || ''
+    const parentCallSid = params.ParentCallSid || ''
 
-    console.log(`[status-callback] ${callSid}: ${callStatus} (${duration}s) from=${from} to=${to}`)
+    console.log(`[status-callback] ${callSid}: ${callStatus} (${duration}s) from=${from} to=${to} dir=${direction} parent=${parentCallSid}`)
 
     // On ne traite que les etats finaux pour la DB
     if (!['completed', 'busy', 'no-answer', 'canceled', 'failed'].includes(callStatus)) {
       return new Response(JSON.stringify({ ok: true }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
+    // ── Filtrer les doublons de conference ──
+    // En mode conference, Twilio fire un callback pour chaque leg :
+    // - Leg SDR (inbound) : le commercial qui rejoint la conference
+    // - Leg prospect (outbound-api/outbound-dial) : l'appel vers le prospect
+    // On ne garde que le leg prospect pour eviter les doublons dans la DB.
+    if (direction === 'inbound' && conferenceSid) {
+      console.log(`[status-callback] Skipping inbound leg ${callSid} (SDR leg of conference ${conferenceSid})`)
+      return new Response(JSON.stringify({ ok: true, skipped: 'inbound-leg' }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
     }
