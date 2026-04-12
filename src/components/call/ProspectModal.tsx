@@ -250,7 +250,7 @@ function CallCard({ call, defaultOpen, onUpdate, onCelebrate }: { call: Call; de
               <input type="checkbox" checked={call.meeting_booked}
                 onChange={async e => {
                   const checked = e.target.checked
-                  await supabase.from('calls').update({ meeting_booked: checked }).eq('id', call.id)
+                  await supabase.from('calls').update({ meeting_booked: checked, call_outcome: checked ? 'meeting_booked' : 'connected' }).eq('id', call.id)
                   if (call.prospect_id) {
                     await supabase.from('prospects').update({ last_call_outcome: checked ? 'meeting_booked' : 'connected' }).eq('id', call.prospect_id)
                   }
@@ -450,9 +450,8 @@ export default function ProspectModal({
   }
 
   // Téléphones supplémentaires : afficher seulement si remplis ou si l'utilisateur clique "Ajouter"
-  const filledPhones = [prospect.phone2, prospect.phone3, prospect.phone4, prospect.phone5].filter(Boolean).length
-  const [showExtraPhone, setShowExtraPhone] = useState(filledPhones + 2) // +2 car phone1 est toujours visible
   const nextEmptyPhone = !prospect.phone2 ? 2 : !prospect.phone3 ? 3 : !prospect.phone4 ? 4 : !prospect.phone5 ? 5 : 6
+  const [showExtraPhone, setShowExtraPhone] = useState(0)
 
   const callsDisabled = localDoNotCall
   const isSnoozed = localSnoozedUntil && new Date(localSnoozedUntil) > new Date()
@@ -744,7 +743,7 @@ export default function ProspectModal({
 
               {/* Historique — fiches accordéon (Minari exact) */}
               {callHistory.map((c, i) => (
-                <CallCard key={c.id} call={c} defaultOpen={i === 0 && !isInCall && !isDisconnected} onUpdate={() => queryClient.invalidateQueries({ queryKey: ['calls-by-prospect'] })} onCelebrate={() => { setShowCelebration(true); setTimeout(() => setShowCelebration(false), 2500) }} />
+                <CallCard key={c.id} call={c} defaultOpen={i === 0 && !isInCall && !isDisconnected} onUpdate={() => { queryClient.invalidateQueries({ queryKey: ['calls-by-prospect'] }); queryClient.invalidateQueries({ queryKey: ['prospects'] }) }} onCelebrate={() => { setShowCelebration(true); setTimeout(() => setShowCelebration(false), 2500) }} />
               ))}
 
               {/* Vide */}
@@ -811,7 +810,7 @@ export default function ProspectModal({
               {activeTab === 'appels' && (
                 <div>
                   {callHistory.length > 0 ? callHistory.map(c => (
-                    <CallCard key={c.id} call={c} defaultOpen={false} onUpdate={() => queryClient.invalidateQueries({ queryKey: ['calls-by-prospect'] })} onCelebrate={() => { setShowCelebration(true); setTimeout(() => setShowCelebration(false), 2500) }} />
+                    <CallCard key={c.id} call={c} defaultOpen={false} onUpdate={() => { queryClient.invalidateQueries({ queryKey: ['calls-by-prospect'] }); queryClient.invalidateQueries({ queryKey: ['prospects'] }) }} onCelebrate={() => { setShowCelebration(true); setTimeout(() => setShowCelebration(false), 2500) }} />
                   )) : (
                     <p className="text-[13px] text-gray-400 text-center py-10">Aucun appel enregistré</p>
                   )}
