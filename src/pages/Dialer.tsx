@@ -1050,11 +1050,11 @@ export default function Dialer() {
               {showDTMF && (
                 <>
                 <div className="fixed inset-0 z-[59]" onClick={() => setShowDTMF(false)} />
-                <div className="absolute bottom-12 left-1/2 -translate-x-1/2 bg-[#2a2a2a] rounded-xl shadow-xl border border-white/10 p-3 z-[60] animate-slide-up">
+                <div className="fixed bottom-24 left-1/2 -translate-x-1/2 bg-[#2a2a2a] rounded-xl shadow-xl border border-white/10 p-4 z-[60] animate-slide-up">
                   <div className="grid grid-cols-3 gap-1.5">
                     {['1', '2', '3', '4', '5', '6', '7', '8', '9', '*', '0', '#'].map(d => (
                       <button key={d} onClick={() => cm.sendDTMF(d)}
-                        className="w-10 h-10 rounded-lg bg-white/10 text-white text-[15px] font-semibold hover:bg-white/20 active:bg-white/30 transition-colors border border-white/10">
+                        className="w-12 h-12 rounded-lg bg-white/10 text-white text-[17px] font-semibold hover:bg-white/20 active:bg-white/30 transition-colors border border-white/10">
                         {d}
                       </button>
                     ))}

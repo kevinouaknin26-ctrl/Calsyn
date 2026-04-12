@@ -68,9 +68,27 @@ serve(async (req) => {
         .from('calls')
         .select('id')
         .eq('call_sid', callSid)
-        .limit(1)
-        .single()
+        .maybeSingle()
       if (data) callId = data.id
+    }
+
+    // Fallback : le recording est attaché au leg parent (SDR/inbound)
+    // mais la DB a le leg child (prospect/outbound-dial).
+    // Chercher le call le plus récent dans les 2 dernières minutes.
+    if (!callId) {
+      const twoMinAgo = new Date(Date.now() - 120000).toISOString()
+      const { data } = await supabase
+        .from('calls')
+        .select('id')
+        .gte('created_at', twoMinAgo)
+        .is('recording_url', null)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+      if (data) {
+        callId = data.id
+        console.log(`[recording-callback] Matched by recent call fallback: ${callId}`)
+      }
     }
 
     if (!callId) {
