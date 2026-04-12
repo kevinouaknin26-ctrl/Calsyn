@@ -581,7 +581,7 @@ export default function Dialer() {
       <div className="border-b border-gray-100 flex items-center overflow-x-auto px-3">
         <button onClick={() => setShowSelectList(true)}
           className="flex items-center gap-1 px-3 py-2.5 text-[12px] font-medium text-violet-600 hover:text-violet-700 whitespace-nowrap flex-shrink-0">
-          <span className="w-3.5 h-3.5 rounded-full bg-violet-500 text-white flex items-center justify-center text-[9px] font-bold">+</span>
+          <span className="w-3.5 h-3.5 rounded-full bg-violet-500 text-white flex items-center justify-center text-[9px] font-bold leading-none">+</span>
           Nouvelle liste
         </button>
         {lists?.filter(l => openTabIds.includes(l.id)).map(l => (
