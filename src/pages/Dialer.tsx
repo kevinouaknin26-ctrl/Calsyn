@@ -342,8 +342,8 @@ function CallSettingsDropdown({ open, onToggle }: { open: boolean; onToggle: () 
 }
 
 // ── Prospect Row (Minari exact : LinkedIn + contact icons) ────────
-const ProspectRow = memo(function ProspectRow({ prospect, isActive, liveStatus, selected, socials, onToggleSelect, onSelect }: {
-  prospect: Prospect; isActive: boolean; liveStatus?: string; selected: boolean; socials: Array<{ platform: string; url: string }>; onToggleSelect: (id: string) => void; onSelect: (p: Prospect) => void
+const ProspectRow = memo(function ProspectRow({ prospect, isActive, liveStatus, selected, socials, onToggleSelect, onSelect, onCall }: {
+  prospect: Prospect; isActive: boolean; liveStatus?: string; selected: boolean; socials: Array<{ platform: string; url: string }>; onToggleSelect: (id: string) => void; onSelect: (p: Prospect) => void; onCall: (p: Prospect) => void
 }) {
   // Pendant un appel actif, le badge montre le statut live (Initié/En sonnerie/En cours)
   const statusKey = liveStatus || getCallStatusKey(prospect)
@@ -381,6 +381,23 @@ const ProspectRow = memo(function ProspectRow({ prospect, isActive, liveStatus, 
           <svg className="w-3.5 h-3.5 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" /></svg>
           {prospect.call_count || 0}
         </span>
+      </td>
+      {/* Actions rapides — appel + mail */}
+      <td className="py-3.5 px-1">
+        <div className="flex items-center justify-center gap-1">
+          <button onClick={e => { e.stopPropagation(); onCall(prospect) }}
+            title="Appeler"
+            className="w-7 h-7 rounded-full flex items-center justify-center text-violet-400 hover:text-white hover:bg-violet-500 transition-all">
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" /></svg>
+          </button>
+          {prospect.email && (
+            <a href={`mailto:${prospect.email}`} onClick={e => e.stopPropagation()}
+              title="Envoyer un email"
+              className="w-7 h-7 rounded-full flex items-center justify-center text-gray-300 hover:text-white hover:bg-indigo-500 transition-all">
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
+            </a>
+          )}
+        </div>
       </td>
       {/* NAME — chip cliquable (Minari exact) + icones après */}
       <td className="py-3.5 px-4">
@@ -854,6 +871,7 @@ export default function Dialer() {
                   className="w-3.5 h-3.5 rounded border-gray-300 accent-indigo-600" /></th>
                 <th className="py-3 px-3 text-left text-[10px] font-bold text-gray-400 uppercase tracking-[0.08em]">Statut appel</th>
                 <th className="py-3 px-3 text-center text-[10px] font-bold text-gray-400 uppercase tracking-[0.08em]">Appels</th>
+                <th className="py-3 px-1 text-center text-[10px] font-bold text-gray-400 uppercase tracking-[0.08em] w-16">Actions</th>
                 <th className="py-3 px-4 text-left text-[10px] font-bold text-gray-400 uppercase tracking-[0.08em]">Nom</th>
                 <th className="py-3 px-1 text-left text-[10px] font-bold text-gray-400 uppercase tracking-[0.08em]">Liens</th>
                 <th className="py-3 px-4 text-left text-[10px] font-bold text-gray-400 uppercase tracking-[0.08em]">Poste</th>
@@ -879,6 +897,7 @@ export default function Dialer() {
                     return next
                   })}
                   onSelect={setSelectedProspect}
+                  onCall={handleCall}
                 />
               ))}
             </tbody>
