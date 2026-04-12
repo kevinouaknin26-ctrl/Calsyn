@@ -112,17 +112,18 @@ async function analyze(transcript: string): Promise<any> {
     body: JSON.stringify({
       model: 'claude-sonnet-4-20250514',
       max_tokens: 2048,
-      system: `Tu es un coach commercial expert. Analyse cette transcription d'appel et retourne UNIQUEMENT un JSON valide :
+      system: `Tu es un coach commercial expert en prospection téléphonique B2B. Analyse cette transcription d'appel et retourne UNIQUEMENT un JSON valide :
 {
-  "summary": ["point 1", "point 2", "point 3"],
+  "resume": "Un paragraphe de 2-3 phrases résumant l'appel : qui a appelé qui, le sujet, ce qui s'est passé, et le résultat.",
+  "summary": ["point clé 1", "point clé 2", "point clé 3"],
   "score_global": <0-100>,
   "score_accroche": <0-100>,
   "score_objection": <0-100>,
   "score_closing": <0-100>,
-  "points_forts": ["..."],
-  "points_amelioration": ["..."],
-  "intention_prospect": "...",
-  "prochaine_etape": "..."
+  "points_forts": ["ce que le commercial a bien fait"],
+  "points_amelioration": ["ce qu'il pourrait améliorer"],
+  "intention_prospect": "intéressé / pas intéressé / à rappeler / indécis",
+  "prochaine_etape": "action recommandée pour le prochain contact"
 }`,
       messages: [{ role: 'user', content: `Transcription :\n\n${transcript}` }],
     }),
@@ -270,7 +271,7 @@ serve(async (req) => {
     // Sauvegarder
     await supabase.from('calls').update({
       ai_transcript: formattedTranscript,
-      ai_summary: analysis.summary,
+      ai_summary: analysis.resume ? [analysis.resume, ...(analysis.summary || [])] : analysis.summary,
       ai_score_global: analysis.score_global,
       ai_score_accroche: analysis.score_accroche,
       ai_score_objection: analysis.score_objection,
