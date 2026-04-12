@@ -103,6 +103,8 @@ export class TwilioProvider implements CallProvider {
         From: params.from,
       }
       if (params.conferenceId) connectParams.ConferenceId = params.conferenceId
+      if (params.prospectId) connectParams.ProspectId = params.prospectId
+      if (params.prospectName) connectParams.ProspectName = params.prospectName
 
       const call = await this.device.connect({ params: connectParams })
 

@@ -36,7 +36,12 @@ serve(async (req) => {
     const direction = params.Direction || ''
     const parentCallSid = params.ParentCallSid || ''
 
-    console.log(`[status-callback] ${callSid}: ${callStatus} (${duration}s) from=${from} to=${to} dir=${direction} parent=${parentCallSid}`)
+    // ProspectId/Name passés via l'URL du statusCallback par call-webhook
+    const reqUrl = new URL(req.url)
+    const urlProspectId = reqUrl.searchParams.get('prospectId') || ''
+    const urlProspectName = reqUrl.searchParams.get('prospectName') || ''
+
+    console.log(`[status-callback] ${callSid}: ${callStatus} (${duration}s) from=${from} to=${to} dir=${direction} prospect=${urlProspectId}`)
 
     // On ne traite que les etats finaux pour la DB
     if (!['completed', 'busy', 'no-answer', 'canceled', 'failed'].includes(callStatus)) {
@@ -81,18 +86,31 @@ serve(async (req) => {
       outcome = 'failed'
     }
 
-    // ── 1. Chercher le prospect par numero ──
-    let prospectName: string | null = null
-    let prospectId: string | null = null
+    // ── 1. Chercher le prospect ──
+    // Priorité : prospectId passé par call-webhook > recherche par numéro
+    let prospectName: string | null = urlProspectName || null
+    let prospectId: string | null = urlProspectId || null
     let organisationId: string | null = null
     let sdrId: string | null = null
 
     if (to) {
-      // Chercher TOUS les prospects avec ce numero (peut etre dans plusieurs listes)
-      const { data: prospects } = await supabase
-        .from('prospects')
-        .select('id, name, organisation_id, list_id, call_count, last_call_outcome, crm_status')
-        .eq('phone', to)
+      let prospects: any[] | null = null
+
+      if (urlProspectId) {
+        // On connaît le prospect exact (passé par le frontend via call-webhook)
+        const { data } = await supabase
+          .from('prospects')
+          .select('id, name, organisation_id, list_id, call_count, last_call_outcome, crm_status')
+          .eq('id', urlProspectId)
+        prospects = data
+      } else {
+        // Fallback : chercher par numéro (ancien comportement)
+        const { data } = await supabase
+          .from('prospects')
+          .select('id, name, organisation_id, list_id, call_count, last_call_outcome, crm_status')
+          .eq('phone', to)
+        prospects = data
+      }
 
       // Priorite des statuts d'appel (du plus avance au moins avance)
       // Le statut ne redescend JAMAIS automatiquement — seul le commercial peut le changer

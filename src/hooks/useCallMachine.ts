@@ -151,6 +151,8 @@ export function useCallMachine() {
     const session = await provider.connect({
       to: prospect.phone,
       from: fromNumber,
+      prospectId: prospect.id,
+      prospectName: prospect.name,
     })
 
     if (session) {

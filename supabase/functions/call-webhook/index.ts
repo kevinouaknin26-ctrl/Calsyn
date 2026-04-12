@@ -70,6 +70,12 @@ serve(async (req) => {
       })
     }
 
+    // Passer le prospectId/Name dans l'URL du statusCallback
+    // pour que status-callback associe l'appel au bon prospect (même numéro dans plusieurs listes)
+    const prospectId = params.ProspectId || ''
+    const prospectName = params.ProspectName || ''
+    const statusCbUrl = `${SUPABASE_URL}/functions/v1/status-callback?prospectId=${encodeURIComponent(prospectId)}&prospectName=${encodeURIComponent(prospectName)}`
+
     const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   <Dial callerId="${from}"
@@ -80,7 +86,7 @@ serve(async (req) => {
     timeout="30">
     <Number
       statusCallbackEvent="initiated ringing answered completed"
-      statusCallback="${SUPABASE_URL}/functions/v1/status-callback"
+      statusCallback="${statusCbUrl}"
       statusCallbackMethod="POST">
       ${to}
     </Number>
