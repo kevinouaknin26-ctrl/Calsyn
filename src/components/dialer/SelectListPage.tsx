@@ -108,8 +108,8 @@ export default function SelectListPage({ onSelect, onClose }: Props) {
   return (
     <div className="min-h-screen bg-[#f5f3ff] p-8">
       {/* Header */}
-      <div className="text-center mb-6">
-        <button onClick={onClose} className="absolute left-20 top-8 text-gray-400 hover:text-gray-600 text-sm flex items-center gap-1">
+      <div className="relative text-center mb-6">
+        <button onClick={onClose} className="absolute left-0 top-0 z-10 text-gray-400 hover:text-gray-600 text-sm flex items-center gap-1">
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
           Retour
         </button>
