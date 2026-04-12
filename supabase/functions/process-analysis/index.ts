@@ -47,7 +47,7 @@ async function transcribe(audioUrl: string): Promise<{ text: string; utterances:
     contentType = 'application/json'
   }
 
-  const res = await fetch('https://api.deepgram.com/v1/listen?model=nova-3&language=fr&diarize=true&punctuate=true&utterances=true', {
+  const res = await fetch('https://api.deepgram.com/v1/listen?model=nova-3&language=fr&diarize=true&punctuate=true&utterances=true&multichannel=true', {
     method: 'POST',
     headers: {
       'Authorization': `Token ${dgKey}`,
@@ -62,11 +62,37 @@ async function transcribe(audioUrl: string): Promise<{ text: string; utterances:
   }
 
   const data = await res.json()
-  const transcript = data.results?.channels?.[0]?.alternatives?.[0]?.transcript || ''
-  const utterances = data.results?.utterances?.map((u: any) => ({
-    speaker: u.speaker,
-    text: u.transcript,
-  })) || []
+  const channels = data.results?.channels || []
+
+  // Multichannel : combiner les transcriptions des 2 canaux (SDR + prospect)
+  let transcript = ''
+  const utterances: Array<{ speaker: number; text: string }> = []
+
+  if (channels.length >= 2) {
+    // Channel 0 = SDR, Channel 1 = prospect (Twilio dual-channel)
+    const ch0 = channels[0]?.alternatives?.[0]?.transcript || ''
+    const ch1 = channels[1]?.alternatives?.[0]?.transcript || ''
+    transcript = `Commercial: ${ch0}\nProspect: ${ch1}`
+
+    // Utiliser les utterances multichannel si disponibles
+    const multiUtterances = data.results?.utterances || []
+    if (multiUtterances.length > 0) {
+      for (const u of multiUtterances) {
+        utterances.push({ speaker: u.channel || u.speaker || 0, text: u.transcript })
+      }
+    } else {
+      // Fallback : 2 utterances simples
+      if (ch0) utterances.push({ speaker: 0, text: ch0 })
+      if (ch1) utterances.push({ speaker: 1, text: ch1 })
+    }
+  } else {
+    // Single channel fallback
+    transcript = channels[0]?.alternatives?.[0]?.transcript || ''
+    const singleUtterances = data.results?.utterances || []
+    for (const u of singleUtterances) {
+      utterances.push({ speaker: u.speaker || 0, text: u.transcript })
+    }
+  }
 
   return { text: transcript, utterances }
 }

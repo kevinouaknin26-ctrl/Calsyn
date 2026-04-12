@@ -164,15 +164,19 @@ function AudioPlayer({ url, date, prospectName }: { url: string; date?: string; 
             <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" /></svg>
           )}
         </button>
-        {/* Barre de progression cliquable */}
-        <div className="flex-1 h-1.5 bg-gray-200 rounded-full cursor-pointer relative"
+        {/* Barre de progression cliquable — zone élargie pour le clic */}
+        <div className="flex-1 py-2 cursor-pointer"
           onClick={e => {
             if (!audioRef.current || !duration) return
-            const rect = e.currentTarget.getBoundingClientRect()
-            const pct = (e.clientX - rect.left) / rect.width
+            const bar = e.currentTarget.firstElementChild as HTMLElement
+            if (!bar) return
+            const rect = bar.getBoundingClientRect()
+            const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width))
             audioRef.current.currentTime = pct * duration
           }}>
-          <div className="h-1.5 bg-violet-400 rounded-full transition-all" style={{ width: duration ? `${(currentTime / duration) * 100}%` : '0%' }} />
+          <div className="h-2 bg-gray-200 rounded-full relative overflow-hidden">
+            <div className="h-full bg-violet-400 rounded-full transition-all" style={{ width: duration ? `${(currentTime / duration) * 100}%` : '0%' }} />
+          </div>
         </div>
         {/* Durée */}
         <span className="text-[11px] text-gray-400 font-mono flex-shrink-0">{fmt(currentTime)}/{fmt(duration)}</span>
