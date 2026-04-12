@@ -80,8 +80,8 @@ serve(async (req) => {
     }
 
     // ── 2. Mapper la disposition vers le call outcome ──
-    // "rdv" dans le frontend = "meeting_booked" en DB si meetingBooked est true
-    const callOutcome = meetingBooked ? 'meeting_booked' : (disposition || 'connected')
+    // meeting_booked est un boolean séparé, pas un outcome
+    const callOutcome = disposition || 'connected'
 
     const callData = {
       call_outcome: callOutcome,
@@ -109,19 +109,41 @@ serve(async (req) => {
       callId = newCall.id
     }
 
-    // ── 3. Mettre a jour le prospect avec la disposition du SDR ──
+    // ── 3. Mettre a jour le prospect — recomputer le meilleur outcome ──
     if (prospectId) {
+      const outcomePriority: Record<string, number> = {
+        'connected': 100, 'callback': 60, 'not_interested': 50,
+        'voicemail': 40, 'busy': 35, 'no_answer': 30,
+        'cancelled': 20, 'failed': 10, 'wrong_number': 5,
+      }
+
+      // Chercher tous les appels de ce prospect pour trouver le meilleur
+      const { data: allCalls } = await supabase
+        .from('calls')
+        .select('call_outcome, meeting_booked')
+        .eq('prospect_id', prospectId)
+
+      let bestOutcome = callOutcome
+      let bestPriority = outcomePriority[callOutcome] || 0
+      let anyMeeting = meetingBooked || false
+
+      if (allCalls) {
+        for (const c of allCalls) {
+          const p = outcomePriority[c.call_outcome || ''] || 0
+          if (p > bestPriority) {
+            bestPriority = p
+            bestOutcome = c.call_outcome || callOutcome
+          }
+          if (c.meeting_booked) anyMeeting = true
+        }
+      }
+
       const prospectUpdate: Record<string, unknown> = {
-        last_call_outcome: callOutcome,
+        last_call_outcome: bestOutcome,
+        meeting_booked: anyMeeting,
       }
 
-      // Si le SDR marque "wrong_number", on desactive le prospect
-      if (disposition === 'wrong_number') {
-        prospectUpdate.do_not_call = true
-      }
-
-      // Si le SDR marque "dnc" (Do Not Call)
-      if (disposition === 'dnc') {
+      if (disposition === 'wrong_number' || disposition === 'dnc') {
         prospectUpdate.do_not_call = true
       }
 
@@ -133,7 +155,7 @@ serve(async (req) => {
       if (prospectErr) {
         console.error('[save-call] Prospect update error:', prospectErr)
       } else {
-        console.log(`[save-call] Prospect ${prospectId} updated: outcome=${callOutcome}`)
+        console.log(`[save-call] Prospect ${prospectId} updated: bestOutcome=${bestOutcome}, meeting=${anyMeeting}`)
       }
     }
 

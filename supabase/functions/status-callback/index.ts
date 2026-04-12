@@ -65,7 +65,7 @@ serve(async (req) => {
     // Mapping Twilio → nos statuts (Minari exact)
     const outcomeMap: Record<string, string> = {
       'completed': duration > 0 ? 'connected' : 'no_answer', // completed sans duree = pas vraiment decroche
-      'busy': 'no_answer',
+      'busy': 'busy',
       'no-answer': 'no_answer',
       'canceled': 'cancelled',
       'failed': 'failed',
@@ -79,8 +79,8 @@ serve(async (req) => {
     if (answeredBy.startsWith('machine')) {
       outcome = 'voicemail'
     }
-    // Heuristique duree : < 8s = probablement repondeur qui a decroché (Minari rule)
-    else if (callStatus === 'completed' && duration > 0 && duration <= 8) {
+    // Heuristique duree : < 4s = probablement repondeur/rejet (process-analysis corrige les autres)
+    else if (callStatus === 'completed' && duration > 0 && duration <= 4) {
       outcome = 'voicemail'
     }
 
@@ -100,16 +100,15 @@ serve(async (req) => {
       // Priorite des statuts d'appel (du plus avance au moins avance)
       // Le statut ne redescend JAMAIS automatiquement — seul le commercial peut le changer
       const outcomePriority: Record<string, number> = {
-        'meeting_booked': 100,
-        'rdv': 100,
-        'connected': 80,
-        'callback': 70,
-        'not_interested': 60,
+        'connected': 100,
+        'callback': 60,
+        'not_interested': 50,
         'voicemail': 40,
-        'busy': 30,
-        'no_answer': 20,
-        'cancelled': 10,
-        'failed': 5,
+        'busy': 35,
+        'no_answer': 30,
+        'cancelled': 20,
+        'failed': 10,
+        'wrong_number': 5,
       }
 
       if (prospects && prospects.length > 0) {
@@ -138,7 +137,7 @@ serve(async (req) => {
           // Auto-avancer le CRM status si encore "new"
           let crmUpdate: Record<string, string> = {}
           if (p.crm_status === 'new' || p.crm_status === null) {
-            if (outcome === 'connected' || outcome === 'meeting_booked') {
+            if (outcome === 'connected') {
               crmUpdate = { crm_status: 'connected' }
             } else {
               crmUpdate = { crm_status: 'attempted_to_contact' }

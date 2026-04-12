@@ -21,6 +21,7 @@ export interface CallContext {
   disposition: Disposition | null
   notes: string
   meetingBooked: boolean
+  wasAnswered: boolean
   error: string | null
 }
 
@@ -33,6 +34,7 @@ const initialContext: CallContext = {
   disposition: null,
   notes: '',
   meetingBooked: false,
+  wasAnswered: false,
   error: null,
 }
 
@@ -70,6 +72,7 @@ export const callMachine = createMachine({
             disposition: null,
             notes: '',
             meetingBooked: false,
+            wasAnswered: false,
             error: null,
           }),
         },
@@ -86,6 +89,7 @@ export const callMachine = createMachine({
           actions: assign({
             startedAt: () => Date.now(),
             conferenceSid: ({ event }) => event.conferenceSid ?? null,
+            wasAnswered: true,
           }),
         },
         HANG_UP: {

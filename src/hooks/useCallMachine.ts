@@ -110,7 +110,7 @@ export function useCallMachine() {
         prospectName: state.context.prospect?.name ?? null,
         prospectPhone: state.context.prospect?.phone ?? null,
         duration: state.context.duration,
-        disposition: state.context.disposition || 'connected',
+        disposition: state.context.disposition || (state.context.wasAnswered ? 'connected' : 'no_answer'),
         notes: state.context.notes,
         meetingBooked: state.context.meetingBooked,
       }).then(() => {
@@ -183,7 +183,7 @@ export function useCallMachine() {
         prospectName: state.context.prospect?.name ?? null,
         prospectPhone: state.context.prospect?.phone ?? null,
         duration: state.context.duration,
-        disposition: state.context.disposition || 'connected',
+        disposition: state.context.disposition || (state.context.wasAnswered ? 'connected' : 'no_answer'),
         notes: state.context.notes,
         meetingBooked: state.context.meetingBooked,
       }).catch(err => console.error('[useCallMachine] Final save failed:', err))

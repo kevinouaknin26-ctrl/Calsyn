@@ -1,12 +1,13 @@
 export type Disposition =
   | 'connected'
-  | 'rdv'
   | 'callback'
   | 'not_interested'
   | 'no_answer'
   | 'voicemail'
   | 'busy'
   | 'wrong_number'
+  | 'failed'
+  | 'cancelled'
   | 'dnc'
 
 export type AnalysisStatus = 'pending' | 'processing' | 'completed' | 'error'

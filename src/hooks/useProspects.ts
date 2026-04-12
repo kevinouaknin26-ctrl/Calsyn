@@ -42,7 +42,7 @@ export function useProspects(listId: string | null) {
       if (!listId || !orgId) return []
       const { data, error } = await supabase
         .from('prospects')
-        .select('id, list_id, organisation_id, name, phone, phone2, phone3, phone4, phone5, email, company, title, sector, linkedin_url, website_url, status, crm_status, call_count, last_call_at, last_call_outcome, snoozed_until, do_not_call, address, city, postal_code, country, created_at')
+        .select('id, list_id, organisation_id, name, phone, phone2, phone3, phone4, phone5, email, company, title, sector, linkedin_url, website_url, status, crm_status, call_count, last_call_at, last_call_outcome, snoozed_until, do_not_call, meeting_booked, address, city, postal_code, country, created_at')
         .eq('list_id', listId)
         .order('created_at', { ascending: true })
       if (error) throw error

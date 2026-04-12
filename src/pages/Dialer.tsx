@@ -26,18 +26,22 @@ import type { Prospect } from '@/types/prospect'
 const CALL_STATUS_BADGE: Record<string, { bg: string; text: string; label: string; icon: string }> = {
   // Avant l'appel
   pending:          { bg: '#f3f4f6', text: '#6b7280', label: 'En attente', icon: 'group' },
-  // Contact decroche
+  // Contact décroché
   connected:        { bg: '#d1fae5', text: '#059669', label: 'Connecté', icon: 'phone' },
   meeting_booked:   { bg: '#ccfbf1', text: '#0d9488', label: 'RDV pris', icon: 'phone' },
-  // Contact ne repond pas
+  // Suivi commercial
+  callback:         { bg: '#e9d5ff', text: '#7c3aed', label: 'Rappel', icon: 'phone' },
+  not_interested:   { bg: '#f3f4f6', text: '#6b7280', label: 'Pas intéressé', icon: 'phone' },
+  // Contact ne répond pas
   no_answer:        { bg: '#f3f4f6', text: '#6b7280', label: 'Pas de reponse', icon: 'phone' },
   voicemail:        { bg: '#f3f4f6', text: '#6b7280', label: 'Messagerie', icon: 'voicemail' },
-  voicemail_left:   { bg: '#e0e7ff', text: '#4f46e5', label: 'Message depose', icon: 'voicemail' },
-  // Lies a l'appel
+  busy:             { bg: '#fef3c7', text: '#d97706', label: 'Occupé', icon: 'phone' },
+  voicemail_left:   { bg: '#e0e7ff', text: '#4f46e5', label: 'Message déposé', icon: 'voicemail' },
+  // Liés à l'appel
   cancelled:        { bg: '#f3f4f6', text: '#6b7280', label: 'Annulé', icon: 'phone' },
   failed:           { bg: '#fecaca', text: '#dc2626', label: 'Échoué', icon: 'phone' },
   missed:           { bg: '#fef3c7', text: '#d97706', label: 'Manqué', icon: 'phone' },
-  // Lies au numero
+  // Liés au numéro
   wrong_number:     { bg: '#fecaca', text: '#dc2626', label: 'Mauvais numéro', icon: 'phone' },
   invalid_number:   { bg: '#fecaca', text: '#dc2626', label: 'Numéro invalide', icon: 'phone' },
   country_mismatch: { bg: '#fecaca', text: '#dc2626', label: 'Indicatif incompatible', icon: 'phone' },
@@ -52,20 +56,19 @@ const CALL_STATUS_BADGE: Record<string, { bg: string; text: string; label: strin
   'in-progress':    { bg: '#d1fae5', text: '#059669', label: 'En cours', icon: 'phone' },
 }
 
-/** Mappe le last_call_outcome vers un badge CALL STATUS Minari */
+/** Mappe le prospect vers un badge CALL STATUS — priorité Minari-exact */
 function getCallStatusKey(prospect: Prospect): string {
   if (prospect.snoozed_until && new Date(prospect.snoozed_until) > new Date()) return 'snoozed'
   if (prospect.do_not_call) return 'disabled'
   if (prospect.call_count === 0) return 'pending'
+  // meeting_booked = modificateur sur connected
+  if ((prospect as any).meeting_booked && (prospect.last_call_outcome === 'connected' || !prospect.last_call_outcome)) return 'meeting_booked'
   const o = prospect.last_call_outcome
   if (!o) return 'no_answer'
-  // Mapping direct si le statut existe dans nos badges
+  // Mapping direct — plus d'alias lossy
   if (o in CALL_STATUS_BADGE) return o
-  // Aliases
+  // Legacy migration
   if (o === 'rdv') return 'meeting_booked'
-  if (o === 'busy') return 'no_answer'
-  if (o === 'not_interested') return 'connected'
-  if (o === 'callback') return 'connected'
   if (o === 'dnc') return 'disabled'
   return 'no_answer'
 }
@@ -542,10 +545,10 @@ export default function Dialer() {
   }, [cm.isConnected, cm.context.prospect, selectedProspect])
 
   const isInCall = cm.isDialing || cm.isConnected
-  const connected = prospects?.filter(p => p.last_call_outcome === 'connected' || p.last_call_outcome === 'rdv').length || 0
+  const meetings = prospects?.filter(p => (p as any).meeting_booked).length || 0
+  const connected = prospects?.filter(p => p.last_call_outcome === 'connected' && !(p as any).meeting_booked).length || 0
   const attempted = prospects?.filter(p => p.call_count > 0).length || 0
   const pending = prospects?.filter(p => p.call_count === 0).length || 0
-  const meetings = prospects?.filter(p => p.last_call_outcome === 'meeting_booked' || p.last_call_outcome === 'rdv').length || 0
   const activeList = lists?.find(l => l.id === activeListId)
 
   const filtered = prospects
@@ -777,7 +780,7 @@ export default function Dialer() {
               <div className="absolute top-8 left-0 bg-white dark:bg-[#ede6f3] rounded-xl shadow-lg border border-gray-200 dark:border-[#d4cade] z-50 py-2 w-48 animate-slide-down">
                 <button onClick={() => { setFilterStatus(null); setShowFilters(false) }}
                   className={`w-full text-left px-3 py-1.5 text-[12px] hover:bg-gray-50 ${!filterStatus ? 'text-indigo-600 font-medium' : 'text-gray-600'}`}>Tous les statuts</button>
-                {['pending', 'connected', 'meeting_booked', 'no_answer', 'voicemail', 'cancelled', 'failed', 'snoozed', 'disabled'].map(s => {
+                {['pending', 'connected', 'meeting_booked', 'callback', 'not_interested', 'no_answer', 'voicemail', 'busy', 'cancelled', 'failed', 'snoozed', 'disabled'].map(s => {
                   const badge = CALL_STATUS_BADGE[s]
                   if (!badge) return null
                   return (

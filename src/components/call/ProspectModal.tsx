@@ -55,7 +55,7 @@ function formatDate(dateStr: string): string {
 }
 
 const DISPOSITIONS: Array<{ value: Disposition; label: string }> = [
-  { value: 'connected', label: 'Connecté' }, { value: 'rdv', label: 'RDV pris' },
+  { value: 'connected', label: 'Connecté' },
   { value: 'callback', label: 'Rappel' }, { value: 'not_interested', label: 'Pas intéressé' },
   { value: 'no_answer', label: 'Pas de réponse' }, { value: 'voicemail', label: 'Messagerie' },
   { value: 'busy', label: 'Occupé' }, { value: 'wrong_number', label: 'Mauvais numéro' },
@@ -116,15 +116,23 @@ function Celebration() {
 
 // ── Badge outcome ───────────────────────────────────────────────
 function OutcomeBadge({ outcome, meeting }: { outcome: string | null; meeting: boolean }) {
-  if (meeting) return <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-indigo-100 text-indigo-600">RDV pris</span>
-  const map: Record<string, string> = {
-    connected: 'bg-violet-100 text-violet-600', rdv: 'bg-indigo-100 text-indigo-600',
-    voicemail: 'bg-orange-100 text-orange-500', cancelled: 'bg-gray-100 text-gray-500',
-    no_answer: 'bg-gray-100 text-gray-500', failed: 'bg-red-100 text-red-500',
-    meeting_booked: 'bg-indigo-100 text-indigo-600',
+  // meeting_booked + connected = "RDV pris" (teal, Minari exact)
+  if (meeting && (outcome === 'connected' || outcome === 'meeting_booked' || outcome === 'rdv' || !outcome)) {
+    return <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-teal-100 text-teal-600">RDV pris</span>
   }
-  const label = DISPOSITIONS.find(d => d.value === outcome)?.label || outcome || 'Connecté'
-  return <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-semibold ${map[outcome || ''] || 'bg-violet-100 text-violet-600'}`}>{label}</span>
+  const map: Record<string, string> = {
+    connected: 'bg-emerald-100 text-emerald-600',
+    callback: 'bg-violet-100 text-violet-600',
+    not_interested: 'bg-gray-100 text-gray-500',
+    voicemail: 'bg-orange-100 text-orange-500',
+    busy: 'bg-yellow-100 text-yellow-600',
+    no_answer: 'bg-gray-100 text-gray-500',
+    cancelled: 'bg-gray-100 text-gray-500',
+    failed: 'bg-red-100 text-red-500',
+    wrong_number: 'bg-red-100 text-red-500',
+  }
+  const label = DISPOSITIONS.find(d => d.value === outcome)?.label || outcome || 'Pas de réponse'
+  return <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-semibold ${map[outcome || ''] || 'bg-gray-100 text-gray-500'}`}>{label}</span>
 }
 
 // ── Player audio custom (Minari exact — ▶ barre + durée + download + vitesse) ──
@@ -234,11 +242,17 @@ function CallCard({ call, defaultOpen, onUpdate, onCelebrate }: { call: Call; de
           <div className="flex items-center gap-5 mb-3">
             <div>
               <p className="text-[11px] text-gray-400 mb-1">Résultat</p>
-              <select value={call.call_outcome || 'connected'}
+              <select value={call.call_outcome || 'no_answer'}
                 onChange={async e => {
-                  await supabase.from('calls').update({ call_outcome: e.target.value }).eq('id', call.id)
+                  const newOutcome = e.target.value
+                  await supabase.from('calls').update({ call_outcome: newOutcome }).eq('id', call.id)
                   if (call.prospect_id) {
-                    await supabase.from('prospects').update({ last_call_outcome: e.target.value }).eq('id', call.prospect_id)
+                    // Recomputer le meilleur outcome parmi tous les appels du prospect
+                    const { data: allCalls } = await supabase.from('calls').select('call_outcome').eq('prospect_id', call.prospect_id)
+                    const priority: Record<string, number> = { connected: 100, callback: 60, not_interested: 50, voicemail: 40, busy: 35, no_answer: 30, cancelled: 20, failed: 10, wrong_number: 5 }
+                    let best = newOutcome, bestP = priority[newOutcome] || 0
+                    for (const c of (allCalls || [])) { const p = priority[c.call_outcome || ''] || 0; if (p > bestP) { bestP = p; best = c.call_outcome || newOutcome } }
+                    await supabase.from('prospects').update({ last_call_outcome: best }).eq('id', call.prospect_id)
                   }
                   onUpdate()
                 }}
@@ -250,9 +264,14 @@ function CallCard({ call, defaultOpen, onUpdate, onCelebrate }: { call: Call; de
               <input type="checkbox" checked={call.meeting_booked}
                 onChange={async e => {
                   const checked = e.target.checked
-                  await supabase.from('calls').update({ meeting_booked: checked, call_outcome: checked ? 'meeting_booked' : 'connected' }).eq('id', call.id)
+                  // meeting_booked est un boolean séparé — ne change PAS le call_outcome
+                  const updates: Record<string, unknown> = { meeting_booked: checked }
+                  if (checked && call.call_outcome !== 'connected') {
+                    updates.call_outcome = 'connected' // meeting implique connected
+                  }
+                  await supabase.from('calls').update(updates).eq('id', call.id)
                   if (call.prospect_id) {
-                    await supabase.from('prospects').update({ last_call_outcome: checked ? 'meeting_booked' : 'connected' }).eq('id', call.prospect_id)
+                    await supabase.from('prospects').update({ meeting_booked: checked }).eq('id', call.prospect_id)
                   }
                   if (checked) onCelebrate()
                   onUpdate()
@@ -532,7 +551,13 @@ export default function ProspectModal({
 
   const handleMeetingToggle = (checked: boolean) => {
     onSetMeeting(checked)
-    if (checked) { setShowCelebration(true); setTimeout(() => setShowCelebration(false), 2500) }
+    if (checked) {
+      // Meeting implique connected
+      onSetDisposition('connected')
+      setShowCelebration(true)
+      setTimeout(() => setShowCelebration(false), 2500)
+    }
+    // Décocher ne change PAS la disposition
   }
 
   async function handleSnooze(days: number) {
@@ -803,7 +828,7 @@ export default function ProspectModal({
                   <div className="flex items-center gap-2 mb-4">
                     <svg className="w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" /></svg>
                     <span className="text-[13px] text-gray-600">Appel sortant</span>
-                    <OutcomeBadge outcome={callContext?.disposition || 'connected'} meeting={callContext?.meetingBooked || false} />
+                    <OutcomeBadge outcome={callContext?.disposition || (callContext?.wasAnswered ? 'connected' : 'no_answer')} meeting={callContext?.meetingBooked || false} />
                     <span className="ml-auto text-[12px] text-gray-400">{new Date().toLocaleDateString('fr-FR')} {new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>
                   </div>
 
@@ -811,7 +836,7 @@ export default function ProspectModal({
                   <div className="flex items-center gap-6 mb-4">
                     <div>
                       <p className="text-[11px] text-gray-400 mb-1">Résultat</p>
-                      <select value={callContext?.disposition || 'connected'} onChange={e => onSetDisposition(e.target.value as Disposition)}
+                      <select value={callContext?.disposition || (callContext?.wasAnswered ? 'connected' : 'no_answer')} onChange={e => onSetDisposition(e.target.value as Disposition)}
                         className="text-[13px] text-gray-700 border border-gray-200 rounded-lg px-2 py-1 outline-none bg-white cursor-pointer">
                         {DISPOSITIONS.map(d => <option key={d.value} value={d.value}>{d.label}</option>)}
                       </select>

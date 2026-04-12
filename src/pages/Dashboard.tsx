@@ -20,8 +20,8 @@ export default function Dashboard() {
   useRealtimeCalls()
 
   const total = calls?.length || 0
-  const connected = calls?.filter(c => c.call_outcome === 'connected' || c.call_outcome === 'rdv').length || 0
-  const rdv = calls?.filter(c => c.call_outcome === 'rdv' || c.meeting_booked).length || 0
+  const connected = calls?.filter(c => c.call_outcome === 'connected').length || 0
+  const rdv = calls?.filter(c => c.meeting_booked).length || 0
   const avgScore = calls?.filter(c => c.ai_score_global).reduce((sum, c) => sum + (c.ai_score_global || 0), 0) || 0
   const scoredCount = calls?.filter(c => c.ai_score_global).length || 0
   const avgScoreDisplay = scoredCount > 0 ? Math.round(avgScore / scoredCount) : '—'

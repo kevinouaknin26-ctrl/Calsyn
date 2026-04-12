@@ -160,14 +160,18 @@ serve(async (req) => {
       .single()
 
     // Skip transcription si durée < 20 secondes (Minari rule)
+    // Mais corriger le statut si marqué "connected" — c'est probablement un rejet/messagerie
     if (call && call.call_duration < 20) {
-      await supabase.from('analysis_jobs').update({
-        status: 'completed',
-      }).eq('id', job.id)
+      if (call.call_duration > 0) {
+        const { data: callCheck } = await supabase.from('calls').select('call_outcome, prospect_id').eq('id', job.call_id).single()
+        if (callCheck?.call_outcome === 'connected') {
+          console.log(`[process-analysis] Correcting short call ${job.call_id} (${call.call_duration}s) from connected → voicemail`)
+          await supabase.from('calls').update({ call_outcome: 'voicemail' }).eq('id', job.call_id)
+        }
+      }
 
-      await supabase.from('calls').update({
-        ai_analysis_status: 'completed',
-      }).eq('id', job.call_id)
+      await supabase.from('analysis_jobs').update({ status: 'completed' }).eq('id', job.id)
+      await supabase.from('calls').update({ ai_analysis_status: 'completed' }).eq('id', job.call_id)
 
       console.log(`[process-analysis] Skipped: call ${job.call_id} duration ${call.call_duration}s < 20s`)
       return new Response(JSON.stringify({ ok: true, skipped: 'duration < 20s' }), {
