@@ -62,7 +62,7 @@ function getCallStatusKey(prospect: Prospect): string {
   if (prospect.do_not_call) return 'disabled'
   if (prospect.call_count === 0) return 'pending'
   // meeting_booked = modificateur sur connected
-  if ((prospect as any).meeting_booked && (prospect.last_call_outcome === 'connected' || !prospect.last_call_outcome)) return 'meeting_booked'
+  if (prospect.meeting_booked && (prospect.last_call_outcome === 'connected' || !prospect.last_call_outcome)) return 'meeting_booked'
   const o = prospect.last_call_outcome
   if (!o) return 'no_answer'
   // Mapping direct — plus d'alias lossy
@@ -545,8 +545,8 @@ export default function Dialer() {
   }, [cm.isConnected, cm.context.prospect, selectedProspect])
 
   const isInCall = cm.isDialing || cm.isConnected
-  const meetings = prospects?.filter(p => (p as any).meeting_booked).length || 0
-  const connected = prospects?.filter(p => p.last_call_outcome === 'connected' && !(p as any).meeting_booked).length || 0
+  const meetings = prospects?.filter(p => p.meeting_booked).length || 0
+  const connected = prospects?.filter(p => p.last_call_outcome === 'connected' && !p.meeting_booked).length || 0
   const attempted = prospects?.filter(p => p.call_count > 0).length || 0
   const pending = prospects?.filter(p => p.call_count === 0).length || 0
   const activeList = lists?.find(l => l.id === activeListId)

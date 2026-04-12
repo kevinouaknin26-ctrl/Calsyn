@@ -186,9 +186,10 @@ export function useCallMachine() {
     // Ici on fait juste un re-save pour capturer les derniers changements de disposition/notes
     // AVANT de reset vers idle (le useEffect ne se re-declenchera pas car isDisconnectedState est deja true).
     if (state.matches('disconnected')) {
+      // Mêmes règles que l'autosave (Minari rule : < 8s = voicemail)
       const dur = state.context.duration || 0
       const defaultOutcome = state.context.wasAnswered
-        ? (dur >= 5 ? 'connected' : 'no_answer')
+        ? (dur >= 8 ? 'connected' : 'voicemail')
         : 'no_answer'
       saveCallDisposition({
         callSid: state.context.callSid,

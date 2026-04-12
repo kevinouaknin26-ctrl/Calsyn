@@ -45,14 +45,13 @@ serve(async (req) => {
       })
     }
 
-    // ── Filtrer les doublons de conference ──
-    // En mode conference, Twilio fire un callback pour chaque leg :
-    // - Leg SDR (inbound) : le commercial qui rejoint la conference
-    // - Leg prospect (outbound-api/outbound-dial) : l'appel vers le prospect
-    // On ne garde que le leg prospect pour eviter les doublons dans la DB.
-    if (direction === 'inbound' && conferenceSid) {
-      console.log(`[status-callback] Skipping inbound leg ${callSid} (SDR leg of conference ${conferenceSid})`)
-      return new Response(JSON.stringify({ ok: true, skipped: 'inbound-leg' }), {
+    // ── Filtrer les doublons ──
+    // Le SDK browser crée un appel "inbound" (browser → Twilio).
+    // Le TwiML <Dial><Number> crée un child "outbound-dial" (Twilio → prospect).
+    // On ne garde QUE le child (le vrai appel vers le prospect).
+    if (direction === 'inbound') {
+      console.log(`[status-callback] Skipping inbound/SDR leg ${callSid}`)
+      return new Response(JSON.stringify({ ok: true, skipped: 'sdr-leg' }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
     }
@@ -63,25 +62,23 @@ serve(async (req) => {
     )
 
     // Mapping Twilio → nos statuts (Minari exact)
-    const outcomeMap: Record<string, string> = {
-      'completed': duration > 0 ? 'connected' : 'no_answer', // completed sans duree = pas vraiment decroche
-      'busy': 'busy',
-      'no-answer': 'no_answer',
-      'canceled': 'cancelled',
-      'failed': 'failed',
-    }
-
-    // Detection voicemail : Twilio AnsweredBy OU duree courte
     const answeredBy = params.AnsweredBy || ''
-    let outcome = outcomeMap[callStatus] || 'no_answer'
+    let outcome = 'no_answer'
 
-    // AMD Twilio : si Twilio detecte une machine
     if (answeredBy.startsWith('machine')) {
       outcome = 'voicemail'
-    }
-    // Heuristique duree : < 4s = probablement repondeur/rejet (process-analysis corrige les autres)
-    else if (callStatus === 'completed' && duration > 0 && duration <= 4) {
-      outcome = 'voicemail'
+    } else if (callStatus === 'completed' && duration >= 8) {
+      outcome = 'connected' // Vrai appel (> 8s = humain confirmé)
+    } else if (callStatus === 'completed' && duration > 0 && duration < 8) {
+      outcome = 'voicemail' // Minari rule : < 8s = messagerie/rejet auto
+    } else if (callStatus === 'completed' && duration === 0) {
+      outcome = 'no_answer'
+    } else if (callStatus === 'busy') {
+      outcome = 'busy'
+    } else if (callStatus === 'canceled') {
+      outcome = 'cancelled'
+    } else if (callStatus === 'failed') {
+      outcome = 'failed'
     }
 
     // ── 1. Chercher le prospect par numero ──

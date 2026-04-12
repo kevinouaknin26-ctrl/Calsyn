@@ -46,6 +46,7 @@ export interface Prospect {
   last_call_outcome: string | null
   snoozed_until: string | null
   do_not_call: boolean
+  meeting_booked: boolean
   address: string | null
   city: string | null
   postal_code: string | null
