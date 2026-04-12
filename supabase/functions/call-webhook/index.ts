@@ -37,14 +37,37 @@ serve(async (req) => {
     const to = params.To || ''
     const from = params.From || params.Caller || ''
 
+    // Mode conférence : si un paramètre 'conference' est passé, le prospect rejoint la conférence
+    const url = new URL(req.url)
+    const conferenceName = url.searchParams.get('conference') || params.conference || ''
+
+    if (conferenceName) {
+      // Mode AMD : le prospect rejoint la conférence (l'appel a été créé par initiate-call)
+      const twiml = `<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Dial>
+    <Conference beep="false"
+      startConferenceOnEnter="true"
+      endConferenceOnExit="false"
+      record="record-from-start"
+      recordingStatusCallback="${SUPABASE_URL}/functions/v1/recording-callback"
+      recordingStatusCallbackMethod="POST"
+      statusCallback="${SUPABASE_URL}/functions/v1/status-callback"
+      statusCallbackEvent="start end join leave">
+      ${conferenceName}
+    </Conference>
+  </Dial>
+</Response>`
+      return new Response(twiml, { headers: { 'Content-Type': 'text/xml' } })
+    }
+
+    // Mode legacy : Dial direct (SDR appelle via device.connect sans AMD)
     if (!to) {
       return new Response(`<?xml version="1.0" encoding="UTF-8"?><Response><Say>No destination number</Say></Response>`, {
         headers: { 'Content-Type': 'text/xml' },
       })
     }
 
-    // Mono-line : Dial direct avec recording
-    // AMD est gere par process-analysis (detection messagerie par transcription)
     const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   <Dial callerId="${from}"

@@ -44,6 +44,17 @@ export async function fetchVoiceToken(): Promise<string> {
   return data.token
 }
 
+/** Initier un appel avec AMD (côté serveur via API REST Twilio) */
+export async function initiateCallWithAMD(params: {
+  to: string
+  from: string
+  prospectId: string | null
+  prospectName: string | null
+  conferenceName: string
+}): Promise<{ ok: boolean; callSid: string; conferenceName: string }> {
+  return callEdgeFunction('initiate-call', params)
+}
+
 /** Sauvegarder la disposition d'un appel */
 export async function saveCallDisposition(params: {
   callSid: string | null

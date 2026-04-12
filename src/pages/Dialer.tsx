@@ -537,19 +537,44 @@ export default function Dialer() {
     }
   }, [cm])
 
-  // Ouvrir le modal automatiquement quand le prospect DECROCHE (Minari exact)
-  // Délai 3s pour filtrer les rejets/messageries (Twilio fire accept même pour 1-2s)
+  // Ouvrir le modal automatiquement quand AMD détecte un HUMAIN
+  // Écoute Supabase Realtime sur le call pour le résultat AMD
   useEffect(() => {
-    if (cm.isConnected && cm.context.prospect && !selectedProspect) {
-      const timer = setTimeout(() => {
-        // Vérifier qu'on est toujours connecté après 3s (pas un rejet rapide)
-        if (cm.isConnected) {
+    if (!cm.isConnected || !cm.context.callSid || selectedProspect) return
+
+    // Écouter les updates sur ce call spécifique
+    const channel = supabase
+      .channel(`amd-${cm.context.callSid}`)
+      .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'calls',
+        filter: `call_sid=eq.${cm.context.callSid}`,
+      }, (payload: any) => {
+        const amdResult = payload.new?.amd_result
+        if (amdResult === 'human' && cm.context.prospect) {
+          console.log('[Dialer] AMD: human detected → opening modal')
           setSelectedProspect(cm.context.prospect)
+        } else if (amdResult === 'machine') {
+          console.log('[Dialer] AMD: machine detected → skipping modal')
+          // Ne pas ouvrir la popup — la messagerie sera gérée par le flow normal
         }
-      }, 3000)
-      return () => clearTimeout(timer)
+      })
+      .subscribe()
+
+    // Fallback : si pas de résultat AMD après 5s, ouvrir quand même (AMD timeout)
+    const fallback = setTimeout(() => {
+      if (cm.isConnected && cm.context.prospect && !selectedProspect) {
+        console.log('[Dialer] AMD fallback: no result after 5s → opening modal')
+        setSelectedProspect(cm.context.prospect)
+      }
+    }, 5000)
+
+    return () => {
+      supabase.removeChannel(channel)
+      clearTimeout(fallback)
     }
-  }, [cm.isConnected, cm.context.prospect, selectedProspect])
+  }, [cm.isConnected, cm.context.callSid, cm.context.prospect, selectedProspect])
 
   const isInCall = cm.isDialing || cm.isConnected
   const meetings = prospects?.filter(p => (p as any).meeting_booked).length || 0

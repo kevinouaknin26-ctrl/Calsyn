@@ -10,7 +10,7 @@ import { useMachine } from '@xstate/react'
 import { useEffect, useRef, useCallback, useState } from 'react'
 import { callMachine } from '@/machines/callMachine'
 import { createProvider, type CallProvider, type CallSession, type AudioSample } from '@/services/providers'
-import { fetchVoiceToken, saveCallDisposition } from '@/services/api'
+import { fetchVoiceToken, saveCallDisposition, initiateCallWithAMD } from '@/services/api'
 import { useAuth } from '@/hooks/useAuth'
 import { MOS_ALERT_THRESHOLD } from '@/config/constants'
 import type { Prospect } from '@/types/prospect'
@@ -140,24 +140,43 @@ export function useCallMachine() {
       return
     }
 
-    // Numero de l'appelant depuis l'organisation (pas hardcode)
     const fromNumber = organisation?.from_number || '+33159580189'
     console.log(`[useCallMachine] Calling ${prospect.name} from ${fromNumber}`)
     send({ type: 'CALL', prospect })
 
-    const conferenceId = crypto.randomUUID()
-    const session = await provider.connect({
-      to: prospect.phone,
-      from: fromNumber,
-      conferenceId,
-    })
+    const conferenceName = `callio_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
 
-    if (session) {
-      sessionRef.current = session
-    } else {
-      send({ type: 'ERROR', message: 'Failed to connect' })
+    try {
+      // 1. Initier l'appel prospect côté serveur (avec AMD)
+      const result = await initiateCallWithAMD({
+        to: prospect.phone,
+        from: fromNumber,
+        prospectId: prospect.id,
+        prospectName: prospect.name,
+        conferenceName,
+      })
+
+      console.log(`[useCallMachine] Prospect call initiated: ${result.callSid}, conference: ${conferenceName}`)
+
+      // 2. Connecter le SDR à la même conférence via device.connect()
+      const session = await provider.connect({
+        to: prospect.phone,
+        from: fromNumber,
+        conferenceId: conferenceName,
+      })
+
+      if (session) {
+        sessionRef.current = session
+        // Stocker le callSid du prospect (pas celui du SDR)
+        send({ type: 'RINGING', callSid: result.callSid })
+      } else {
+        send({ type: 'ERROR', message: 'Failed to connect SDR to conference' })
+      }
+    } catch (err) {
+      console.error('[useCallMachine] initiate-call failed:', err)
+      send({ type: 'ERROR', message: (err as Error).message })
     }
-  }, [send])
+  }, [send, organisation])
 
   const hangup = useCallback(() => {
     // Capturer le callSid avant de deconnecter
