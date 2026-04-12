@@ -37,9 +37,11 @@ serve(async (req) => {
     const to = params.To || ''
     const from = params.From || params.Caller || ''
 
-    // Mode conférence : si un paramètre 'conference' est passé, le prospect rejoint la conférence
+    // Mode conférence : si un paramètre 'conference' ou 'ConferenceId' est passé
+    // - Depuis initiate-call (prospect) : ?conference=name dans l'URL
+    // - Depuis device.connect (SDR) : ConferenceId dans le body params
     const url = new URL(req.url)
-    const conferenceName = url.searchParams.get('conference') || params.conference || ''
+    const conferenceName = url.searchParams.get('conference') || params.conference || params.ConferenceId || ''
 
     if (conferenceName) {
       // Mode AMD : le prospect rejoint la conférence (l'appel a été créé par initiate-call)
