@@ -48,7 +48,7 @@ serve(async (req) => {
   <Dial>
     <Conference beep="false"
       startConferenceOnEnter="true"
-      endConferenceOnExit="false"
+      endConferenceOnExit="true"
       record="record-from-start"
       recordingStatusCallback="${SUPABASE_URL}/functions/v1/recording-callback"
       recordingStatusCallbackMethod="POST"

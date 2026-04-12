@@ -17,6 +17,7 @@ import SelectListPage from '@/components/dialer/SelectListPage'
 import ProspectModal from '@/components/call/ProspectModal'
 import { useRealtimeProspects } from '@/hooks/useRealtime'
 import { useDialingSession } from '@/hooks/useDialingSession'
+import { callEdgeFunction } from '@/services/api'
 import type { Prospect } from '@/types/prospect'
 
 // ── Call status badges (Minari exact) ──────────────────────────────
@@ -537,12 +538,11 @@ export default function Dialer() {
     }
   }, [cm])
 
-  // Ouvrir le modal automatiquement quand AMD détecte un HUMAIN
-  // Écoute Supabase Realtime sur le call pour le résultat AMD
+  // Écouter le résultat AMD via Supabase Realtime
+  // Le SDR n'est PAS encore dans la conférence — il attend le signal AMD
   useEffect(() => {
-    if (!cm.isConnected || !cm.context.callSid || selectedProspect) return
+    if (!cm.isDialing || !cm.context.callSid || selectedProspect) return
 
-    // Écouter les updates sur ce call spécifique
     const channel = supabase
       .channel(`amd-${cm.context.callSid}`)
       .on('postgres_changes', {
@@ -552,29 +552,47 @@ export default function Dialer() {
         filter: `call_sid=eq.${cm.context.callSid}`,
       }, (payload: any) => {
         const amdResult = payload.new?.amd_result
-        if (amdResult === 'human' && cm.context.prospect) {
-          console.log('[Dialer] AMD: human detected → opening modal')
-          setSelectedProspect(cm.context.prospect)
+        const callOutcome = payload.new?.call_outcome
+
+        if (amdResult === 'human') {
+          console.log('[Dialer] AMD: HUMAN → bridging SDR + opening modal')
+          cm.bridgeToConference()
+          if (cm.context.prospect) setSelectedProspect(cm.context.prospect)
         } else if (amdResult === 'machine') {
-          console.log('[Dialer] AMD: machine detected → skipping modal')
-          // Ne pas ouvrir la popup — la messagerie sera gérée par le flow normal
+          console.log('[Dialer] AMD: MACHINE → killing call, no bridge')
+          // Kill l'appel prospect — le SDR n'entend rien
+          callEdgeFunction('end-call', { callSid: cm.context.callSid }).catch(() => {})
+          cm.hangup()
+          setTimeout(() => cm.reset(), 300)
+          // Invalider pour refresh le statut dans la table
+          queryClient.invalidateQueries({ queryKey: ['prospects'] })
+        }
+
+        // Si l'appel se termine (no_answer, busy, etc.) sans AMD
+        if (callOutcome && ['no_answer', 'busy', 'cancelled', 'failed'].includes(callOutcome) && !amdResult) {
+          console.log('[Dialer] Call ended without AMD result → reset')
+          cm.hangup()
+          setTimeout(() => cm.reset(), 300)
+          queryClient.invalidateQueries({ queryKey: ['prospects'] })
         }
       })
       .subscribe()
 
-    // Fallback : si pas de résultat AMD après 5s, ouvrir quand même (AMD timeout)
+    // Fallback 30s : si ni AMD ni call end → timeout (l'appel sonne trop longtemps)
     const fallback = setTimeout(() => {
-      if (cm.isConnected && cm.context.prospect && !selectedProspect) {
-        console.log('[Dialer] AMD fallback: no result after 5s → opening modal')
-        setSelectedProspect(cm.context.prospect)
+      if (cm.isDialing && !selectedProspect) {
+        console.log('[Dialer] AMD timeout 30s → killing call')
+        callEdgeFunction('end-call', { callSid: cm.context.callSid }).catch(() => {})
+        cm.hangup()
+        setTimeout(() => cm.reset(), 300)
       }
-    }, 5000)
+    }, 30000)
 
     return () => {
       supabase.removeChannel(channel)
       clearTimeout(fallback)
     }
-  }, [cm.isConnected, cm.context.callSid, cm.context.prospect, selectedProspect])
+  }, [cm.isDialing, cm.context.callSid, selectedProspect])
 
   const isInCall = cm.isDialing || cm.isConnected
   const meetings = prospects?.filter(p => (p as any).meeting_booked).length || 0

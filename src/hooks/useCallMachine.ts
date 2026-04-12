@@ -133,6 +133,9 @@ export function useCallMachine() {
 
   // ── Actions ───────────────────────────────────────────────────────
 
+  // Stocker le nom de conférence pour pouvoir bridger le SDR après AMD
+  const pendingConferenceRef = useRef<{ conferenceName: string; prospect: Prospect; fromNumber: string } | null>(null)
+
   const call = useCallback(async (prospect: Prospect) => {
     const provider = providerRef.current
     if (!provider?.isReady) {
@@ -148,6 +151,7 @@ export function useCallMachine() {
 
     try {
       // 1. Initier l'appel prospect côté serveur (avec AMD)
+      // Le SDR ne rejoint PAS encore la conférence — il attend le résultat AMD
       const result = await initiateCallWithAMD({
         to: prospect.phone,
         from: fromNumber,
@@ -158,34 +162,49 @@ export function useCallMachine() {
 
       console.log(`[useCallMachine] Prospect call initiated: ${result.callSid}, conference: ${conferenceName}`)
 
-      // 2. Connecter le SDR à la même conférence via device.connect()
-      const session = await provider.connect({
-        to: prospect.phone,
-        from: fromNumber,
-        conferenceId: conferenceName,
-      })
+      // Stocker le callSid et la conférence pour le bridge futur
+      send({ type: 'RINGING', callSid: result.callSid })
+      pendingConferenceRef.current = { conferenceName, prospect, fromNumber }
 
-      if (session) {
-        sessionRef.current = session
-        // Stocker le callSid du prospect (pas celui du SDR)
-        send({ type: 'RINGING', callSid: result.callSid })
-      } else {
-        send({ type: 'ERROR', message: 'Failed to connect SDR to conference' })
-      }
+      // Le SDR sera bridgé quand l'AMD confirme "human" (via bridgeToConference)
+
     } catch (err) {
       console.error('[useCallMachine] initiate-call failed:', err)
       send({ type: 'ERROR', message: (err as Error).message })
     }
   }, [send, organisation])
 
+  /** Bridge le SDR dans la conférence — appelé quand AMD confirme human */
+  const bridgeToConference = useCallback(async () => {
+    const provider = providerRef.current
+    const pending = pendingConferenceRef.current
+    if (!provider?.isReady || !pending) return
+
+    console.log(`[useCallMachine] AMD confirmed human — bridging SDR to ${pending.conferenceName}`)
+
+    const session = await provider.connect({
+      to: pending.prospect.phone,
+      from: pending.fromNumber,
+      conferenceId: pending.conferenceName,
+    })
+
+    if (session) {
+      sessionRef.current = session
+      send({ type: 'ANSWERED' })
+    } else {
+      send({ type: 'ERROR', message: 'Failed to bridge SDR to conference' })
+    }
+    pendingConferenceRef.current = null
+  }, [send])
+
   const hangup = useCallback(() => {
-    // Capturer le callSid du prospect avant de déconnecter
     const prospectCallSid = state.context.callSid
     providerRef.current?.disconnectAll()
     sessionRef.current = null
+    pendingConferenceRef.current = null
     send({ type: 'HANG_UP' })
 
-    // Terminer l'appel prospect côté serveur (sinon il continue vers la messagerie)
+    // Terminer l'appel prospect côté serveur
     if (prospectCallSid) {
       callEdgeFunction('end-call', { callSid: prospectCallSid }).catch(err => {
         console.error('[useCallMachine] end-call failed:', err)
@@ -247,6 +266,7 @@ export function useCallMachine() {
     // Actions
     call,
     hangup,
+    bridgeToConference,
     mute,
     unmute,
     setDisposition,
