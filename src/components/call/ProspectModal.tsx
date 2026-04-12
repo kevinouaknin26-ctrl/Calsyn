@@ -449,6 +449,11 @@ export default function ProspectModal({
     queryClient.invalidateQueries({ queryKey: ['prospects'] })
   }
 
+  // Téléphones supplémentaires : afficher seulement si remplis ou si l'utilisateur clique "Ajouter"
+  const filledPhones = [prospect.phone2, prospect.phone3, prospect.phone4, prospect.phone5].filter(Boolean).length
+  const [showExtraPhone, setShowExtraPhone] = useState(filledPhones + 2) // +2 car phone1 est toujours visible
+  const nextEmptyPhone = !prospect.phone2 ? 2 : !prospect.phone3 ? 3 : !prospect.phone4 ? 4 : !prospect.phone5 ? 5 : 6
+
   const callsDisabled = localDoNotCall
   const isSnoozed = localSnoozedUntil && new Date(localSnoozedUntil) > new Date()
 
@@ -606,10 +611,19 @@ export default function ProspectModal({
                 </select>
               </div>
               <EditableField label="Téléphone" value={prospect.phone} prospectId={prospect.id} field="phone" copyable mono />
-              <EditableField label="Téléphone 2" value={prospect.phone2 || ''} prospectId={prospect.id} field="phone2" copyable mono />
-              <EditableField label="Téléphone 3" value={prospect.phone3 || ''} prospectId={prospect.id} field="phone3" mono />
-              <EditableField label="Téléphone 4" value={prospect.phone4 || ''} prospectId={prospect.id} field="phone4" mono />
-              <EditableField label="Téléphone 5" value={prospect.phone5 || ''} prospectId={prospect.id} field="phone5" mono />
+              {/* Téléphones 2-5 : afficher seulement si remplis + bouton ajouter */}
+              {(prospect.phone2 || showExtraPhone >= 2) && <EditableField label="Téléphone 2" value={prospect.phone2 || ''} prospectId={prospect.id} field="phone2" copyable mono />}
+              {(prospect.phone3 || showExtraPhone >= 3) && <EditableField label="Téléphone 3" value={prospect.phone3 || ''} prospectId={prospect.id} field="phone3" mono />}
+              {(prospect.phone4 || showExtraPhone >= 4) && <EditableField label="Téléphone 4" value={prospect.phone4 || ''} prospectId={prospect.id} field="phone4" mono />}
+              {(prospect.phone5 || showExtraPhone >= 5) && <EditableField label="Téléphone 5" value={prospect.phone5 || ''} prospectId={prospect.id} field="phone5" mono />}
+              {/* Bouton ajouter un numéro */}
+              {nextEmptyPhone <= 5 && (
+                <button onClick={() => setShowExtraPhone(nextEmptyPhone)}
+                  className="text-[11px] text-gray-400 hover:text-violet-600 flex items-center gap-1 mt-1">
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+                  Ajouter un numéro
+                </button>
+              )}
 
               {/* ── Section Liens (réseaux sociaux + sites) ── */}
               <div className="pt-3 border-t border-gray-100 mt-3">
