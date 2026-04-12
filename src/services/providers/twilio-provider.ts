@@ -98,13 +98,13 @@ export class TwilioProvider implements CallProvider {
     if (!this.device || !this.isReady) return null
 
     try {
-      const call = await this.device.connect({
-        params: {
-          To: params.to,
-          From: params.from,
-          ConferenceId: params.conferenceId,
-        },
-      })
+      const connectParams: Record<string, string> = {
+        To: params.to,
+        From: params.from,
+      }
+      if (params.conferenceId) connectParams.ConferenceId = params.conferenceId
+
+      const call = await this.device.connect({ params: connectParams })
 
       const session = new TwilioCallSession(call)
 
