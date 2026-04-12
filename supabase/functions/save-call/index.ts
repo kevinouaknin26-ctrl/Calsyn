@@ -81,19 +81,39 @@ serve(async (req) => {
       const { data } = await supabase.from('calls').select('id').eq('conference_sid', conferenceSid).maybeSingle()
       if (data) callId = data.id
     }
-    // Fallback : chercher le call le plus récent pour ce prospect (< 2 minutes)
-    if (!callId && prospectId) {
+    // Fallback : chercher le call le plus récent par prospect_id OU prospect_phone
+    // (status-callback peut avoir lié l'appel à un AUTRE prospect avec le même numéro)
+    if (!callId) {
       const twoMinAgo = new Date(Date.now() - 120000).toISOString()
-      const { data } = await supabase.from('calls')
-        .select('id')
-        .eq('prospect_id', prospectId)
-        .gte('created_at', twoMinAgo)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle()
-      if (data) {
-        callId = data.id
-        console.log(`[save-call] Found call by prospect fallback: ${callId}`)
+
+      // D'abord par prospect_id exact
+      if (prospectId) {
+        const { data } = await supabase.from('calls')
+          .select('id')
+          .eq('prospect_id', prospectId)
+          .gte('created_at', twoMinAgo)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle()
+        if (data) {
+          callId = data.id
+          console.log(`[save-call] Found by prospect_id fallback: ${callId}`)
+        }
+      }
+
+      // Sinon par numéro de téléphone (cas où status-callback a lié au mauvais prospect)
+      if (!callId && prospectPhone) {
+        const { data } = await supabase.from('calls')
+          .select('id')
+          .eq('prospect_phone', prospectPhone)
+          .gte('created_at', twoMinAgo)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle()
+        if (data) {
+          callId = data.id
+          console.log(`[save-call] Found by phone fallback: ${callId}`)
+        }
       }
     }
 
