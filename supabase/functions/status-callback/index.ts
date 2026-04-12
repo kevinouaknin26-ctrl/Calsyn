@@ -87,8 +87,23 @@ serve(async (req) => {
       // Chercher TOUS les prospects avec ce numero (peut etre dans plusieurs listes)
       const { data: prospects } = await supabase
         .from('prospects')
-        .select('id, name, organisation_id, list_id, call_count')
+        .select('id, name, organisation_id, list_id, call_count, last_call_outcome, crm_status')
         .eq('phone', to)
+
+      // Priorite des statuts d'appel (du plus avance au moins avance)
+      // Le statut ne redescend JAMAIS automatiquement — seul le commercial peut le changer
+      const outcomePriority: Record<string, number> = {
+        'meeting_booked': 100,
+        'rdv': 100,
+        'connected': 80,
+        'callback': 70,
+        'not_interested': 60,
+        'voicemail': 40,
+        'busy': 30,
+        'no_answer': 20,
+        'cancelled': 10,
+        'failed': 5,
+      }
 
       if (prospects && prospects.length > 0) {
         // Utiliser le premier pour enrichir le call
@@ -108,12 +123,28 @@ serve(async (req) => {
 
         // ── 2. Mettre a jour TOUS les prospects avec ce numero ──
         for (const p of prospects) {
+          const currentPriority = outcomePriority[p.last_call_outcome || ''] || 0
+          const newPriority = outcomePriority[outcome] || 0
+          // Garder le statut le plus avance (ne jamais redescendre)
+          const bestOutcome = newPriority >= currentPriority ? outcome : p.last_call_outcome
+
+          // Auto-avancer le CRM status si encore "new"
+          let crmUpdate: Record<string, string> = {}
+          if (p.crm_status === 'new' || p.crm_status === null) {
+            if (outcome === 'connected' || outcome === 'meeting_booked') {
+              crmUpdate = { crm_status: 'connected' }
+            } else {
+              crmUpdate = { crm_status: 'attempted_to_contact' }
+            }
+          }
+
           const { error: prospectErr } = await supabase
             .from('prospects')
             .update({
               last_call_at: new Date().toISOString(),
-              last_call_outcome: outcome,
+              last_call_outcome: bestOutcome,
               call_count: (p.call_count || 0) + 1,
+              ...crmUpdate,
             })
             .eq('id', p.id)
 
