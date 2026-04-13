@@ -1286,8 +1286,10 @@ export default function Dialer() {
           Nouvelle liste
         </button>
         {lists?.filter(l => openTabIds.includes(l.id)).map(l => (
-          <button key={l.id} onClick={() => { setActiveListId(l.id); localStorage.setItem('callio_active_list', l.id) }}
-            className={`flex items-center gap-2 px-3 py-2 text-[12px] whitespace-nowrap flex-shrink-0 transition-colors rounded-t-lg ${
+          <div key={l.id} role="button" tabIndex={0}
+            onClick={() => { setActiveListId(l.id); localStorage.setItem('callio_active_list', l.id) }}
+            onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setActiveListId(l.id); localStorage.setItem('callio_active_list', l.id) } }}
+            className={`flex items-center gap-2 px-3 py-2 text-[12px] whitespace-nowrap flex-shrink-0 transition-colors rounded-t-lg cursor-pointer ${
               activeListId === l.id
                 ? 'text-gray-800 font-semibold bg-white shadow-[0_-1px_3px_rgba(0,0,0,0.08)] border border-gray-200 border-b-white -mb-px relative z-10'
                 : 'text-gray-400 hover:text-gray-600'
@@ -1303,8 +1305,8 @@ export default function Dialer() {
                 if (next) localStorage.setItem('callio_active_list', next)
                 else localStorage.removeItem('callio_active_list')
               }
-            }} className="text-gray-300 hover:text-gray-500 ml-0.5">&times;</button>
-          </button>
+            }} className="text-gray-300 hover:text-gray-500 ml-0.5" aria-label="Fermer l'onglet">&times;</button>
+          </div>
         ))}
         {(lists?.length || 0) > 8 && (
           <span className="px-2 py-2.5 text-[12px] text-gray-400 whitespace-nowrap flex-shrink-0">+{(lists?.length || 0) - 8} ▾</span>
