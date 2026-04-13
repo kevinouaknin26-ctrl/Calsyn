@@ -4,12 +4,13 @@
  * Vue jour par défaut avec navigation semaine.
  */
 
-import { useState, useEffect, useCallback } from 'react'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useState, useCallback, useMemo } from 'react'
+import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
 import { supabase } from '@/config/supabase'
 import { useAuth } from '@/hooks/useAuth'
 import { useCallMachine } from '@/hooks/useCallMachine'
 import { useCallsByProspect } from '@/hooks/useCalls'
+import { useProspectLists } from '@/hooks/useProspects'
 import ProspectModal from '@/components/call/ProspectModal'
 import type { Prospect } from '@/types/prospect'
 
@@ -98,10 +99,80 @@ function getWeekDays(base: Date): Date[] {
   })
 }
 
-const HOURS = Array.from({ length: 12 }, (_, i) => i + 8) // 8h → 19h
+const HOURS = Array.from({ length: 12 }, (_, i) => i + 8) // 8h -> 19h
+
+// ── GCal event type ─────────────────────────────────────────────
+type GCalEvent = {
+  id: string
+  summary: string
+  description?: string
+  location?: string
+  start: { dateTime?: string }
+  end: { dateTime?: string }
+}
+
+// ── Parsing helpers for Google Calendar events ──────────────────
+
+function isMurmuseEvent(summary: string): boolean {
+  const lower = (summary || '').toLowerCase()
+  return lower.includes('presentation murmuse') ||
+    lower.includes('présentation murmuse') ||
+    lower.includes('rdv murmuse')
+}
+
+function extractPhone(text: string): string | null {
+  if (!text) return null
+  const patterns = [
+    /(\+33\s*[1-9](?:\s*\d{2}){4})/,
+    /(\+33[1-9]\d{8})/,
+    /(0[1-9](?:\s*\d{2}){4})/,
+    /(0[1-9]\d{8})/,
+  ]
+  for (const p of patterns) {
+    const m = text.match(p)
+    if (m) return m[1].replace(/\s+/g, '')
+  }
+  return null
+}
+
+function extractEmail(text: string): string | null {
+  if (!text) return null
+  const m = text.match(/[\w.+-]+@[\w-]+\.[\w.]+/)
+  return m ? m[0] : null
+}
+
+function extractNameFromSummary(summary: string): string {
+  if (!summary) return ''
+  const dashMatch = summary.match(/(?:murmuse|Murmuse)\s*[-–]\s*(.+)/)
+  if (dashMatch) return dashMatch[1].trim()
+  const parenMatch = summary.match(/\(([^)]+)\)/)
+  if (parenMatch) return parenMatch[1].trim()
+  const avecMatch = summary.match(/avec\s+(.+)/i)
+  if (avecMatch) return avecMatch[1].trim()
+  return ''
+}
+
+interface ParsedEventData {
+  name: string
+  phone: string | null
+  email: string | null
+  isMurmuse: boolean
+  startTime: string | null
+}
+
+function parseGCalEvent(ev: GCalEvent): ParsedEventData {
+  const allText = [ev.summary, ev.description, ev.location].filter(Boolean).join(' ')
+  return {
+    name: extractNameFromSummary(ev.summary || '') || ev.summary || '',
+    phone: extractPhone(allText),
+    email: extractEmail(ev.description || '') || extractEmail(ev.location || ''),
+    isMurmuse: isMurmuseEvent(ev.summary || ''),
+    startTime: ev.start?.dateTime || null,
+  }
+}
 
 export default function Calendar() {
-  const { organisation } = useAuth()
+  const { organisation, profile } = useAuth()
   const queryClient = useQueryClient()
   const gcal = useGoogleCalendar()
   const cm = useCallMachine()
@@ -109,6 +180,13 @@ export default function Calendar() {
   const [view, setView] = useState<'day' | 'week'>('week')
   const [selectedProspect, setSelectedProspect] = useState<Prospect | null>(null)
   const { data: callHistory } = useCallsByProspect(selectedProspect?.id || null)
+
+  // Event popup state (for unmatched GCal events)
+  const [clickedEvent, setClickedEvent] = useState<GCalEvent | null>(null)
+  const [showEventPopup, setShowEventPopup] = useState(false)
+  const [syncStatus, setSyncStatus] = useState<string | null>(null)
+
+  const { data: lists } = useProspectLists()
 
   const weekDays = getWeekDays(currentDate)
   const weekStart = weekDays[0]
@@ -131,8 +209,31 @@ export default function Calendar() {
     enabled: !!organisation?.id,
   })
 
+  // All prospects for phone matching (sync feature)
+  const { data: allOrgProspects } = useQuery({
+    queryKey: ['all-prospects-phones', organisation?.id],
+    queryFn: async () => {
+      if (!organisation?.id) return []
+      const { data, error } = await supabase
+        .from('prospects')
+        .select('id, list_id, organisation_id, name, phone, phone2, phone3, phone4, phone5, email, company, title, sector, linkedin_url, website_url, status, crm_status, call_count, last_call_at, last_call_outcome, snoozed_until, rdv_date, do_not_call, meeting_booked, address, city, postal_code, country, created_at')
+        .eq('organisation_id', organisation.id)
+      if (error) throw error
+      return (data || []) as Prospect[]
+    },
+    enabled: !!organisation?.id,
+  })
+
+  // Phone -> prospect map
+  const phoneMap = useMemo(() => {
+    const m = new Map<string, Prospect>()
+    for (const p of (allOrgProspects || [])) {
+      if (p.phone) m.set(p.phone.replace(/\s+/g, ''), p)
+    }
+    return m
+  }, [allOrgProspects])
+
   // Google Calendar events
-  type GCalEvent = { id: string; summary: string; description?: string; start: { dateTime?: string }; end: { dateTime?: string } }
   const { data: gcalEvents } = useQuery({
     queryKey: ['gcal-events', weekStart.toISOString(), gcal.connected],
     queryFn: async () => {
@@ -161,6 +262,119 @@ export default function Calendar() {
 
   const dayNames = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim']
 
+  // ── Auto-sync mutation ──
+  const syncMutation = useMutation({
+    mutationFn: async (events: GCalEvent[]) => {
+      if (!organisation?.id || !profile?.id) return { created: 0 }
+      let agendaList = lists?.find(l => l.name === 'Agenda')
+      if (!agendaList) {
+        const { data, error } = await supabase
+          .from('prospect_lists')
+          .insert({ name: 'Agenda', organisation_id: organisation.id, created_by: profile.id })
+          .select('id, name, assigned_to, created_by, created_at')
+          .single()
+        if (error) throw error
+        agendaList = data
+        queryClient.invalidateQueries({ queryKey: ['prospect-lists'] })
+      }
+      if (!agendaList) throw new Error('Cannot create Agenda list')
+      let created = 0
+      for (const ev of events) {
+        const parsed = parseGCalEvent(ev)
+        if (!parsed.isMurmuse || !parsed.phone) continue
+        const cleanPhone = parsed.phone.replace(/\s+/g, '')
+        if (phoneMap.has(cleanPhone)) continue
+        const { error } = await supabase.from('prospects').insert({
+          list_id: agendaList.id, organisation_id: organisation.id,
+          name: parsed.name || 'Contact Agenda', phone: cleanPhone,
+          email: parsed.email || null, crm_status: 'rdv_pris',
+          rdv_date: parsed.startTime, meeting_booked: true,
+        })
+        if (!error) created++
+      }
+      return { created }
+    },
+    onSuccess: (result) => {
+      if (result && result.created > 0) {
+        setSyncStatus(`${result.created} contact${result.created > 1 ? 's' : ''} cree${result.created > 1 ? 's' : ''} depuis l'agenda`)
+        queryClient.invalidateQueries({ queryKey: ['all-prospects-phones'] })
+        queryClient.invalidateQueries({ queryKey: ['rdv-calendar'] })
+        queryClient.invalidateQueries({ queryKey: ['all-prospects'] })
+        queryClient.invalidateQueries({ queryKey: ['prospect-lists'] })
+        setTimeout(() => setSyncStatus(null), 4000)
+      } else {
+        setSyncStatus('Aucun nouveau contact a creer')
+        setTimeout(() => setSyncStatus(null), 3000)
+      }
+    },
+  })
+
+  // ── GCal event click handler — auto-crée la fiche si pas trouvée ──
+  const handleGCalEventClick = useCallback(async (ev: GCalEvent) => {
+    const parsed = parseGCalEvent(ev)
+    // 1. Chercher par téléphone
+    if (parsed.phone) {
+      const cleanPhone = parsed.phone.replace(/[\s.]/g, '').replace(/^0/, '+33')
+      const prospect = phoneMap.get(cleanPhone)
+      if (prospect) { setSelectedProspect(prospect); return }
+    }
+    // 2. Chercher par nom
+    if (rdvProspects) {
+      const name = extractNameFromSummary(ev.summary || '').toLowerCase()
+      if (name) {
+        const match = rdvProspects.find(p => p.name.toLowerCase().includes(name) || name.includes(p.name.toLowerCase()))
+        if (match) { setSelectedProspect(match as Prospect); return }
+      }
+    }
+    // 3. Pas trouvé → auto-créer la fiche
+    if (parsed.phone) {
+      await createFromEvent(ev)
+    }
+  }, [phoneMap, rdvProspects, createFromEvent])
+
+  // ── Create contact from event popup ──
+  const createFromEvent = useCallback(async (ev: GCalEvent) => {
+    if (!organisation?.id || !profile?.id) return
+    const parsed = parseGCalEvent(ev)
+    if (!parsed.phone) return
+    let agendaList = lists?.find(l => l.name === 'Agenda')
+    if (!agendaList) {
+      const { data, error } = await supabase
+        .from('prospect_lists')
+        .insert({ name: 'Agenda', organisation_id: organisation.id, created_by: profile.id })
+        .select('id, name, assigned_to, created_by, created_at')
+        .single()
+      if (error) return
+      agendaList = data
+      queryClient.invalidateQueries({ queryKey: ['prospect-lists'] })
+    }
+    if (!agendaList) return
+    const { data, error } = await supabase.from('prospects').insert({
+      list_id: agendaList.id, organisation_id: organisation.id,
+      name: parsed.name || 'Contact Agenda', phone: parsed.phone.replace(/\s+/g, ''),
+      email: parsed.email || null, crm_status: 'rdv_pris',
+      rdv_date: parsed.startTime, meeting_booked: true,
+    }).select().single()
+    if (!error && data) {
+      queryClient.invalidateQueries({ queryKey: ['all-prospects-phones'] })
+      queryClient.invalidateQueries({ queryKey: ['rdv-calendar'] })
+      queryClient.invalidateQueries({ queryKey: ['all-prospects'] })
+      setShowEventPopup(false)
+      setClickedEvent(null)
+      setSelectedProspect(data as Prospect)
+    }
+  }, [organisation, profile, lists, queryClient])
+
+  // Count syncable Murmuse events
+  const syncableCount = useMemo(() => {
+    if (!gcalEvents) return 0
+    return gcalEvents.filter(ev => {
+      const parsed = parseGCalEvent(ev)
+      if (!parsed.isMurmuse || !parsed.phone) return false
+      return !phoneMap.has(parsed.phone.replace(/\s+/g, ''))
+    }).length
+  }, [gcalEvents, phoneMap])
+
   return (
     <div className="h-screen bg-[#f5f3ff] p-4 pl-2 overflow-hidden flex flex-col">
       {/* Header */}
@@ -172,6 +386,23 @@ export default function Calendar() {
           </span>
         </div>
         <div className="flex items-center gap-2">
+          {/* Sync status toast */}
+          {syncStatus && (
+            <div className="px-3 py-1.5 rounded-lg bg-emerald-50 border border-emerald-200 text-[12px] text-emerald-700 font-medium">
+              {syncStatus}
+            </div>
+          )}
+          {/* Sync button */}
+          {gcal.connected && syncableCount > 0 && (
+            <button onClick={() => gcalEvents && syncMutation.mutate(gcalEvents)}
+              disabled={syncMutation.isPending}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-teal-50 border border-teal-200 hover:bg-teal-100 transition-colors text-[12px] text-teal-700 font-medium">
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+              {syncMutation.isPending ? 'Sync...' : `Sync ${syncableCount} contact${syncableCount > 1 ? 's' : ''}`}
+            </button>
+          )}
           {/* Google Calendar connexion */}
           {gcal.connected ? (
             <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-emerald-50 border border-emerald-200">
@@ -227,70 +458,68 @@ export default function Calendar() {
         <div className="flex-1 overflow-y-auto">
           <div className="relative">
             {HOURS.map(hour => (
-              <div key={hour} className="grid grid-cols-7 border-b border-gray-50" style={{ height: 60 }}>
+              <div key={hour} className="grid grid-cols-7 border-b border-gray-50" style={{ height: 80 }}>
                 {weekDays.map((day, di) => {
                   const dayKey = day.toISOString()
-                  const dayRdvs = (byDay[dayKey] || []).filter(p => {
-                    if (!p.rdv_date) return false
-                    const h = new Date(p.rdv_date).getHours()
-                    return h === hour
+                  // Combiner TOUS les events de cette heure (DB + Google) en une seule liste
+                  type CalEvent = { id: string; time: string; name: string; subtitle?: string; color: string; bg: string; onClick: () => void; minutes: number }
+                  const cellEvents: CalEvent[] = []
+
+                  // Events DB
+                  const dayRdvs = (byDay[dayKey] || []).filter(p => p.rdv_date && new Date(p.rdv_date).getHours() === hour)
+                  for (const p of dayRdvs) {
+                    const isPast = new Date(p.rdv_date!) < new Date()
+                    const c = p.crm_status === 'rdv_fait' ? '#059669' : p.crm_status === 'signe' || p.crm_status === 'paye' ? '#10b981' : isPast ? '#f59e0b' : '#7c3aed'
+                    cellEvents.push({
+                      id: p.id, minutes: new Date(p.rdv_date!).getMinutes(),
+                      time: new Date(p.rdv_date!).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
+                      name: p.name, subtitle: p.company || undefined, color: c, bg: c + '15',
+                      onClick: () => setSelectedProspect(p as Prospect),
+                    })
+                  }
+
+                  // Events Google (seulement ceux PAS déjà dans DB par matching)
+                  const gcalForHour = (gcalEvents || []).filter(ev => {
+                    if (!ev.start?.dateTime) return false
+                    const evDate = getDayStart(new Date(ev.start.dateTime))
+                    return evDate.getTime() === day.getTime() && new Date(ev.start.dateTime).getHours() === hour
                   })
+                  for (const ev of gcalForHour) {
+                    // Skip si déjà dans DB (même heure + même nom)
+                    const evName = extractNameFromSummary(ev.summary || '').toLowerCase()
+                    const alreadyInDb = dayRdvs.some(p => p.name.toLowerCase().includes(evName) || evName.includes(p.name.toLowerCase()))
+                    if (alreadyInDb) continue
+
+                    const parsed = parseGCalEvent(ev)
+                    const hasMatch = parsed.phone ? phoneMap.has(parsed.phone.replace(/[\s.]/g, '').replace(/^0/, '+33')) : false
+                    const c = parsed.isMurmuse ? (hasMatch ? '#7c3aed' : '#f59e0b') : '#6366f1'
+                    cellEvents.push({
+                      id: ev.id, minutes: new Date(ev.start.dateTime!).getMinutes(),
+                      time: new Date(ev.start.dateTime!).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
+                      name: ev.summary || 'Sans titre', color: c, bg: c + '12',
+                      onClick: () => handleGCalEventClick(ev),
+                    })
+                  }
+
+                  cellEvents.sort((a, b) => a.minutes - b.minutes)
+
                   return (
-                    <div key={di} className={`border-r border-gray-50 last:border-r-0 relative ${isToday(day) ? 'bg-violet-50/30' : ''}`}>
+                    <div key={di} className={`border-r border-gray-50 last:border-r-0 p-0.5 ${isToday(day) ? 'bg-violet-50/20' : ''}`}>
                       {di === 0 && (
                         <span className="absolute -left-0 -top-2 text-[9px] text-gray-300 font-mono bg-white px-1">{hour}:00</span>
                       )}
-                      {/* RDV Callio (DB) */}
-                      {dayRdvs.map(p => {
-                        const time = new Date(p.rdv_date!).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
-                        const isPast = new Date(p.rdv_date!) < new Date()
-                        const statusColor = p.crm_status === 'rdv_fait' ? '#059669'
-                          : p.crm_status === 'signe' || p.crm_status === 'paye' ? '#10b981'
-                          : isPast ? '#f59e0b'
-                          : '#0d9488'
-                        return (
-                          <div key={p.id} onClick={() => setSelectedProspect(p as Prospect)}
-                            className="absolute inset-x-1 rounded-lg px-2 py-1 cursor-pointer hover:opacity-80 hover:shadow-md transition-all shadow-sm"
-                            style={{ background: statusColor + '18', borderLeft: `3px solid ${statusColor}`, top: `${(new Date(p.rdv_date!).getMinutes() / 60) * 100}%` }}>
-                            <p className="text-[10px] font-bold truncate" style={{ color: statusColor }}>{time}</p>
-                            <p className="text-[11px] font-medium text-gray-700 truncate">{p.name}</p>
-                            {p.company && <p className="text-[9px] text-gray-400 truncate">{p.company}</p>}
+                      <div className="flex flex-col gap-0.5 h-full">
+                        {cellEvents.map(ev => (
+                          <div key={ev.id} onClick={ev.onClick}
+                            className="rounded-md px-1.5 py-0.5 cursor-pointer hover:opacity-80 transition-all overflow-hidden flex-shrink-0"
+                            style={{ background: ev.bg, borderLeft: `3px solid ${ev.color}` }}>
+                            <div className="flex items-center gap-1">
+                              <span className="text-[9px] font-bold" style={{ color: ev.color }}>{ev.time}</span>
+                              <span className="text-[10px] font-medium text-gray-700 truncate">{ev.name}</span>
+                            </div>
                           </div>
-                        )
-                      })}
-                      {/* Google Calendar events */}
-                      {(gcalEvents || []).filter(ev => {
-                        if (!ev.start?.dateTime) return false
-                        const evDate = getDayStart(new Date(ev.start.dateTime))
-                        return evDate.getTime() === day.getTime() && new Date(ev.start.dateTime).getHours() === hour
-                      }).map(ev => {
-                        const evTime = new Date(ev.start.dateTime!).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
-                        return (
-                          <div key={ev.id} onClick={() => {
-                            // Chercher un prospect matché par téléphone dans la description/location
-                            const desc = (ev.description || '') + ' ' + ((ev as any).location || '')
-                            const phoneMatch = desc.match(/(?:\+33|0[67])\s*[\d\s.]{8,}/)
-                            if (phoneMatch && rdvProspects) {
-                              const cleanPhone = phoneMatch[0].replace(/[\s.]/g, '').replace(/^0/, '+33')
-                              const match = rdvProspects.find(p => p.phone === cleanPhone || p.phone.replace(/\s/g, '') === cleanPhone)
-                              if (match) { setSelectedProspect(match as Prospect); return }
-                            }
-                            // Sinon chercher par nom dans le summary
-                            if (rdvProspects) {
-                              const name = ev.summary?.replace(/^(Presentation|RDV) Murmuse\s*[-—(]/i, '').replace(/[)]/g, '').trim().toLowerCase()
-                              if (name) {
-                                const match = rdvProspects.find(p => p.name.toLowerCase().includes(name) || name.includes(p.name.toLowerCase()))
-                                if (match) { setSelectedProspect(match as Prospect); return }
-                              }
-                            }
-                          }}
-                            className="absolute inset-x-1 rounded-lg px-2 py-1 cursor-pointer hover:opacity-80 hover:shadow-md transition-all shadow-sm"
-                            style={{ background: '#4285F418', borderLeft: '3px solid #4285F4', top: `${(new Date(ev.start.dateTime!).getMinutes() / 60) * 100}%` }}>
-                            <p className="text-[10px] font-bold truncate text-blue-600">{evTime}</p>
-                            <p className="text-[11px] font-medium text-gray-700 truncate">{ev.summary}</p>
-                          </div>
-                        )
-                      })}
+                        ))}
+                      </div>
                     </div>
                   )
                 })}
@@ -312,7 +541,8 @@ export default function Calendar() {
               const time = p.rdv_date ? new Date(p.rdv_date).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : ''
               const isPast = p.rdv_date && new Date(p.rdv_date) < new Date()
               return (
-                <div key={p.id} className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border bg-white flex-shrink-0 ${isPast ? 'border-amber-200' : 'border-teal-200'}`}>
+                <div key={p.id} onClick={() => setSelectedProspect(p as Prospect)}
+                  className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border bg-white flex-shrink-0 cursor-pointer hover:shadow-sm transition-shadow ${isPast ? 'border-amber-200' : 'border-teal-200'}`}>
                   <span className={`text-[12px] font-mono font-bold ${isPast ? 'text-amber-600' : 'text-teal-600'}`}>{time}</span>
                   <span className="text-[12px] text-gray-700 font-medium">{p.name}</span>
                   <span className="text-[11px] text-gray-400">{p.phone}</span>
@@ -322,6 +552,76 @@ export default function Calendar() {
           </div>
         </div>
       )}
+      {/* ── Event Popup (for unmatched GCal events) ── */}
+      {showEventPopup && clickedEvent && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20" onClick={() => { setShowEventPopup(false); setClickedEvent(null) }}>
+          <div className="bg-white rounded-2xl shadow-2xl border border-gray-200 w-[380px] p-5" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-[15px] font-bold text-gray-800">Evenement Google Calendar</h3>
+              <button onClick={() => { setShowEventPopup(false); setClickedEvent(null) }}
+                className="text-gray-400 hover:text-red-400 text-lg">&#x2715;</button>
+            </div>
+            <div className="space-y-3 mb-5">
+              <div>
+                <p className="text-[10px] font-bold text-gray-400 uppercase">Titre</p>
+                <p className="text-[13px] text-gray-800 font-medium">{clickedEvent.summary}</p>
+              </div>
+              {clickedEvent.start?.dateTime && (
+                <div>
+                  <p className="text-[10px] font-bold text-gray-400 uppercase">Date & heure</p>
+                  <p className="text-[13px] text-gray-700">
+                    {new Date(clickedEvent.start.dateTime).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}
+                    {' a '}
+                    {new Date(clickedEvent.start.dateTime).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                  </p>
+                </div>
+              )}
+              {clickedEvent.description && (
+                <div>
+                  <p className="text-[10px] font-bold text-gray-400 uppercase">Description</p>
+                  <p className="text-[12px] text-gray-600 whitespace-pre-wrap max-h-20 overflow-y-auto">{clickedEvent.description}</p>
+                </div>
+              )}
+              {clickedEvent.location && (
+                <div>
+                  <p className="text-[10px] font-bold text-gray-400 uppercase">Lieu</p>
+                  <p className="text-[12px] text-gray-600">{clickedEvent.location}</p>
+                </div>
+              )}
+              {/* Parsed data */}
+              {(() => {
+                const parsed = parseGCalEvent(clickedEvent)
+                return (
+                  <div className="bg-gray-50 rounded-lg p-3 space-y-1.5">
+                    <p className="text-[10px] font-bold text-gray-400 uppercase">Donnees extraites</p>
+                    {parsed.name && <p className="text-[12px] text-gray-700"><span className="text-gray-400 mr-1">Nom :</span>{parsed.name}</p>}
+                    {parsed.phone && <p className="text-[12px] text-gray-700"><span className="text-gray-400 mr-1">Tel :</span>{parsed.phone}</p>}
+                    {parsed.email && <p className="text-[12px] text-gray-700"><span className="text-gray-400 mr-1">Email :</span>{parsed.email}</p>}
+                    {!parsed.phone && (
+                      <p className="text-[11px] text-amber-500 font-medium">Aucun telephone detecte -- creation impossible</p>
+                    )}
+                  </div>
+                )
+              })()}
+            </div>
+            {(() => {
+              const parsed = parseGCalEvent(clickedEvent)
+              return parsed.phone ? (
+                <button onClick={() => createFromEvent(clickedEvent)}
+                  className="w-full py-2.5 rounded-xl bg-teal-500 hover:bg-teal-600 text-white text-[13px] font-semibold transition-colors">
+                  Creer le contact
+                </button>
+              ) : (
+                <button disabled
+                  className="w-full py-2.5 rounded-xl bg-gray-100 text-gray-400 text-[13px] font-semibold cursor-not-allowed">
+                  Pas de telephone -- impossible de creer
+                </button>
+              )
+            })()}
+          </div>
+        </div>
+      )}
+
       {/* ProspectModal */}
       {selectedProspect && (
         <ProspectModal
