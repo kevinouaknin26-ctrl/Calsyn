@@ -11,7 +11,7 @@ import { useEffect, useRef, useCallback, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { callMachine } from '@/machines/callMachine'
 import { createProvider, type CallProvider, type CallSession, type AudioSample } from '@/services/providers'
-import { fetchVoiceToken, fetchTelnyxToken, saveCallDisposition } from '@/services/api'
+import { fetchVoiceToken, fetchTelnyxToken, saveCallDisposition, dropVoicemail } from '@/services/api'
 import { useAuth } from '@/hooks/useAuth'
 import { MOS_ALERT_THRESHOLD } from '@/config/constants'
 import type { Prospect } from '@/types/prospect'
@@ -251,6 +251,22 @@ export function useCallMachine() {
 
   const sendDTMF = useCallback((digit: string) => { sessionRef.current?.sendDTMF(digit) }, [])
 
+  // Voicemail drop : déposer un message et raccrocher
+  const voicemailDrop = useCallback(async (audioUrl: string) => {
+    const callSid = state.context.callSid
+    if (!callSid) { console.warn('[useCallMachine] No callSid for voicemail drop'); return }
+    console.log(`[useCallMachine] Voicemail drop: ${audioUrl} on ${callSid}`)
+    try {
+      await dropVoicemail(callSid, audioUrl)
+      // Raccrocher le leg SDR — le message continue de jouer côté prospect
+      providerRef.current?.disconnectAll()
+      sessionRef.current = null
+      send({ type: 'HANG_UP' })
+    } catch (err) {
+      console.error('[useCallMachine] Voicemail drop failed:', err)
+    }
+  }, [state.context.callSid, send])
+
   return {
     state: state.value,
     context: state.context,
@@ -272,5 +288,6 @@ export function useCallMachine() {
     setMeeting,
     reset,
     sendDTMF,
+    voicemailDrop,
   }
 }

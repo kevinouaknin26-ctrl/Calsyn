@@ -892,12 +892,31 @@ export default function Dialer() {
   const attemptPeriod = org?.attempt_period || 'per_day'
   const setAttemptPeriod = (v: string) => updateOrg({ attempt_period: v })
   const [phoneField, setPhoneField] = useCallSetting('phone_field', 'phone')
-  const selectedFromNumber = org?.from_number || '+33757905591'
-  const setSelectedFromNumber = (v: string) => updateOrg({ from_number: v })
+  const [localFromNumber, setLocalFromNumber] = useState(org?.from_number || '+33757905591')
+  useEffect(() => { if (org?.from_number) setLocalFromNumber(org.from_number) }, [org?.from_number])
+  const selectedFromNumber = localFromNumber
+  const setSelectedFromNumber = (v: string) => { setLocalFromNumber(v); updateOrg({ from_number: v }) }
 
   // ── Propriétés CRM (HubSpot-style) ──
   const { properties: allProperties } = usePropertyDefinitions()
   const { data: rdvToday } = useRdvToday()
+
+  // Numéros Twilio pour la rotation auto
+  const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL
+  const { data: orgPhoneNumbers } = useQuery({
+    queryKey: ['twilio-numbers-dialer'],
+    queryFn: async () => {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) return []
+      const res = await fetch(`${SUPABASE_URL}/functions/v1/twilio-numbers?action=list`, {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      })
+      if (!res.ok) return []
+      const data = await res.json()
+      return (data.numbers || []) as Array<{ sid: string; phone: string; friendlyName: string; capabilities: Record<string, boolean> }>
+    },
+    staleTime: 300_000, // 5 min cache — les numéros changent rarement
+  })
   const { data: crmStatuses } = useCrmStatuses()
   const crmLabels: Record<string, string> = {}
   crmStatuses?.forEach(s => { crmLabels[s.key] = s.label })
@@ -1116,14 +1135,24 @@ export default function Dialer() {
         return
       }
 
-      // ── From Number : utiliser le numéro sélectionné dans les settings ──
+      // ── From Number : rotation auto ou numéro fixe ──
+      let fromNumber = selectedFromNumber
+      if (autoRotate && orgPhoneNumbers && orgPhoneNumbers.length > 1) {
+        // Rotation : chaque appel utilise le numéro suivant dans la liste
+        const voiceNums = orgPhoneNumbers.filter(n => n.capabilities?.voice).map(n => n.phone)
+        if (voiceNums.length > 1) {
+          const rotateIdx = (p.call_count || 0) % voiceNums.length
+          fromNumber = voiceNums[rotateIdx]
+        }
+      }
+
       const prospectWithPhone = phoneNumber !== p.phone
         ? { ...p, phone: phoneNumber }
         : p
 
-      cm.call(prospectWithPhone, selectedFromNumber)
+      cm.call(prospectWithPhone, fromNumber)
     }
-  }, [cm, maxAttempts, phoneField, selectedFromNumber])
+  }, [cm, maxAttempts, phoneField, selectedFromNumber, autoRotate, orgPhoneNumbers])
 
   // Ouvrir le modal automatiquement quand le prospect DÉCROCHE (Minari exact)
   useEffect(() => {
@@ -1137,6 +1166,9 @@ export default function Dialer() {
   const connected = prospects?.filter(p => p.last_call_outcome === 'connected' && !p.meeting_booked && p.crm_status !== 'rdv_pris' && p.crm_status !== 'rdv_fait').length || 0
   const attempted = prospects?.filter(p => p.call_count > 0).length || 0
   const pending = prospects?.filter(p => p.call_count === 0).length || 0
+  // Seuil conversation : org.conversation_threshold (défaut 30s)
+  // Utilisé dans le status-callback pour la classification et dans les futures analytics
+  const conversationThreshold = org?.conversation_threshold || 30
   const activeList = lists?.find(l => l.id === activeListId)
 
   // Calculer les valeurs distinctes par colonne custom (pour les rendre en select)
@@ -1203,8 +1235,8 @@ export default function Dialer() {
       return true
     })
     .sort((a, b) => {
-      // Aucun tri = ordre de la DB (stable, ne bouge pas)
-      if (sortBy === 'none') return 0
+      // Aucun tri = ordre d'insertion DB (created_at ASC, stable)
+      if (sortBy === 'none') return (a.created_at || '').localeCompare(b.created_at || '')
       let cmp = 0
       if (sortBy === 'last_call') cmp = (a.last_call_at || '').localeCompare(b.last_call_at || '')
       else if (sortBy === 'created') cmp = (a.created_at || '').localeCompare(b.created_at || '')

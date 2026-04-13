@@ -38,6 +38,11 @@ export async function callEdgeFunction<T = unknown>(
   return res.json()
 }
 
+/** Déposer un message vocal sur la messagerie du prospect */
+export async function dropVoicemail(callSid: string, audioUrl: string): Promise<{ ok: boolean }> {
+  return callEdgeFunction('voicemail-drop', { callSid, audioUrl })
+}
+
 /** Demander un token VoIP Twilio */
 export async function fetchVoiceToken(): Promise<string> {
   const data = await callEdgeFunction<{ token: string }>('token-gen')
