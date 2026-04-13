@@ -4,11 +4,83 @@
  * Vue jour par défaut avec navigation semaine.
  */
 
-import { useState } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/config/supabase'
 import { useAuth } from '@/hooks/useAuth'
 import type { Prospect } from '@/types/prospect'
+
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL
+
+// Hook pour gérer la connexion Google Calendar
+function useGoogleCalendar() {
+  const { data: status, refetch } = useQuery({
+    queryKey: ['google-calendar-status'],
+    queryFn: async () => {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) return { connected: false }
+      const res = await fetch(`${SUPABASE_URL}/functions/v1/google-auth?action=status`, {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      })
+      return res.json()
+    },
+  })
+
+  const connect = useCallback(async () => {
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session) return
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/google-auth?action=authorize`, {
+      headers: { Authorization: `Bearer ${session.access_token}` },
+    })
+    const data = await res.json()
+    if (data.url) {
+      // Ouvrir dans un popup
+      const popup = window.open(data.url, 'google-auth', 'width=500,height=600,left=200,top=100')
+      // Écouter le message de retour
+      const handler = (e: MessageEvent) => {
+        if (e.data?.type === 'google-calendar-connected') {
+          refetch()
+          window.removeEventListener('message', handler)
+        }
+      }
+      window.addEventListener('message', handler)
+    }
+  }, [refetch])
+
+  const disconnect = useCallback(async () => {
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session) return
+    await fetch(`${SUPABASE_URL}/functions/v1/google-auth?action=disconnect`, {
+      headers: { Authorization: `Bearer ${session.access_token}` },
+    })
+    refetch()
+  }, [refetch])
+
+  const listEvents = useCallback(async (timeMin: string, timeMax: string) => {
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session) return null
+    const params = new URLSearchParams({ action: 'list', timeMin, timeMax })
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/google-calendar?${params}`, {
+      headers: { Authorization: `Bearer ${session.access_token}` },
+    })
+    if (!res.ok) return null
+    return res.json()
+  }, [])
+
+  const createEvent = useCallback(async (event: Record<string, unknown>) => {
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session) return null
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/google-calendar?action=create`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${session.access_token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ event }),
+    })
+    if (!res.ok) return null
+    return res.json()
+  }, [])
+
+  return { connected: status?.connected || false, connect, disconnect, listEvents, createEvent }
+}
 
 function getDayStart(d: Date) { return new Date(d.getFullYear(), d.getMonth(), d.getDate()) }
 function getDayEnd(d: Date) { return new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1) }
@@ -28,6 +100,7 @@ const HOURS = Array.from({ length: 12 }, (_, i) => i + 8) // 8h → 19h
 export default function Calendar() {
   const { organisation } = useAuth()
   const queryClient = useQueryClient()
+  const gcal = useGoogleCalendar()
   const [currentDate, setCurrentDate] = useState(getDayStart(new Date()))
   const [view, setView] = useState<'day' | 'week'>('week')
 
@@ -52,10 +125,22 @@ export default function Calendar() {
     enabled: !!organisation?.id,
   })
 
+  // Google Calendar events
+  type GCalEvent = { id: string; summary: string; description?: string; start: { dateTime?: string }; end: { dateTime?: string } }
+  const { data: gcalEvents } = useQuery({
+    queryKey: ['gcal-events', weekStart.toISOString(), gcal.connected],
+    queryFn: async () => {
+      if (!gcal.connected) return []
+      const data = await gcal.listEvents(weekStart.toISOString(), weekEnd.toISOString())
+      return (data?.items || []) as GCalEvent[]
+    },
+    enabled: gcal.connected,
+  })
+
   const today = getDayStart(new Date())
   const isToday = (d: Date) => d.getTime() === today.getTime()
 
-  // Grouper par jour
+  // Grouper par jour — prospects DB
   const byDay: Record<string, Prospect[]> = {}
   for (const p of (rdvProspects || [])) {
     if (!p.rdv_date) continue
@@ -81,6 +166,20 @@ export default function Calendar() {
           </span>
         </div>
         <div className="flex items-center gap-2">
+          {/* Google Calendar connexion */}
+          {gcal.connected ? (
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-emerald-50 border border-emerald-200">
+              <svg className="w-4 h-4 text-emerald-500" viewBox="0 0 24 24" fill="currentColor"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" /><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" /><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" /><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" /></svg>
+              <span className="text-[12px] text-emerald-700 font-medium">Google Calendar connecté</span>
+              <button onClick={gcal.disconnect} className="text-[10px] text-emerald-500 hover:text-red-500 ml-1">Déconnecter</button>
+            </div>
+          ) : (
+            <button onClick={gcal.connect}
+              className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white border border-gray-200 hover:border-blue-300 hover:bg-blue-50 transition-colors">
+              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
+              <span className="text-[12px] text-gray-600 font-medium">Connecter Google Calendar</span>
+            </button>
+          )}
           <button onClick={goToday}
             className="text-[12px] text-indigo-600 font-medium px-3 py-1.5 rounded-lg border border-indigo-200 hover:bg-indigo-50 transition-colors">
             Aujourd'hui
@@ -135,6 +234,7 @@ export default function Calendar() {
                       {di === 0 && (
                         <span className="absolute -left-0 -top-2 text-[9px] text-gray-300 font-mono bg-white px-1">{hour}:00</span>
                       )}
+                      {/* RDV Callio (DB) */}
                       {dayRdvs.map(p => {
                         const time = new Date(p.rdv_date!).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
                         const isPast = new Date(p.rdv_date!) < new Date()
@@ -149,6 +249,22 @@ export default function Calendar() {
                             <p className="text-[10px] font-bold truncate" style={{ color: statusColor }}>{time}</p>
                             <p className="text-[11px] font-medium text-gray-700 truncate">{p.name}</p>
                             {p.company && <p className="text-[9px] text-gray-400 truncate">{p.company}</p>}
+                          </div>
+                        )
+                      })}
+                      {/* Google Calendar events */}
+                      {(gcalEvents || []).filter(ev => {
+                        if (!ev.start?.dateTime) return false
+                        const evDate = getDayStart(new Date(ev.start.dateTime))
+                        return evDate.getTime() === day.getTime() && new Date(ev.start.dateTime).getHours() === hour
+                      }).map(ev => {
+                        const evTime = new Date(ev.start.dateTime!).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
+                        return (
+                          <div key={ev.id}
+                            className="absolute inset-x-1 rounded-lg px-2 py-1 cursor-pointer hover:opacity-90 transition-opacity shadow-sm"
+                            style={{ background: '#4285F418', borderLeft: '3px solid #4285F4', top: `${(new Date(ev.start.dateTime!).getMinutes() / 60) * 100}%` }}>
+                            <p className="text-[10px] font-bold truncate text-blue-600">{evTime}</p>
+                            <p className="text-[11px] font-medium text-gray-700 truncate">{ev.summary}</p>
                           </div>
                         )
                       })}
