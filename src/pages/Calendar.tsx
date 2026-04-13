@@ -8,6 +8,9 @@ import { useState, useEffect, useCallback } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/config/supabase'
 import { useAuth } from '@/hooks/useAuth'
+import { useCallMachine } from '@/hooks/useCallMachine'
+import { useCallsByProspect } from '@/hooks/useCalls'
+import ProspectModal from '@/components/call/ProspectModal'
 import type { Prospect } from '@/types/prospect'
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL
@@ -101,8 +104,11 @@ export default function Calendar() {
   const { organisation } = useAuth()
   const queryClient = useQueryClient()
   const gcal = useGoogleCalendar()
+  const cm = useCallMachine()
   const [currentDate, setCurrentDate] = useState(getDayStart(new Date()))
   const [view, setView] = useState<'day' | 'week'>('week')
+  const [selectedProspect, setSelectedProspect] = useState<Prospect | null>(null)
+  const { data: callHistory } = useCallsByProspect(selectedProspect?.id || null)
 
   const weekDays = getWeekDays(currentDate)
   const weekStart = weekDays[0]
@@ -243,8 +249,8 @@ export default function Calendar() {
                           : isPast ? '#f59e0b'
                           : '#0d9488'
                         return (
-                          <div key={p.id}
-                            className="absolute inset-x-1 rounded-lg px-2 py-1 cursor-pointer hover:opacity-90 transition-opacity shadow-sm"
+                          <div key={p.id} onClick={() => setSelectedProspect(p as Prospect)}
+                            className="absolute inset-x-1 rounded-lg px-2 py-1 cursor-pointer hover:opacity-80 hover:shadow-md transition-all shadow-sm"
                             style={{ background: statusColor + '18', borderLeft: `3px solid ${statusColor}`, top: `${(new Date(p.rdv_date!).getMinutes() / 60) * 100}%` }}>
                             <p className="text-[10px] font-bold truncate" style={{ color: statusColor }}>{time}</p>
                             <p className="text-[11px] font-medium text-gray-700 truncate">{p.name}</p>
@@ -260,8 +266,25 @@ export default function Calendar() {
                       }).map(ev => {
                         const evTime = new Date(ev.start.dateTime!).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
                         return (
-                          <div key={ev.id}
-                            className="absolute inset-x-1 rounded-lg px-2 py-1 cursor-pointer hover:opacity-90 transition-opacity shadow-sm"
+                          <div key={ev.id} onClick={() => {
+                            // Chercher un prospect matché par téléphone dans la description/location
+                            const desc = (ev.description || '') + ' ' + ((ev as any).location || '')
+                            const phoneMatch = desc.match(/(?:\+33|0[67])\s*[\d\s.]{8,}/)
+                            if (phoneMatch && rdvProspects) {
+                              const cleanPhone = phoneMatch[0].replace(/[\s.]/g, '').replace(/^0/, '+33')
+                              const match = rdvProspects.find(p => p.phone === cleanPhone || p.phone.replace(/\s/g, '') === cleanPhone)
+                              if (match) { setSelectedProspect(match as Prospect); return }
+                            }
+                            // Sinon chercher par nom dans le summary
+                            if (rdvProspects) {
+                              const name = ev.summary?.replace(/^(Presentation|RDV) Murmuse\s*[-—(]/i, '').replace(/[)]/g, '').trim().toLowerCase()
+                              if (name) {
+                                const match = rdvProspects.find(p => p.name.toLowerCase().includes(name) || name.includes(p.name.toLowerCase()))
+                                if (match) { setSelectedProspect(match as Prospect); return }
+                              }
+                            }
+                          }}
+                            className="absolute inset-x-1 rounded-lg px-2 py-1 cursor-pointer hover:opacity-80 hover:shadow-md transition-all shadow-sm"
                             style={{ background: '#4285F418', borderLeft: '3px solid #4285F4', top: `${(new Date(ev.start.dateTime!).getMinutes() / 60) * 100}%` }}>
                             <p className="text-[10px] font-bold truncate text-blue-600">{evTime}</p>
                             <p className="text-[11px] font-medium text-gray-700 truncate">{ev.summary}</p>
@@ -298,6 +321,24 @@ export default function Calendar() {
             })}
           </div>
         </div>
+      )}
+      {/* ProspectModal */}
+      {selectedProspect && (
+        <ProspectModal
+          prospect={selectedProspect}
+          callContext={cm.context}
+          callHistory={callHistory || []}
+          isInCall={cm.state.matches('connected') || cm.state.matches('ringing')}
+          isDisconnected={cm.isDisconnected}
+          onCall={p => cm.call(p)}
+          onClose={() => { if (cm.isDisconnected) cm.reset(); setSelectedProspect(null) }}
+          onSetDisposition={cm.setDisposition}
+          onSetNotes={cm.setNotes}
+          onSetMeeting={cm.setMeeting}
+          onReset={cm.reset}
+          onNextCall={() => { cm.reset(); setSelectedProspect(null) }}
+          providerReady={cm.providerReady}
+        />
       )}
     </div>
   )
