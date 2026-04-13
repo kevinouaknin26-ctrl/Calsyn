@@ -216,7 +216,6 @@ export default function CRMGlobal() {
   const orgId = organisation?.id
   const queryClient = useQueryClient()
   const cm = useCallMachine()
-  const { data: callHistory } = useCallsByProspect(selectedProspect?.id || null, selectedProspect?.phone)
 
   // State
   const [viewMode, setViewMode] = useState<'table' | 'board'>('table')
@@ -224,6 +223,9 @@ export default function CRMGlobal() {
   const [sortBy, setSortBy] = useState('created_at')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
   const [selectedProspect, setSelectedProspect] = useState<MergedProspect | null>(null)
+
+  // Call history — DOIT être après selectedProspect
+  const { data: callHistory } = useCallsByProspect(selectedProspect?.id || null, selectedProspect?.phone)
   const [filters, setFilters] = useState<Filter[]>([])
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [showColumnPicker, setShowColumnPicker] = useState(false)
