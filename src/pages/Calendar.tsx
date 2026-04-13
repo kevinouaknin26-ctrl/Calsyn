@@ -101,14 +101,7 @@ function getWeekDays(base: Date): Date[] {
 
 const HOURS = Array.from({ length: 24 }, (_, i) => i) // 0h -> 23h
 
-/** Normalise un numéro au format E.164 — source unique de vérité */
-function normalizePhone(p: string | null | undefined): string {
-  if (!p) return ''
-  let n = p.replace(/[\s.\-()]/g, '')
-  if (n.startsWith('0') && n.length === 10) n = '+33' + n.slice(1)
-  if (!n.startsWith('+') && n.length === 9) n = '+33' + n
-  return n
-}
+import { normalizePhone } from '@/utils/phone'
 
 // ── GCal event type ─────────────────────────────────────────────
 type GCalEvent = {

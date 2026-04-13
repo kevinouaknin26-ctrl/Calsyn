@@ -31,12 +31,7 @@ type FilterOp = 'eq' | 'neq' | 'contains' | 'not_contains' | 'starts' | 'empty' 
 type Filter = { id: string; propertyId: string; op: FilterOp; value: string }
 type SavedView = { id: string; name: string; columns: string[]; filters: Filter[]; sortBy: string; sortDir: 'asc' | 'desc' }
 
-function normalizePhone(p: string | null | undefined): string {
-  if (!p) return ''
-  let n = p.replace(/[\s.\-()]/g, '')
-  if (n.startsWith('0') && n.length === 10) n = '+33' + n.slice(1)
-  return n
-}
+import { normalizePhone } from '@/utils/phone'
 
 // ══════════════════════════════════════════════════════════════════
 // FILTER EVALUATION (reusable)

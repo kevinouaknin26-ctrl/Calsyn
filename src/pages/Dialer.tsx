@@ -1879,7 +1879,7 @@ export default function Dialer() {
           {!prospects?.length && (
             <div className="text-center py-20">
               <p className="text-[13px] text-gray-400">Aucun contact dans cette liste</p>
-              <button onClick={() => setShowCSVImport(true)} className="text-[13px] text-violet-600 hover:text-violet-700 mt-2 font-medium">Importer depuis un CSV</button>
+              {perms.canImportCSV && <button onClick={() => setShowCSVImport(true)} className="text-[13px] text-violet-600 hover:text-violet-700 mt-2 font-medium">Importer depuis un CSV</button>}
             </div>
           )}
       </div>
