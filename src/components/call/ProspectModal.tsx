@@ -6,7 +6,7 @@
  * Colonne droite : tabs, fiches appels accordéon (réduit/agrandi), player, transcription, AI summary
  */
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useQueryClient, useQuery } from '@tanstack/react-query'
 import { usePropertyDefinitions, useProspectCustomValues, groupProperties, updatePropertyValue, useCrmStatuses } from '@/hooks/useProperties'
 import { getPropertyValue } from '@/config/properties'
@@ -64,12 +64,17 @@ const DISPOSITIONS: Array<{ value: Disposition; label: string }> = [
   { value: 'dnc', label: 'Ne pas appeler' },
 ]
 
-const CRM_OPTIONS: Array<{ value: CrmStatus; label: string }> = [
-  { value: 'new', label: 'Nouveau' }, { value: 'open', label: 'Ouvert' }, { value: 'in_progress', label: 'En cours' },
-  { value: 'open_deal', label: 'Affaire ouverte' }, { value: 'unqualified', label: 'Non qualifié' },
-  { value: 'attempted_to_contact', label: 'Tenté de contacter' }, { value: 'connected', label: 'Connecté' },
-  { value: 'bad_timing', label: 'Mauvais timing' }, { value: 'not_interested', label: 'Pas intéressé' },
-  { value: 'callback', label: 'Rappel' }, { value: 'rdv_pris', label: 'RDV pris' }, { value: 'mail_sent', label: 'Mail envoyé' },
+// Statuts d'appel pour le sidebar gauche (Minari — s'arrête à RDV pris)
+const CALL_STATUS_OPTIONS: Array<{ value: string; label: string; bg: string; text: string }> = [
+  { value: '', label: 'Pas encore appelé', bg: '#f3f4f6', text: '#9ca3af' },
+  { value: 'no_answer', label: 'Pas de réponse', bg: '#f3f4f6', text: '#6b7280' },
+  { value: 'voicemail', label: 'Messagerie', bg: '#f3f4f6', text: '#6b7280' },
+  { value: 'busy', label: 'Occupé', bg: '#fef3c7', text: '#d97706' },
+  { value: 'connected', label: 'Connecté', bg: '#d1fae5', text: '#059669' },
+  { value: 'callback', label: 'Rappel', bg: '#e9d5ff', text: '#7c3aed' },
+  { value: 'not_interested', label: 'Pas intéressé', bg: '#f3f4f6', text: '#6b7280' },
+  { value: 'wrong_number', label: 'Mauvais numéro', bg: '#fecaca', text: '#dc2626' },
+  { value: 'rdv_pris', label: 'RDV pris', bg: '#ccfbf1', text: '#0d9488' },
 ]
 
 // ── Celebration emojis 3D (montent du bas, tailles variées, perspective) ──
@@ -248,12 +253,10 @@ function CallCard({ call, defaultOpen, onUpdate, onCelebrate }: { call: Call; de
           <div className="flex items-center gap-5 mb-3">
             <div>
               <p className="text-[11px] text-gray-400 mb-1">Résultat</p>
-              <select value={call.call_outcome || 'no_answer'}
-                onChange={async e => {
-                  const newOutcome = e.target.value
+              <MiniDropdown value={call.call_outcome || 'no_answer'} options={DISPOSITIONS}
+                onChange={async newOutcome => {
                   await supabase.from('calls').update({ call_outcome: newOutcome }).eq('id', call.id)
                   if (call.prospect_id) {
-                    // Recomputer le meilleur outcome parmi tous les appels du prospect
                     const { data: allCalls } = await supabase.from('calls').select('call_outcome').eq('prospect_id', call.prospect_id)
                     const priority: Record<string, number> = { connected: 100, callback: 60, not_interested: 50, voicemail: 40, busy: 35, no_answer: 30, cancelled: 20, failed: 10, wrong_number: 5 }
                     let best = newOutcome, bestP = priority[newOutcome] || 0
@@ -261,10 +264,7 @@ function CallCard({ call, defaultOpen, onUpdate, onCelebrate }: { call: Call; de
                     await supabase.from('prospects').update({ last_call_outcome: best }).eq('id', call.prospect_id)
                   }
                   onUpdate()
-                }}
-                className="text-[13px] text-gray-700 border border-gray-200 rounded-lg px-2 py-1 outline-none bg-white cursor-pointer">
-                {DISPOSITIONS.map(d => <option key={d.value} value={d.value}>{d.label}</option>)}
-              </select>
+                }} />
             </div>
             <label className="flex items-center gap-1.5 cursor-pointer mt-4">
               <input type="checkbox" checked={call.meeting_booked}
@@ -578,6 +578,49 @@ function EditableField({ label, value, prospectId, field, copyable, mono }: {
   )
 }
 
+// ── Mini Dropdown custom (remplace les select natifs) ──────────
+function MiniDropdown({ value, options, onChange, className }: {
+  value: string; options: Array<{ value: string; label: string; bg?: string; text?: string }>; onChange: (v: string) => void; className?: string
+}) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+  const selected = options.find(o => o.value === value)
+  const hasColors = options.some(o => o.bg)
+
+  useEffect(() => {
+    if (!open) return
+    const handler = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false) }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [open])
+
+  return (
+    <div className={`relative ${className || ''}`} ref={ref}>
+      <button onClick={() => setOpen(!open)}
+        className={`flex items-center gap-1.5 text-[13px] rounded-lg px-2.5 py-1.5 transition-colors cursor-pointer w-full text-left ${
+          hasColors && selected?.bg
+            ? 'border font-semibold text-[12px]'
+            : 'bg-white border border-gray-200 text-gray-700 hover:border-indigo-300'
+        }`}
+        style={hasColors && selected?.bg ? { background: selected.bg, color: selected.text, borderColor: selected.text + '30' } : undefined}>
+        <span className="flex-1 truncate">{selected?.label || value || '—'}</span>
+        <svg className="w-3 h-3 flex-shrink-0 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+      </button>
+      {open && (
+        <div className="absolute top-full right-0 mt-1 bg-white rounded-xl shadow-lg border border-gray-200 z-[70] py-1 min-w-full max-w-[220px] max-h-[200px] overflow-y-auto animate-slide-down">
+          {options.map(o => (
+            <button key={o.value} onClick={() => { onChange(o.value); setOpen(false) }}
+              className={`w-full text-left px-3 py-1.5 text-[12px] hover:bg-gray-50 transition-colors flex items-center gap-2 ${o.value === value ? 'font-medium' : 'text-gray-600'}`}>
+              {o.bg && <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: o.text }} />}
+              <span style={o.value === value && o.text ? { color: o.text } : undefined}>{o.label}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── Modal ────────────────────────────────────────────────────────
 export default function ProspectModal({
   prospect, callContext, callHistory, isInCall, isDisconnected,
@@ -589,6 +632,8 @@ export default function ProspectModal({
   const [showPhoneMenu, setShowPhoneMenu] = useState(false)
   const [localDoNotCall, setLocalDoNotCall] = useState(prospect.do_not_call)
   const [localSnoozedUntil, setLocalSnoozedUntil] = useState(prospect.snoozed_until)
+  const [localCallOutcome, setLocalCallOutcome] = useState(prospect.last_call_outcome || '')
+  useEffect(() => { setLocalCallOutcome(prospect.last_call_outcome || '') }, [prospect.last_call_outcome])
   const queryClient = useQueryClient()
   const tabs = ['Activité', 'Notes', 'Tâches', 'Emails', 'Appels', 'SMS', 'Historique']
 
@@ -642,6 +687,7 @@ export default function ProspectModal({
       const { data } = await supabase.from('activity_logs').select('*').eq('prospect_id', prospect.id).order('created_at', { ascending: false }).limit(50)
       return data || []
     },
+    refetchInterval: activeTab === 'historique' ? 5000 : false,
   })
 
   return (
@@ -653,12 +699,12 @@ export default function ProspectModal({
         <div className="bg-white dark:bg-[#f0eaf5] rounded-2xl shadow-xl w-[95%] max-w-[1120px] max-h-[85vh] flex animate-fade-in-scale">
 
           {/* ── GAUCHE — Infos prospect ── */}
-          <div className="w-[300px] p-5 border-r border-gray-100 dark:border-[#d4cade] flex flex-col overflow-y-auto">
+          <div className="w-[300px] p-5 border-r border-gray-100 dark:border-[#d4cade] flex flex-col overflow-y-auto bg-gradient-to-b from-violet-50/40 to-white">
 
             {/* ── EN HAUT : Nom + logos réseaux + poste/entreprise ── */}
-            <div className="flex items-center gap-2 mb-1">
-              <div className="w-7 h-7 rounded bg-gray-200 dark:bg-gray-700 flex items-center justify-center flex-shrink-0">
-                <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+            <div className="flex items-center gap-2.5 mb-1">
+              <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-violet-400 to-indigo-500 flex items-center justify-center flex-shrink-0 shadow-sm">
+                <span className="text-white font-bold text-[14px]">{prospect.name.charAt(0).toUpperCase()}</span>
               </div>
               <NameEditor name={prospect.name} prospectId={prospect.id} />
             </div>
@@ -812,47 +858,55 @@ export default function ProspectModal({
               </div>
             )}
 
-            {/* Champs (Minari exact — UPPERCASE labels, champs éditables avec bordure) */}
+            {/* Champs éditables — sections avec fond violet doux */}
             <div className="space-y-3 flex-1">
-              <EditableField label="Email" value={prospect.email || ''} prospectId={prospect.id} field="email" copyable />
-              <div>
-                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Statut</span>
-                <select value={prospect.crm_status || 'new'} onChange={async e => {
-                  await supabase.from('prospects').update({ crm_status: e.target.value }).eq('id', prospect.id)
-                  queryClient.invalidateQueries({ queryKey: ['prospects'] })
-                }} className="block mt-1 text-[13px] text-gray-600 bg-transparent outline-none cursor-pointer border-b border-gray-200 pb-1 w-full">
-                  {CRM_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-                </select>
+              {/* ── Contact ── */}
+              <div className="bg-violet-50/50 rounded-xl p-3 space-y-2">
+                <EditableField label="Email" value={prospect.email || ''} prospectId={prospect.id} field="email" copyable />
+                <div>
+                  <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Statut appel</span>
+                  <div className="mt-1">
+                    <MiniDropdown value={localCallOutcome} options={CALL_STATUS_OPTIONS}
+                      onChange={async v => {
+                        setLocalCallOutcome(v)
+                        await supabase.from('prospects').update({ last_call_outcome: v }).eq('id', prospect.id)
+                        queryClient.invalidateQueries({ queryKey: ['prospects'] })
+                      }} />
+                  </div>
+                </div>
               </div>
-              <EditableField label="Téléphone" value={prospect.phone} prospectId={prospect.id} field="phone" copyable mono />
-              {/* Téléphones 2-5 : afficher seulement si remplis + bouton ajouter */}
-              {(prospect.phone2 || showExtraPhone >= 2) && <EditableField label="Téléphone 2" value={prospect.phone2 || ''} prospectId={prospect.id} field="phone2" copyable mono />}
-              {(prospect.phone3 || showExtraPhone >= 3) && <EditableField label="Téléphone 3" value={prospect.phone3 || ''} prospectId={prospect.id} field="phone3" mono />}
-              {(prospect.phone4 || showExtraPhone >= 4) && <EditableField label="Téléphone 4" value={prospect.phone4 || ''} prospectId={prospect.id} field="phone4" mono />}
-              {(prospect.phone5 || showExtraPhone >= 5) && <EditableField label="Téléphone 5" value={prospect.phone5 || ''} prospectId={prospect.id} field="phone5" mono />}
-              {/* Bouton ajouter un numéro */}
-              {nextEmptyPhone <= 5 && (
-                <button onClick={() => setShowExtraPhone(nextEmptyPhone)}
-                  className="text-[11px] text-gray-400 hover:text-violet-600 flex items-center gap-1 mt-1">
-                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
-                  Ajouter un numéro
-                </button>
-              )}
 
-              {/* ── Section Liens (réseaux sociaux + sites) ── */}
-              <div className="pt-3 border-t border-gray-100 mt-3">
+              {/* ── Téléphones ── */}
+              <div className="bg-violet-50/50 rounded-xl p-3 space-y-2">
+                <EditableField label="Téléphone" value={prospect.phone} prospectId={prospect.id} field="phone" copyable mono />
+                {(prospect.phone2 || showExtraPhone >= 2) && <EditableField label="Téléphone 2" value={prospect.phone2 || ''} prospectId={prospect.id} field="phone2" copyable mono />}
+                {(prospect.phone3 || showExtraPhone >= 3) && <EditableField label="Téléphone 3" value={prospect.phone3 || ''} prospectId={prospect.id} field="phone3" mono />}
+                {(prospect.phone4 || showExtraPhone >= 4) && <EditableField label="Téléphone 4" value={prospect.phone4 || ''} prospectId={prospect.id} field="phone4" mono />}
+                {(prospect.phone5 || showExtraPhone >= 5) && <EditableField label="Téléphone 5" value={prospect.phone5 || ''} prospectId={prospect.id} field="phone5" mono />}
+                {nextEmptyPhone <= 5 && (
+                  <button onClick={() => setShowExtraPhone(nextEmptyPhone)}
+                    className="text-[11px] text-violet-400 hover:text-violet-600 flex items-center gap-1">
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+                    Ajouter un numéro
+                  </button>
+                )}
+              </div>
+
+              {/* ── Liens ── */}
+              <div className="bg-violet-50/50 rounded-xl p-3">
                 <SocialLinks prospectId={prospect.id} />
               </div>
 
-              {/* ── Section Adresse ── */}
-              <div className="pt-3 border-t border-gray-100 mt-3">
+              {/* ── Adresse ── */}
+              <div className="bg-violet-50/50 rounded-xl p-3 space-y-2">
+                <p className="text-[10px] font-bold text-violet-400 uppercase tracking-wider mb-1">Adresse</p>
                 <EditableField label="Adresse" value={prospect.address || ''} prospectId={prospect.id} field="address" />
                 <EditableField label="Ville" value={prospect.city || ''} prospectId={prospect.id} field="city" />
                 <EditableField label="Code postal" value={prospect.postal_code || ''} prospectId={prospect.id} field="postal_code" />
                 <EditableField label="Pays" value={prospect.country || ''} prospectId={prospect.id} field="country" />
               </div>
 
-              {/* ── Section Champs personnalisés ── */}
+              {/* ── Champs personnalisés ── */}
               <CustomFieldsSection prospectId={prospect.id} prospect={prospect} />
             </div>
           </div>
@@ -889,7 +943,7 @@ export default function ProspectModal({
             <div className="flex-1 overflow-y-auto px-5 py-3">
 
               {/* ── Onglet Activité ── */}
-              {(activeTab === 'activite' || isInCall || isDisconnected) && (
+              {activeTab === 'activite' && (
               <>
               {/* Card appel EN COURS */}
               {isInCall && (
@@ -918,10 +972,11 @@ export default function ProspectModal({
                   <div className="flex items-center gap-6 mb-4">
                     <div>
                       <p className="text-[11px] text-gray-400 mb-1">Résultat</p>
-                      <select value={callContext?.disposition || (callContext?.wasAnswered ? ((callContext?.duration || 0) >= 8 ? 'connected' : 'voicemail') : 'no_answer')} onChange={e => onSetDisposition(e.target.value as Disposition)}
-                        className="text-[13px] text-gray-700 border border-gray-200 rounded-lg px-2 py-1 outline-none bg-white cursor-pointer">
-                        {DISPOSITIONS.map(d => <option key={d.value} value={d.value}>{d.label}</option>)}
-                      </select>
+                      <MiniDropdown
+                        value={callContext?.disposition || (callContext?.wasAnswered ? ((callContext?.duration || 0) >= 8 ? 'connected' : 'voicemail') : 'no_answer')}
+                        options={DISPOSITIONS}
+                        onChange={v => onSetDisposition(v as Disposition)}
+                      />
                     </div>
                     <label className="flex items-center gap-2 cursor-pointer">
                       <input type="checkbox" checked={callContext?.meetingBooked || false}
@@ -1085,46 +1140,87 @@ function DealSidebar({ prospect }: { prospect: Prospect }) {
   const stages = dbStatuses && dbStatuses.length > 0
     ? dbStatuses.map(s => ({ key: s.key, label: s.label, color: s.color }))
     : FALLBACK_STAGES
-  const currentStage = stages.findIndex(s => s.key === prospect.crm_status)
-  const hasReminder = prospect.snoozed_until && new Date(prospect.snoozed_until) > new Date()
-  const reminderDate = prospect.snoozed_until ? new Date(prospect.snoozed_until) : null
+  const [localStatus, setLocalStatus] = useState(prospect.crm_status)
+  const [localSnoozed, setLocalSnoozed] = useState(prospect.snoozed_until)
+  // Sync quand le prop change (re-fetch)
+  useEffect(() => { setLocalStatus(prospect.crm_status) }, [prospect.crm_status])
+  useEffect(() => { setLocalSnoozed(prospect.snoozed_until) }, [prospect.snoozed_until])
+
+  const currentStage = stages.findIndex(s => s.key === localStatus)
+  const hasReminder = localSnoozed && new Date(localSnoozed) > new Date()
+  const reminderDate = localSnoozed ? new Date(localSnoozed) : null
   const [settingReminder, setSettingReminder] = useState(false)
   const [reminderDays, setReminderDays] = useState('7')
+  const [showRdvPicker, setShowRdvPicker] = useState(false)
+  const [rdvDate, setRdvDate] = useState('')
+  const [rdvTime, setRdvTime] = useState('10:00')
 
   const updateStatus = async (status: string) => {
+    // RDV pris → ouvrir le picker date/heure
+    if (status === 'rdv_pris') {
+      setShowRdvPicker(true)
+      return
+    }
+    setLocalStatus(status as any)
     const updateData: Record<string, unknown> = { crm_status: status }
     if (status === 'en_attente_signature') {
       const d = new Date(); d.setDate(d.getDate() + 7)
       updateData.snoozed_until = d.toISOString()
+      setLocalSnoozed(d.toISOString())
     }
-    if (status === 'signe') {
+    if (status === 'en_attente_paiement') {
+      const d = new Date(); d.setDate(d.getDate() + 7)
+      updateData.snoozed_until = d.toISOString()
+      setLocalSnoozed(d.toISOString())
+    }
+    if (status === 'signe' || status === 'paye') {
       updateData.snoozed_until = null
       updateData.meeting_booked = true
+      setLocalSnoozed(null)
     }
     await supabase.from('prospects').update(updateData).eq('id', prospect.id)
     queryClient.invalidateQueries({ queryKey: ['prospects'] })
+    queryClient.invalidateQueries({ queryKey: ['calls-by-prospect'] })
+    queryClient.invalidateQueries({ queryKey: ['rdv-today'] })
+  }
+
+  const confirmRdvPris = async () => {
+    if (!rdvDate) return
+    const dateTime = new Date(`${rdvDate}T${rdvTime}:00`)
+    setLocalStatus('rdv_pris' as any)
+    setShowRdvPicker(false)
+    await supabase.from('prospects').update({
+      crm_status: 'rdv_pris',
+      meeting_booked: true,
+      rdv_date: dateTime.toISOString(),
+    }).eq('id', prospect.id)
+    queryClient.invalidateQueries({ queryKey: ['prospects'] })
+    queryClient.invalidateQueries({ queryKey: ['rdv-today'] })
+    queryClient.invalidateQueries({ queryKey: ['activity-logs'] })
   }
 
   const setReminder = async () => {
     const d = new Date(); d.setDate(d.getDate() + parseInt(reminderDays))
+    setLocalSnoozed(d.toISOString())
     await supabase.from('prospects').update({ snoozed_until: d.toISOString() }).eq('id', prospect.id)
     queryClient.invalidateQueries({ queryKey: ['prospects'] })
     setSettingReminder(false)
   }
 
   const clearReminder = async () => {
+    setLocalSnoozed(null)
     await supabase.from('prospects').update({ snoozed_until: null }).eq('id', prospect.id)
     queryClient.invalidateQueries({ queryKey: ['prospects'] })
   }
 
   return (
-    <div className="w-[240px] min-w-[200px] flex-shrink-0 border-l border-gray-100 dark:border-[#d4cade] p-4 flex flex-col gap-4 overflow-y-auto bg-gray-50/50">
+    <div className="w-[240px] min-w-[200px] flex-shrink-0 border-l border-gray-100 dark:border-[#d4cade] p-4 flex flex-col gap-4 overflow-y-auto bg-gradient-to-b from-violet-50/60 to-gray-50/30">
       {/* Pipeline visuel */}
-      <div>
-        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">Pipeline</p>
+      <div className="bg-white/60 rounded-xl p-3">
+        <p className="text-[10px] font-bold text-violet-500 uppercase tracking-wider mb-2">Pipeline</p>
         <div className="space-y-1">
           {stages.map((stage, i) => {
-            const isActive = stage.key === prospect.crm_status
+            const isActive = stage.key === localStatus
             const isPast = i < currentStage
             return (
               <button key={stage.key} onClick={() => updateStatus(stage.key)}
@@ -1140,6 +1236,52 @@ function DealSidebar({ prospect }: { prospect: Prospect }) {
           })}
         </div>
       </div>
+
+      {/* Modale RDV date/heure */}
+      {showRdvPicker && (
+        <div className="bg-teal-50 border border-teal-200 rounded-xl p-3 animate-fade-in">
+          <p className="text-[11px] font-bold text-teal-700 mb-2">Planifier le RDV</p>
+          <div className="space-y-2">
+            <div>
+              <label className="text-[10px] text-gray-500 uppercase">Date</label>
+              <input type="date" value={rdvDate} onChange={e => setRdvDate(e.target.value)}
+                className="block w-full mt-0.5 text-[12px] border border-teal-200 rounded-lg px-2.5 py-1.5 outline-none focus:border-teal-400 bg-white" />
+            </div>
+            <div>
+              <label className="text-[10px] text-gray-500 uppercase">Heure</label>
+              <input type="time" value={rdvTime} onChange={e => setRdvTime(e.target.value)}
+                className="block w-full mt-0.5 text-[12px] border border-teal-200 rounded-lg px-2.5 py-1.5 outline-none focus:border-teal-400 bg-white" />
+            </div>
+            <div className="flex gap-2 pt-1">
+              <button onClick={confirmRdvPris} disabled={!rdvDate}
+                className="flex-1 py-1.5 text-[11px] font-semibold text-white bg-teal-500 hover:bg-teal-600 disabled:opacity-40 rounded-lg transition-colors">
+                Confirmer RDV
+              </button>
+              <button onClick={() => setShowRdvPicker(false)}
+                className="px-3 py-1.5 text-[11px] text-gray-500 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors">
+                Annuler
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* RDV programmé */}
+      {prospect.rdv_date && (
+        <div className="bg-teal-50 border border-teal-200 rounded-lg px-3 py-2">
+          <div className="flex items-center gap-1.5 mb-0.5">
+            <svg className="w-3.5 h-3.5 text-teal-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+            <span className="text-[12px] font-semibold text-teal-700">
+              {new Date(prospect.rdv_date).toLocaleDateString('fr-FR', { weekday: 'short', day: '2-digit', month: 'short' })}
+              {' à '}
+              {new Date(prospect.rdv_date).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+            </span>
+          </div>
+          {new Date(prospect.rdv_date) < new Date() && localStatus !== 'rdv_fait' && (
+            <p className="text-[10px] text-amber-600 font-medium mt-0.5">RDV passé — à statuer</p>
+          )}
+        </div>
+      )}
 
       {/* Rappel */}
       <div className="border-t border-gray-200 pt-3">
@@ -1183,7 +1325,7 @@ function DealSidebar({ prospect }: { prospect: Prospect }) {
 
       {/* Infos deal */}
       <div className="border-t border-gray-200 pt-3">
-        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">Résumé</p>
+        <p className="text-[10px] font-bold text-violet-500 uppercase tracking-wider mb-2">Résumé</p>
         <div className="space-y-2">
           <div className="flex justify-between text-[12px]">
             <span className="text-gray-400">Appels</span>
@@ -1216,53 +1358,27 @@ function DealSidebar({ prospect }: { prospect: Prospect }) {
         </div>
       </div>
 
-      {/* Actions rapides */}
+      {/* Automatisations (à venir) */}
       <div className="border-t border-gray-200 pt-3 mt-auto">
-        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">Actions rapides</p>
+        <p className="text-[10px] font-bold text-violet-500 uppercase tracking-wider mb-2">Automatisations</p>
         <div className="space-y-1.5">
-          {!prospect.meeting_booked && (
-            <button onClick={async () => {
-              await supabase.from('prospects').update({ meeting_booked: true, crm_status: 'rdv_pris' }).eq('id', prospect.id)
-              queryClient.invalidateQueries({ queryKey: ['prospects'] })
-            }} className="w-full text-left flex items-center gap-2 px-2.5 py-1.5 text-[11px] text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors">
-              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-              RDV pris
-            </button>
-          )}
-          <button onClick={() => updateStatus('rdv_fait')}
-            className="w-full text-left flex items-center gap-2 px-2.5 py-1.5 text-[11px] text-emerald-700 hover:bg-emerald-50 rounded-lg transition-colors">
-            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-            RDV fait
-          </button>
-          <button onClick={() => updateStatus('en_attente_signature')}
-            className="w-full text-left flex items-center gap-2 px-2.5 py-1.5 text-[11px] text-orange-600 hover:bg-orange-50 rounded-lg transition-colors">
-            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
-            Lien envoyé
-          </button>
-          <button onClick={() => updateStatus('signe')}
-            className="w-full text-left flex items-center gap-2 px-2.5 py-1.5 text-[11px] text-green-600 hover:bg-green-50 rounded-lg transition-colors">
-            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
-            Signé
-          </button>
-          <button onClick={() => updateStatus('en_attente_paiement')}
-            className="w-full text-left flex items-center gap-2 px-2.5 py-1.5 text-[11px] text-amber-600 hover:bg-amber-50 rounded-lg transition-colors">
-            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-            En attente paiement
-          </button>
-          <button onClick={() => updateStatus('paye')}
-            className="w-full text-left flex items-center gap-2 px-2.5 py-1.5 text-[11px] text-green-700 hover:bg-green-50 rounded-lg transition-colors font-semibold">
-            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
-            Payé !
-          </button>
-          {!prospect.do_not_call && (
-            <button onClick={async () => {
-              await supabase.from('prospects').update({ do_not_call: true }).eq('id', prospect.id)
-              queryClient.invalidateQueries({ queryKey: ['prospects'] })
-            }} className="w-full text-left flex items-center gap-2 px-2.5 py-1.5 text-[11px] text-red-400 hover:bg-red-50 rounded-lg transition-colors">
-              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" /></svg>
-              Ne plus appeler
-            </button>
-          )}
+          <div className="flex items-center gap-2 px-2.5 py-1.5 text-[11px] text-gray-300 rounded-lg">
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
+            Envoyer mail brochure
+          </div>
+          <div className="flex items-center gap-2 px-2.5 py-1.5 text-[11px] text-gray-300 rounded-lg">
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>
+            Envoyer SMS confirmation
+          </div>
+          <div className="flex items-center gap-2 px-2.5 py-1.5 text-[11px] text-gray-300 rounded-lg">
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+            Créer événement calendrier
+          </div>
+          <div className="flex items-center gap-2 px-2.5 py-1.5 text-[11px] text-gray-300 rounded-lg">
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" /></svg>
+            Envoyer lien d'inscription
+          </div>
+          <p className="text-[9px] text-gray-300 text-center mt-1">Bientôt disponible</p>
         </div>
       </div>
     </div>

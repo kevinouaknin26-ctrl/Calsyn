@@ -8,6 +8,7 @@ import History from '@/pages/History'
 import Dashboard from '@/pages/Dashboard'
 import Team from '@/pages/Team'
 import Settings from '@/pages/Settings'
+import Calendar from '@/pages/Calendar'
 import type { ReactNode } from 'react'
 
 const queryClient = new QueryClient({
@@ -36,6 +37,7 @@ function AppRoutes() {
       <Route path="/app/history" element={<Protected><Layout><History /></Layout></Protected>} />
       <Route path="/app/dashboard" element={<Protected admin><Layout><Dashboard /></Layout></Protected>} />
       <Route path="/app/team" element={<Protected admin><Layout><Team /></Layout></Protected>} />
+      <Route path="/app/calendar" element={<Protected><Layout><Calendar /></Layout></Protected>} />
       <Route path="/app/settings" element={<Protected><Layout><Settings /></Layout></Protected>} />
       <Route path="*" element={<Navigate to="/app/dialer" replace />} />
     </Routes>

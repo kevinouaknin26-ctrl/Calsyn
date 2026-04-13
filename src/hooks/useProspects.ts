@@ -62,6 +62,33 @@ export function useProspectLists() {
   })
 }
 
+/** RDV du jour — tous les prospects avec rdv_date aujourd'hui (cross-listes) */
+export function useRdvToday() {
+  const { organisation } = useAuth()
+  const orgId = organisation?.id
+
+  return useQuery({
+    queryKey: ['rdv-today', orgId],
+    queryFn: async () => {
+      if (!orgId) return []
+      const today = new Date()
+      const start = new Date(today.getFullYear(), today.getMonth(), today.getDate()).toISOString()
+      const end = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1).toISOString()
+      const { data, error } = await supabase
+        .from('prospects')
+        .select('id, list_id, name, phone, email, company, title, crm_status, last_call_outcome, rdv_date, meeting_booked')
+        .eq('organisation_id', orgId)
+        .gte('rdv_date', start)
+        .lt('rdv_date', end)
+        .order('rdv_date', { ascending: true })
+      if (error) throw error
+      return data || []
+    },
+    enabled: !!orgId,
+    refetchInterval: 60000, // Refresh toutes les minutes
+  })
+}
+
 export function useProspects(listId: string | null) {
   const { organisation } = useAuth()
   const orgId = organisation?.id
@@ -72,7 +99,7 @@ export function useProspects(listId: string | null) {
       if (!listId || !orgId) return []
       const { data, error } = await supabase
         .from('prospects')
-        .select('id, list_id, organisation_id, name, phone, phone2, phone3, phone4, phone5, email, company, title, sector, linkedin_url, website_url, status, crm_status, call_count, last_call_at, last_call_outcome, snoozed_until, do_not_call, meeting_booked, address, city, postal_code, country, created_at')
+        .select('id, list_id, organisation_id, name, phone, phone2, phone3, phone4, phone5, email, company, title, sector, linkedin_url, website_url, status, crm_status, call_count, last_call_at, last_call_outcome, snoozed_until, rdv_date, do_not_call, meeting_booked, address, city, postal_code, country, created_at')
         .eq('list_id', listId)
         .order('created_at', { ascending: true })
       if (error) throw error

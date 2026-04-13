@@ -701,6 +701,99 @@ export default function SelectListPage({ onSelect, onClose }: Props) {
               break
             }
           }
+
+          // ── Sync rdv_date depuis colonnes date/heure du CSV ──
+          // Chercher des colonnes dont le header contient rdv, heure, date, time
+          let rdvDateColIdx = -1
+          let rdvTimeColIdx = -1
+          for (let ci = 0; ci < csvMapping.length; ci++) {
+            const hNorm = (csvHeaders[ci] || '').toLowerCase().replace(/[^a-z0-9]/g, '')
+            // Date column: "rdv_date", "date du rdv", "date_rdv", "daterdv", etc.
+            if ((hNorm.includes('date') && hNorm.includes('rdv')) || hNorm === 'daterdv' || hNorm === 'rdvdate' || hNorm === 'datedurendez') {
+              rdvDateColIdx = ci
+            }
+            // Time column: "rdv_heure", "heure du rdv", "heure_rdv", "rdv_time", etc.
+            if ((hNorm.includes('heure') || hNorm.includes('time')) && (hNorm.includes('rdv') || hNorm.includes('rendez'))) {
+              rdvTimeColIdx = ci
+            }
+            // Fallback: column named just "rdv_date" or "rdv_heure" mapped as custom
+            if (rdvDateColIdx === -1 && (hNorm === 'rdvdate' || hNorm === 'daterdv')) rdvDateColIdx = ci
+            if (rdvTimeColIdx === -1 && (hNorm === 'rdvheure' || hNorm === 'heurerdv')) rdvTimeColIdx = ci
+          }
+
+          if (rdvDateColIdx !== -1 || rdvTimeColIdx !== -1) {
+            const rdvUpdates: Array<{ id: string; rdv_date: string }> = []
+
+            validIndices.forEach((rowIdx, prospectIdx) => {
+              const pid = insertedIds[prospectIdx]
+              if (!pid) return
+
+              const rawDate = rdvDateColIdx !== -1 ? (csvRows[rowIdx]?.[rdvDateColIdx] || '').trim() : ''
+              const rawTime = rdvTimeColIdx !== -1 ? (csvRows[rowIdx]?.[rdvTimeColIdx] || '').trim() : ''
+
+              if (!rawDate && !rawTime) return
+
+              // Parse date: DD/MM/YYYY, DD-MM-YYYY, YYYY-MM-DD
+              let year: number | null = null, month: number | null = null, day: number | null = null
+              if (rawDate) {
+                const slashMatch = rawDate.match(/^(\d{1,2})[/\-.](\d{1,2})[/\-.](\d{4})$/)
+                if (slashMatch) {
+                  day = parseInt(slashMatch[1], 10)
+                  month = parseInt(slashMatch[2], 10)
+                  year = parseInt(slashMatch[3], 10)
+                } else {
+                  const isoMatch = rawDate.match(/^(\d{4})[/\-.](\d{1,2})[/\-.](\d{1,2})$/)
+                  if (isoMatch) {
+                    year = parseInt(isoMatch[1], 10)
+                    month = parseInt(isoMatch[2], 10)
+                    day = parseInt(isoMatch[3], 10)
+                  }
+                }
+              }
+
+              // Parse time: HH:MM or HHhMM
+              let hours = 9, minutes = 0
+              if (rawTime) {
+                const timeMatch = rawTime.match(/^(\d{1,2})[h:](\d{2})$/)
+                if (timeMatch) {
+                  hours = parseInt(timeMatch[1], 10)
+                  minutes = parseInt(timeMatch[2], 10)
+                }
+              }
+
+              // Build ISO datetime
+              if (year && month && day) {
+                const dt = new Date(year, month - 1, day, hours, minutes)
+                if (!isNaN(dt.getTime())) {
+                  rdvUpdates.push({ id: pid, rdv_date: dt.toISOString() })
+                }
+              } else if (rawTime && !rawDate) {
+                // Only time: use today
+                const now = new Date()
+                const dt = new Date(now.getFullYear(), now.getMonth(), now.getDate(), hours, minutes)
+                if (!isNaN(dt.getTime())) {
+                  rdvUpdates.push({ id: pid, rdv_date: dt.toISOString() })
+                }
+              }
+            })
+
+            // Batch update rdv_date
+            if (rdvUpdates.length > 0) {
+              const batchSize = 200
+              for (let b = 0; b < rdvUpdates.length; b += batchSize) {
+                const batch = rdvUpdates.slice(b, b + batchSize)
+                // Group by same rdv_date to minimize queries
+                const byDate: Record<string, string[]> = {}
+                for (const u of batch) {
+                  if (!byDate[u.rdv_date]) byDate[u.rdv_date] = []
+                  byDate[u.rdv_date].push(u.id)
+                }
+                for (const [rdvDate, ids] of Object.entries(byDate)) {
+                  await supabase.from('prospects').update({ rdv_date: rdvDate }).in('id', ids)
+                }
+              }
+            }
+          }
         }
       }
 

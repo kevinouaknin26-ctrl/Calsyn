@@ -8,7 +8,7 @@ import { useState, useEffect, useCallback, memo, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { useQueryClient, useQuery } from '@tanstack/react-query'
 import { useCallMachine } from '@/hooks/useCallMachine'
-import { useProspectLists, useProspects, useAddProspect, useCreateProspectField } from '@/hooks/useProspects'
+import { useProspectLists, useProspects, useAddProspect, useCreateProspectField, useRdvToday } from '@/hooks/useProspects'
 import { usePropertyDefinitions, useCustomFieldValues, groupProperties, updatePropertyValue, useCrmStatuses, type CrmStatusDef } from '@/hooks/useProperties'
 import { SYSTEM_PROPERTIES, DEFAULT_VISIBLE_COLUMNS, getPropertyValue, matchesSearch, CRM_STATUS_LABELS, type PropertyDefinition } from '@/config/properties'
 import { useCallsByProspect } from '@/hooks/useCalls'
@@ -863,6 +863,7 @@ export default function Dialer() {
 
   // ── Propriétés CRM (HubSpot-style) ──
   const { properties: allProperties } = usePropertyDefinitions()
+  const { data: rdvToday } = useRdvToday()
   const { data: crmStatuses } = useCrmStatuses()
   const crmLabels: Record<string, string> = {}
   crmStatuses?.forEach(s => { crmLabels[s.key] = s.label })
@@ -1509,6 +1510,49 @@ export default function Dialer() {
             selectedFromNumber={selectedFromNumber} setSelectedFromNumber={setSelectedFromNumber} />
         </div>
       </div>
+
+      {/* ── Bandeau RDV du jour ── */}
+      {rdvToday && rdvToday.length > 0 && (
+        <div className="px-5 py-2 bg-gradient-to-r from-teal-50 to-emerald-50 border-b border-teal-100">
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-1.5">
+              <svg className="w-4 h-4 text-teal-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+              <span className="text-[13px] font-semibold text-teal-700">RDV du jour</span>
+              <span className="text-[11px] text-teal-500 bg-teal-100 px-1.5 py-0.5 rounded-full font-bold">{rdvToday.length}</span>
+            </div>
+            <div className="flex items-center gap-2 flex-1 overflow-x-auto">
+              {rdvToday.map(rdv => {
+                const time = rdv.rdv_date ? new Date(rdv.rdv_date).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : ''
+                const isPast = rdv.rdv_date && new Date(rdv.rdv_date) < new Date()
+                return (
+                  <button key={rdv.id} onClick={() => {
+                    // Naviguer vers la liste du prospect et ouvrir sa fiche
+                    if (rdv.list_id) {
+                      setActiveListId(rdv.list_id)
+                      setOpenTabIds(prev => prev.includes(rdv.list_id) ? prev : [...prev, rdv.list_id])
+                    }
+                    // Ouvrir la fiche prospect
+                    const p = prospects?.find(pr => pr.id === rdv.id)
+                    if (p) { if (cm.isDisconnected) cm.reset(); setSelectedProspect(p) }
+                  }}
+                    className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border transition-all flex-shrink-0 ${
+                      isPast
+                        ? 'bg-white border-amber-200 hover:border-amber-400 shadow-sm'
+                        : 'bg-white border-teal-200 hover:border-teal-400 shadow-sm'
+                    }`}>
+                    <span className={`text-[12px] font-mono font-bold ${isPast ? 'text-amber-600' : 'text-teal-600'}`}>{time}</span>
+                    <span className="text-[12px] text-gray-700 font-medium">{rdv.name}</span>
+                    {rdv.company && <span className="text-[10px] text-gray-400">· {rdv.company}</span>}
+                    {isPast && !rdv.meeting_booked && (
+                      <span className="text-[9px] text-amber-500 font-bold bg-amber-50 px-1.5 py-0.5 rounded">EN RETARD</span>
+                    )}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Filtres CRM actifs (colonnes) ── */}
       {filters.filter(f => f.propertyId !== '_call_status').length > 0 && (
