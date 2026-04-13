@@ -34,7 +34,7 @@ const OUTCOME_LABELS: Record<string, string> = {
 
 const FILTERS = [
   { key: 'all', label: 'Tous' },
-  { key: 'rdv', label: 'RDV' },
+  { key: 'rdv_pris', label: 'RDV pris' },
   { key: 'connected', label: 'Connecte' },
   { key: 'callback', label: 'Rappel' },
   { key: 'no_answer', label: 'Absent' },

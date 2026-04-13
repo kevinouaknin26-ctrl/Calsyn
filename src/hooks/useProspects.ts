@@ -9,6 +9,36 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/config/supabase'
 import { useAuth } from '@/hooks/useAuth'
 import type { Prospect, ProspectList } from '@/types/prospect'
+import { extractSocialsFromValues } from '@/components/call/SocialLinks'
+
+// ── Types Custom Fields ──────────────────────────────────────────
+export interface ProspectField {
+  id: string
+  organisation_id: string
+  name: string
+  key: string
+  field_type: string
+  is_system: boolean
+}
+
+// Champs système (colonnes natives de la table prospects)
+export const SYSTEM_FIELDS: Array<{ key: string; name: string }> = [
+  { key: 'name', name: 'Nom complet' },
+  { key: 'first_name', name: 'Prénom' },
+  { key: 'last_name', name: 'Nom de famille' },
+  { key: 'phone', name: 'Téléphone principal' },
+  { key: 'phone2', name: 'Téléphone 2' },
+  { key: 'email', name: 'Email' },
+  { key: 'company', name: 'Entreprise' },
+  { key: 'title', name: 'Poste / Fonction' },
+  { key: 'sector', name: 'Secteur' },
+  { key: 'address', name: 'Adresse' },
+  { key: 'city', name: 'Ville' },
+  { key: 'postal_code', name: 'Code postal' },
+  { key: 'country', name: 'Pays' },
+  { key: 'linkedin_url', name: 'LinkedIn (→ Liens)' },
+  { key: 'website_url', name: 'Site web (→ Liens)' },
+]
 
 // ── Queries ────────────────────────────────────────────────────────
 
@@ -122,7 +152,7 @@ export function useImportProspects() {
   const { organisation } = useAuth()
 
   return useMutation({
-    mutationFn: async ({ listId, prospects }: { listId: string; prospects: Array<{ name: string; phone: string; email?: string; company?: string; sector?: string }> }) => {
+    mutationFn: async ({ listId, prospects }: { listId: string; prospects: Array<{ name: string; phone: string; phone2?: string; email?: string; company?: string; title?: string; sector?: string; address?: string; city?: string; postal_code?: string; country?: string; linkedin_url?: string; website_url?: string }> }) => {
       if (!organisation?.id) throw new Error('No organisation')
 
       // Dédupliquer : récupérer les numéros déjà dans cette liste
@@ -147,15 +177,125 @@ export function useImportProspects() {
         organisation_id: organisation.id,
         name: p.name,
         phone: p.phone,
+        phone2: p.phone2 || null,
         email: p.email || null,
         company: p.company || null,
+        title: p.title || null,
         sector: p.sector || null,
+        address: p.address || null,
+        city: p.city || null,
+        postal_code: p.postal_code || null,
+        country: p.country || null,
+        linkedin_url: p.linkedin_url || null,
+        website_url: p.website_url || null,
       }))
-      const { error } = await supabase.from('prospects').insert(rows)
+      const { data: inserted, error } = await supabase.from('prospects').insert(rows).select('id')
       if (error) throw error
+      const insertedIds = inserted?.map(r => r.id) || []
+
+      // ── Sync socials : détecter les URLs dans linkedin_url, website_url ──
+      if (insertedIds.length > 0) {
+        const socialRows: Array<{ prospect_id: string; platform: string; url: string }> = []
+        unique.forEach((p, i) => {
+          const pid = insertedIds[i]
+          if (!pid) return
+          const urls: Array<{ value: string }> = []
+          if (p.linkedin_url) urls.push({ value: p.linkedin_url })
+          if (p.website_url) urls.push({ value: p.website_url })
+          const socials = extractSocialsFromValues(urls)
+          for (const s of socials) {
+            socialRows.push({ prospect_id: pid, platform: s.platform, url: s.url })
+          }
+        })
+        if (socialRows.length > 0) {
+          // Batch insert socials (ignore duplicates)
+          const batchSize = 500
+          for (let i = 0; i < socialRows.length; i += batchSize) {
+            await supabase.from('prospect_socials').insert(socialRows.slice(i, i + batchSize))
+          }
+        }
+      }
+
+      return insertedIds
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['prospects', variables.listId] })
     },
   })
+}
+
+// ── Custom Fields ────────────────────────────────────────────────
+
+export function useProspectFields() {
+  const { organisation } = useAuth()
+  return useQuery({
+    queryKey: ['prospect-fields', organisation?.id],
+    queryFn: async () => {
+      if (!organisation?.id) return []
+      const { data, error } = await supabase
+        .from('prospect_fields')
+        .select('*')
+        .eq('organisation_id', organisation.id)
+        .order('created_at')
+      if (error) throw error
+      return data as ProspectField[]
+    },
+    enabled: !!organisation?.id,
+  })
+}
+
+export function useCreateProspectField() {
+  const queryClient = useQueryClient()
+  const { organisation } = useAuth()
+
+  return useMutation({
+    mutationFn: async ({ name, key, fieldType }: { name: string; key: string; fieldType?: string }) => {
+      if (!organisation?.id) throw new Error('No organisation')
+      const { data, error } = await supabase
+        .from('prospect_fields')
+        .upsert({
+          organisation_id: organisation.id,
+          name,
+          key,
+          field_type: fieldType || 'text',
+          is_system: false,
+        }, { onConflict: 'organisation_id,key' })
+        .select()
+        .single()
+      if (error) throw error
+      return data as ProspectField
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['prospect-fields'] })
+    },
+  })
+}
+
+/** Sauvegarde des valeurs custom pour un batch de prospects */
+export async function saveCustomFieldValues(
+  prospectIds: string[],
+  customData: Array<Record<string, string>>,
+  fieldMapping: Array<{ fieldId: string; customKey: string }>,
+) {
+  if (fieldMapping.length === 0 || prospectIds.length === 0) return
+
+  const rows: Array<{ prospect_id: string; field_id: string; value: string }> = []
+  prospectIds.forEach((pid, i) => {
+    for (const fm of fieldMapping) {
+      const val = customData[i]?.[fm.customKey]?.trim()
+      if (val) {
+        rows.push({ prospect_id: pid, field_id: fm.fieldId, value: val })
+      }
+    }
+  })
+
+  if (rows.length === 0) return
+
+  const batchSize = 500
+  for (let i = 0; i < rows.length; i += batchSize) {
+    const batch = rows.slice(i, i + batchSize)
+    await supabase.from('prospect_field_values').upsert(batch, {
+      onConflict: 'prospect_id,field_id',
+    })
+  }
 }

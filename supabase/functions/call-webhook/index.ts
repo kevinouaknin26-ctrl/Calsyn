@@ -74,7 +74,8 @@ serve(async (req) => {
     // pour que status-callback associe l'appel au bon prospect (même numéro dans plusieurs listes)
     const prospectId = params.ProspectId || ''
     const prospectName = params.ProspectName || ''
-    const statusCbUrl = `${SUPABASE_URL}/functions/v1/status-callback?prospectId=${encodeURIComponent(prospectId)}&prospectName=${encodeURIComponent(prospectName)}`
+    // IMPORTANT: & → &amp; pour XML valide dans les attributs TwiML
+    const statusCbUrl = `${SUPABASE_URL}/functions/v1/status-callback?prospectId=${encodeURIComponent(prospectId)}&amp;prospectName=${encodeURIComponent(prospectName)}`
 
     const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>

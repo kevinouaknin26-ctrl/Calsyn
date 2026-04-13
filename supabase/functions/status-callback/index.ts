@@ -149,13 +149,29 @@ serve(async (req) => {
           // Garder le statut le plus avance (ne jamais redescendre)
           const bestOutcome = newPriority >= currentPriority ? outcome : p.last_call_outcome
 
-          // Auto-avancer le CRM status si encore "new"
+          // Auto-avancer le CRM status en fonction du résultat d'appel
+          // Priorité CRM : signe > en_attente_signature > rdv > connected > callback > in_progress > attempted_to_contact > new
+          const crmPriority: Record<string, number> = {
+            'new': 0, 'open': 5, 'attempted_to_contact': 10, 'in_progress': 20,
+            'connected': 30, 'callback': 40, 'not_interested': 35, 'mail_sent': 45,
+            'rdv_pris': 50, 'rdv_fait': 55, 'en_attente_signature': 60, 'signe': 90, 'en_attente_paiement': 95, 'paye': 100,
+          }
+          // Quel CRM status le résultat d'appel implique
+          const outcomeTocrm: Record<string, string> = {
+            'connected': 'connected',
+            'voicemail': 'attempted_to_contact',
+            'no_answer': 'attempted_to_contact',
+            'busy': 'attempted_to_contact',
+            'cancelled': 'attempted_to_contact',
+            'failed': 'attempted_to_contact',
+          }
           let crmUpdate: Record<string, string> = {}
-          if (p.crm_status === 'new' || p.crm_status === null) {
-            if (outcome === 'connected') {
-              crmUpdate = { crm_status: 'connected' }
-            } else {
-              crmUpdate = { crm_status: 'attempted_to_contact' }
+          const impliedCrm = outcomeTocrm[outcome]
+          if (impliedCrm) {
+            const currentCrmPriority = crmPriority[p.crm_status || 'new'] || 0
+            const impliedCrmPriority = crmPriority[impliedCrm] || 0
+            if (impliedCrmPriority > currentCrmPriority) {
+              crmUpdate = { crm_status: impliedCrm }
             }
           }
 

@@ -37,6 +37,10 @@ export interface Call {
   ai_score_accroche: number | null
   ai_score_objection: number | null
   ai_score_closing: number | null
+  ai_points_forts: string[] | null
+  ai_points_amelioration: string[] | null
+  ai_intention_prospect: string | null
+  ai_prochaine_etape: string | null
   ai_analyzed_at: string | null
   created_at: string
 }

@@ -8,6 +8,7 @@
 
 import { useMachine } from '@xstate/react'
 import { useEffect, useRef, useCallback, useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { callMachine } from '@/machines/callMachine'
 import { createProvider, type CallProvider, type CallSession, type AudioSample } from '@/services/providers'
 import { fetchVoiceToken, saveCallDisposition } from '@/services/api'
@@ -18,6 +19,7 @@ import type { Disposition } from '@/types/call'
 
 export function useCallMachine() {
   const { organisation } = useAuth()
+  const queryClient = useQueryClient()
   const providerRef = useRef<CallProvider | null>(null)
   const sessionRef = useRef<CallSession | null>(null)
   const audioSamplesRef = useRef<AudioSample[]>([])
@@ -126,6 +128,19 @@ export function useCallMachine() {
         meetingBooked: state.context.meetingBooked,
       }).then(() => {
         console.log('[useCallMachine] Call saved OK')
+        // Rafraîchir immédiatement
+        queryClient.invalidateQueries({ queryKey: ['prospects'] })
+        queryClient.invalidateQueries({ queryKey: ['calls-by-prospect'] })
+        // Re-fetch après 3s (status-callback + recording-callback mettent ~2-3s)
+        setTimeout(() => {
+          queryClient.invalidateQueries({ queryKey: ['prospects'] })
+          queryClient.invalidateQueries({ queryKey: ['calls-by-prospect'] })
+        }, 3000)
+        // Re-fetch après 8s (recording + process-analysis)
+        setTimeout(() => {
+          queryClient.invalidateQueries({ queryKey: ['prospects'] })
+          queryClient.invalidateQueries({ queryKey: ['calls-by-prospect'] })
+        }, 8000)
       }).catch(err => {
         console.error('[useCallMachine] Save failed:', err)
       })
@@ -134,7 +149,7 @@ export function useCallMachine() {
 
   // ── Actions ───────────────────────────────────────────────────────
 
-  const call = useCallback(async (prospect: Prospect) => {
+  const call = useCallback(async (prospect: Prospect, overrideFromNumber?: string) => {
     const provider = providerRef.current
     if (!provider?.isReady) {
       console.warn('[useCallMachine] Provider not ready')
@@ -144,7 +159,7 @@ export function useCallMachine() {
     // POWER DIALER : appel direct via SDK client (pas de conférence, pas d'AMD temps réel)
     // Le SDR entend la sonnerie et parle dès le décroché — 0 latence
     // La détection messagerie se fait post-appel via process-analysis (transcription Deepgram)
-    const fromNumber = organisation?.from_number || '+33159580189'
+    const fromNumber = overrideFromNumber || organisation?.from_number || '+33159580189'
     console.log(`[useCallMachine] Calling ${prospect.name} from ${fromNumber}`)
     send({ type: 'CALL', prospect })
 

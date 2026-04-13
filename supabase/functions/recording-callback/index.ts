@@ -121,6 +121,22 @@ serve(async (req) => {
       console.error('[recording-callback] analysis_jobs insert error:', jobError)
     } else {
       console.log(`[recording-callback] Analysis job created for call ${callId}`)
+
+      // Déclencher process-analysis immédiatement (fire & forget)
+      const supabaseUrl = Deno.env.get('SUPABASE_URL') || ''
+      const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || ''
+      fetch(`${supabaseUrl}/functions/v1/process-analysis`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${serviceKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ callId }),
+      }).then(r => {
+        console.log(`[recording-callback] process-analysis triggered: ${r.status}`)
+      }).catch(err => {
+        console.error('[recording-callback] process-analysis trigger failed:', err)
+      })
     }
 
     return new Response(JSON.stringify({ ok: true, callId }), {

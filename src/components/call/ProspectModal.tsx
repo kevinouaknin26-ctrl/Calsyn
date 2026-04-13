@@ -8,6 +8,8 @@
 
 import { useState, useRef } from 'react'
 import { useQueryClient, useQuery } from '@tanstack/react-query'
+import { usePropertyDefinitions, useProspectCustomValues, groupProperties, updatePropertyValue, useCrmStatuses } from '@/hooks/useProperties'
+import { getPropertyValue } from '@/config/properties'
 import SocialLinks, { PlatformIcon } from './SocialLinks'
 import { supabase } from '@/config/supabase'
 import type { Prospect, CrmStatus } from '@/types/prospect'
@@ -67,7 +69,7 @@ const CRM_OPTIONS: Array<{ value: CrmStatus; label: string }> = [
   { value: 'open_deal', label: 'Affaire ouverte' }, { value: 'unqualified', label: 'Non qualifié' },
   { value: 'attempted_to_contact', label: 'Tenté de contacter' }, { value: 'connected', label: 'Connecté' },
   { value: 'bad_timing', label: 'Mauvais timing' }, { value: 'not_interested', label: 'Pas intéressé' },
-  { value: 'callback', label: 'Rappel' }, { value: 'rdv', label: 'RDV' }, { value: 'mail_sent', label: 'Mail envoyé' },
+  { value: 'callback', label: 'Rappel' }, { value: 'rdv_pris', label: 'RDV pris' }, { value: 'mail_sent', label: 'Mail envoyé' },
 ]
 
 // ── Celebration emojis 3D (montent du bas, tailles variées, perspective) ──
@@ -117,7 +119,7 @@ function Celebration() {
 // ── Badge outcome ───────────────────────────────────────────────
 function OutcomeBadge({ outcome, meeting }: { outcome: string | null; meeting: boolean }) {
   // meeting_booked + connected = "RDV pris" (teal, Minari exact)
-  if (meeting && (outcome === 'connected' || outcome === 'meeting_booked' || outcome === 'rdv' || !outcome)) {
+  if (meeting && (outcome === 'connected' || outcome === 'meeting_booked' || outcome === 'rdv_pris' || !outcome)) {
     return <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-teal-100 text-teal-600">RDV pris</span>
   }
   const map: Record<string, string> = {
@@ -423,6 +425,42 @@ function CallCard({ call, defaultOpen, onUpdate, onCelebrate }: { call: Call; de
                 </div>
               )}
 
+              {/* Points forts */}
+              {call.ai_points_forts?.length > 0 && (
+                <div>
+                  <p className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider mb-1">✓ Points forts</p>
+                  <ul className="space-y-0.5">
+                    {call.ai_points_forts.map((p: string, i: number) => (
+                      <li key={i} className="text-[11px] text-gray-600 pl-3 relative before:content-[''] before:absolute before:left-0 before:top-1.5 before:w-1.5 before:h-1.5 before:rounded-full before:bg-emerald-400">{p}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {/* Points d'amélioration */}
+              {call.ai_points_amelioration?.length > 0 && (
+                <div>
+                  <p className="text-[10px] font-bold text-amber-600 uppercase tracking-wider mb-1">△ À améliorer</p>
+                  <ul className="space-y-0.5">
+                    {call.ai_points_amelioration.map((p: string, i: number) => (
+                      <li key={i} className="text-[11px] text-gray-600 pl-3 relative before:content-[''] before:absolute before:left-0 before:top-1.5 before:w-1.5 before:h-1.5 before:rounded-full before:bg-amber-400">{p}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {/* Intention prospect + Prochaine étape */}
+              {(call.ai_intention_prospect || call.ai_prochaine_etape) && (
+                <div className="border-t border-violet-100 pt-2 space-y-1">
+                  {call.ai_intention_prospect && (
+                    <p className="text-[11px] text-gray-500"><span className="font-semibold text-violet-600">Intention :</span> {call.ai_intention_prospect}</p>
+                  )}
+                  {call.ai_prochaine_etape && (
+                    <p className="text-[11px] text-gray-500"><span className="font-semibold text-violet-600">Prochaine étape :</span> {call.ai_prochaine_etape}</p>
+                  )}
+                </div>
+              )}
+
               {/* État vide — pas encore de scores */}
               {call.ai_score_global == null && call.ai_analysis_status !== 'pending' && call.ai_analysis_status !== 'processing' && (
                 <p className="text-[11px] text-gray-400 italic">Analyse non disponible (appel trop court ou sans enregistrement).</p>
@@ -548,6 +586,7 @@ export default function ProspectModal({
   const [activeTab, setActiveTab] = useState('activite')
   const [showCelebration, setShowCelebration] = useState(false)
   const [showSnoozeMenu, setShowSnoozeMenu] = useState(false)
+  const [showPhoneMenu, setShowPhoneMenu] = useState(false)
   const [localDoNotCall, setLocalDoNotCall] = useState(prospect.do_not_call)
   const [localSnoozedUntil, setLocalSnoozedUntil] = useState(prospect.snoozed_until)
   const queryClient = useQueryClient()
@@ -609,9 +648,9 @@ export default function ProspectModal({
     <>
       {showCelebration && <Celebration />}
 
-      <div className="fixed inset-0 bg-black/15 flex items-start justify-center pt-[5vh] z-40"
+      <div className="absolute inset-0 bg-black/15 flex items-start justify-center pt-[5vh] z-40"
         onClick={e => { if (e.target === e.currentTarget && !isInCall) onClose() }}>
-        <div className="bg-white dark:bg-[#f0eaf5] rounded-2xl shadow-xl w-[880px] max-h-[85vh] flex animate-fade-in-scale">
+        <div className="bg-white dark:bg-[#f0eaf5] rounded-2xl shadow-xl w-[95%] max-w-[1120px] max-h-[85vh] flex animate-fade-in-scale">
 
           {/* ── GAUCHE — Infos prospect ── */}
           <div className="w-[300px] p-5 border-r border-gray-100 dark:border-[#d4cade] flex flex-col overflow-y-auto">
@@ -663,12 +702,48 @@ export default function ProspectModal({
                     <svg className="w-3.5 h-3.5 text-violet-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
                   </div>
                 ) : (
-                  <button onClick={() => onCall(prospect)} disabled={!providerReady}
-                    className="flex-1 py-2 rounded-lg text-[12px] font-semibold bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-40 flex items-center justify-center gap-1.5">
-                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" /></svg>
-                    Call {formatPhone(prospect.phone)}
-                    <span className="text-white/40 text-[10px]">▾</span>
-                  </button>
+                  <div className="flex-1 flex">
+                    <button onClick={() => onCall(prospect)} disabled={!providerReady}
+                      className={`flex-1 py-2 text-[12px] font-semibold bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-40 flex items-center justify-center gap-1.5 ${prospect.phone2 || prospect.phone3 || prospect.phone4 || prospect.phone5 ? 'rounded-l-lg' : 'rounded-lg'}`}>
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" /></svg>
+                      Call {formatPhone(prospect.phone)}
+                    </button>
+                    {/* Dropdown sélection numéro */}
+                    {(prospect.phone2 || prospect.phone3 || prospect.phone4 || prospect.phone5) && (
+                      <div className="relative">
+                        <button onClick={() => setShowPhoneMenu(!showPhoneMenu)} disabled={!providerReady}
+                          className="h-full px-2 bg-indigo-700 text-white rounded-r-lg hover:bg-indigo-800 disabled:opacity-40 border-l border-indigo-500">
+                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                        </button>
+                        {showPhoneMenu && (
+                          <>
+                            <div className="fixed inset-0 z-[59]" onClick={() => setShowPhoneMenu(false)} />
+                            <div className="absolute right-0 top-full mt-1 bg-white rounded-xl shadow-lg border border-gray-200 z-[60] py-1.5 w-56 animate-slide-down">
+                              {[
+                                { label: 'Principal', phone: prospect.phone },
+                                prospect.phone2 ? { label: 'Téléphone 2', phone: prospect.phone2 } : null,
+                                prospect.phone3 ? { label: 'Téléphone 3', phone: prospect.phone3 } : null,
+                                prospect.phone4 ? { label: 'Téléphone 4', phone: prospect.phone4 } : null,
+                                prospect.phone5 ? { label: 'Téléphone 5', phone: prospect.phone5 } : null,
+                              ].filter(Boolean).map((item) => (
+                                <button key={item!.phone} onClick={() => {
+                                  setShowPhoneMenu(false)
+                                  onCall({ ...prospect, phone: item!.phone })
+                                }}
+                                  className="w-full text-left px-3 py-2 hover:bg-gray-50 flex items-center gap-2">
+                                  <svg className="w-3.5 h-3.5 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" /></svg>
+                                  <div>
+                                    <p className="text-[12px] font-medium text-gray-700">{item!.label}</p>
+                                    <p className="text-[11px] text-gray-400 font-mono">{formatPhone(item!.phone)}</p>
+                                  </div>
+                                </button>
+                              ))}
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 )}
                 {/* Snooze (horloge) — avec menu durée */}
                 <div className="relative">
@@ -776,6 +851,9 @@ export default function ProspectModal({
                 <EditableField label="Code postal" value={prospect.postal_code || ''} prospectId={prospect.id} field="postal_code" />
                 <EditableField label="Pays" value={prospect.country || ''} prospectId={prospect.id} field="country" />
               </div>
+
+              {/* ── Section Champs personnalisés ── */}
+              <CustomFieldsSection prospectId={prospect.id} prospect={prospect} />
             </div>
           </div>
 
@@ -865,19 +943,7 @@ export default function ProspectModal({
 
                   {/* Note */}
                   <textarea placeholder="Écrire une note..." value={callContext?.notes || ''} onChange={e => onSetNotes(e.target.value)}
-                    rows={2} className="w-full px-3 py-2 rounded-lg border border-gray-200 text-[13px] text-gray-700 outline-none resize-none placeholder:text-gray-400 mb-4" />
-
-                  {/* Resume / Stop */}
-                  <div className="flex gap-3">
-                    <button onClick={() => { onReset(); onNextCall() }}
-                      className="flex-1 py-2 rounded-lg text-[13px] font-semibold bg-violet-600 text-white hover:bg-violet-700 transition-colors">
-                      Reprendre les appels
-                    </button>
-                    <button onClick={() => { onReset(); onClose() }}
-                      className="px-4 py-2 rounded-lg text-[13px] font-medium text-gray-500 bg-gray-100 hover:bg-gray-200 transition-colors">
-                      Arrêter
-                    </button>
-                  </div>
+                    rows={2} className="w-full px-3 py-2 rounded-lg border border-gray-200 text-[13px] text-gray-700 outline-none resize-none placeholder:text-gray-400" />
                 </div>
               )}
 
@@ -988,8 +1054,264 @@ export default function ProspectModal({
               )}
             </div>
           </div>
+
+          {/* ── SIDEBAR DROITE — Pipeline, Rappels, Actions (HubSpot-style) ── */}
+          <DealSidebar prospect={prospect} />
         </div>
       </div>
     </>
+  )
+}
+
+// ── Deal Sidebar (HubSpot-style right panel) ──────────────────
+const FALLBACK_STAGES: Array<{ key: string; label: string; color: string }> = [
+  { key: 'new', label: 'Nouveau', color: '#94a3b8' },
+  { key: 'attempted_to_contact', label: 'Tenté', color: '#a78bfa' },
+  { key: 'connected', label: 'Connecté', color: '#60a5fa' },
+  { key: 'callback', label: 'Rappel', color: '#fbbf24' },
+  { key: 'not_interested', label: 'Pas intéressé', color: '#ef4444' },
+  { key: 'mail_sent', label: 'Mail envoyé', color: '#8b5cf6' },
+  { key: 'rdv_pris', label: 'RDV pris', color: '#34d399' },
+  { key: 'rdv_fait', label: 'RDV fait', color: '#059669' },
+  { key: 'en_attente_signature', label: 'En attente signature', color: '#f97316' },
+  { key: 'signe', label: 'Signé', color: '#10b981' },
+  { key: 'en_attente_paiement', label: 'En attente paiement', color: '#f59e0b' },
+  { key: 'paye', label: 'Payé', color: '#10b981' },
+]
+
+function DealSidebar({ prospect }: { prospect: Prospect }) {
+  const queryClient = useQueryClient()
+  const { data: dbStatuses } = useCrmStatuses()
+  const stages = dbStatuses && dbStatuses.length > 0
+    ? dbStatuses.map(s => ({ key: s.key, label: s.label, color: s.color }))
+    : FALLBACK_STAGES
+  const currentStage = stages.findIndex(s => s.key === prospect.crm_status)
+  const hasReminder = prospect.snoozed_until && new Date(prospect.snoozed_until) > new Date()
+  const reminderDate = prospect.snoozed_until ? new Date(prospect.snoozed_until) : null
+  const [settingReminder, setSettingReminder] = useState(false)
+  const [reminderDays, setReminderDays] = useState('7')
+
+  const updateStatus = async (status: string) => {
+    const updateData: Record<string, unknown> = { crm_status: status }
+    if (status === 'en_attente_signature') {
+      const d = new Date(); d.setDate(d.getDate() + 7)
+      updateData.snoozed_until = d.toISOString()
+    }
+    if (status === 'signe') {
+      updateData.snoozed_until = null
+      updateData.meeting_booked = true
+    }
+    await supabase.from('prospects').update(updateData).eq('id', prospect.id)
+    queryClient.invalidateQueries({ queryKey: ['prospects'] })
+  }
+
+  const setReminder = async () => {
+    const d = new Date(); d.setDate(d.getDate() + parseInt(reminderDays))
+    await supabase.from('prospects').update({ snoozed_until: d.toISOString() }).eq('id', prospect.id)
+    queryClient.invalidateQueries({ queryKey: ['prospects'] })
+    setSettingReminder(false)
+  }
+
+  const clearReminder = async () => {
+    await supabase.from('prospects').update({ snoozed_until: null }).eq('id', prospect.id)
+    queryClient.invalidateQueries({ queryKey: ['prospects'] })
+  }
+
+  return (
+    <div className="w-[240px] min-w-[200px] flex-shrink-0 border-l border-gray-100 dark:border-[#d4cade] p-4 flex flex-col gap-4 overflow-y-auto bg-gray-50/50">
+      {/* Pipeline visuel */}
+      <div>
+        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">Pipeline</p>
+        <div className="space-y-1">
+          {stages.map((stage, i) => {
+            const isActive = stage.key === prospect.crm_status
+            const isPast = i < currentStage
+            return (
+              <button key={stage.key} onClick={() => updateStatus(stage.key)}
+                className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-[11px] transition-all ${
+                  isActive ? 'bg-white shadow-sm border border-gray-200 font-semibold' : 'hover:bg-white/60'
+                }`}>
+                <div className={`w-2.5 h-2.5 rounded-full flex-shrink-0 transition-all ${isActive ? 'ring-2 ring-offset-1' : ''}`}
+                  style={{ backgroundColor: stage.color, ringColor: stage.color }} />
+                <span className={isPast || isActive ? 'text-gray-800' : 'text-gray-400'}>{stage.label}</span>
+                {isActive && <span className="ml-auto text-[9px] text-indigo-500 font-bold">actif</span>}
+              </button>
+            )
+          })}
+        </div>
+      </div>
+
+      {/* Rappel */}
+      <div className="border-t border-gray-200 pt-3">
+        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">Rappel</p>
+        {hasReminder ? (
+          <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+            <div className="flex items-center gap-1.5 mb-1">
+              <svg className="w-3.5 h-3.5 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+              <span className="text-[12px] font-semibold text-amber-700">
+                {reminderDate!.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' })}
+              </span>
+            </div>
+            <p className="text-[10px] text-amber-600 mb-1.5">
+              Dans {Math.ceil((reminderDate!.getTime() - Date.now()) / 86400000)} jour(s)
+            </p>
+            <button onClick={clearReminder} className="text-[10px] text-amber-500 hover:text-amber-700 font-medium">
+              Supprimer le rappel
+            </button>
+          </div>
+        ) : settingReminder ? (
+          <div className="flex items-center gap-2">
+            <select value={reminderDays} onChange={e => setReminderDays(e.target.value)}
+              className="text-[12px] border border-gray-200 rounded-lg px-2 py-1.5 outline-none flex-1">
+              <option value="1">Demain</option>
+              <option value="3">Dans 3 jours</option>
+              <option value="7">Dans 7 jours</option>
+              <option value="14">Dans 14 jours</option>
+              <option value="30">Dans 30 jours</option>
+            </select>
+            <button onClick={setReminder} className="px-2.5 py-1.5 bg-amber-500 text-white text-[11px] rounded-lg hover:bg-amber-600 font-medium">OK</button>
+            <button onClick={() => setSettingReminder(false)} className="text-gray-400 hover:text-gray-600 text-[11px]">x</button>
+          </div>
+        ) : (
+          <button onClick={() => setSettingReminder(true)}
+            className="flex items-center gap-1.5 text-[12px] text-amber-500 hover:text-amber-700 font-medium">
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+            Programmer un rappel
+          </button>
+        )}
+      </div>
+
+      {/* Infos deal */}
+      <div className="border-t border-gray-200 pt-3">
+        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">Résumé</p>
+        <div className="space-y-2">
+          <div className="flex justify-between text-[12px]">
+            <span className="text-gray-400">Appels</span>
+            <span className="text-gray-700 font-medium">{prospect.call_count}</span>
+          </div>
+          <div className="flex justify-between text-[12px]">
+            <span className="text-gray-400">Dernier appel</span>
+            <span className="text-gray-700 font-medium">
+              {prospect.last_call_at ? new Date(prospect.last_call_at).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' }) : '-'}
+            </span>
+          </div>
+          <div className="flex justify-between text-[12px]">
+            <span className="text-gray-400">RDV pris</span>
+            <span className={`font-medium ${prospect.meeting_booked ? 'text-emerald-600' : 'text-gray-400'}`}>
+              {prospect.meeting_booked ? 'Oui' : 'Non'}
+            </span>
+          </div>
+          <div className="flex justify-between text-[12px]">
+            <span className="text-gray-400">Ne pas appeler</span>
+            <span className={`font-medium ${prospect.do_not_call ? 'text-red-500' : 'text-gray-400'}`}>
+              {prospect.do_not_call ? 'Oui' : 'Non'}
+            </span>
+          </div>
+          <div className="flex justify-between text-[12px]">
+            <span className="text-gray-400">Créé le</span>
+            <span className="text-gray-700 font-medium">
+              {new Date(prospect.created_at).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' })}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* Actions rapides */}
+      <div className="border-t border-gray-200 pt-3 mt-auto">
+        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">Actions rapides</p>
+        <div className="space-y-1.5">
+          {!prospect.meeting_booked && (
+            <button onClick={async () => {
+              await supabase.from('prospects').update({ meeting_booked: true, crm_status: 'rdv_pris' }).eq('id', prospect.id)
+              queryClient.invalidateQueries({ queryKey: ['prospects'] })
+            }} className="w-full text-left flex items-center gap-2 px-2.5 py-1.5 text-[11px] text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors">
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+              RDV pris
+            </button>
+          )}
+          <button onClick={() => updateStatus('rdv_fait')}
+            className="w-full text-left flex items-center gap-2 px-2.5 py-1.5 text-[11px] text-emerald-700 hover:bg-emerald-50 rounded-lg transition-colors">
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+            RDV fait
+          </button>
+          <button onClick={() => updateStatus('en_attente_signature')}
+            className="w-full text-left flex items-center gap-2 px-2.5 py-1.5 text-[11px] text-orange-600 hover:bg-orange-50 rounded-lg transition-colors">
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+            Lien envoyé
+          </button>
+          <button onClick={() => updateStatus('signe')}
+            className="w-full text-left flex items-center gap-2 px-2.5 py-1.5 text-[11px] text-green-600 hover:bg-green-50 rounded-lg transition-colors">
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+            Signé
+          </button>
+          <button onClick={() => updateStatus('en_attente_paiement')}
+            className="w-full text-left flex items-center gap-2 px-2.5 py-1.5 text-[11px] text-amber-600 hover:bg-amber-50 rounded-lg transition-colors">
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+            En attente paiement
+          </button>
+          <button onClick={() => updateStatus('paye')}
+            className="w-full text-left flex items-center gap-2 px-2.5 py-1.5 text-[11px] text-green-700 hover:bg-green-50 rounded-lg transition-colors font-semibold">
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+            Payé !
+          </button>
+          {!prospect.do_not_call && (
+            <button onClick={async () => {
+              await supabase.from('prospects').update({ do_not_call: true }).eq('id', prospect.id)
+              queryClient.invalidateQueries({ queryKey: ['prospects'] })
+            }} className="w-full text-left flex items-center gap-2 px-2.5 py-1.5 text-[11px] text-red-400 hover:bg-red-50 rounded-lg transition-colors">
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" /></svg>
+              Ne plus appeler
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── Champs personnalisés dans la fiche prospect (HubSpot-style) ──
+function ExpandableText({ text, limit = 150 }: { text: string; limit?: number }) {
+  const [expanded, setExpanded] = useState(false)
+  if (text.length <= limit) return <p className="text-[13px] text-gray-700 whitespace-pre-wrap">{text}</p>
+  return (
+    <div>
+      <p className="text-[13px] text-gray-700 whitespace-pre-wrap">{expanded ? text : text.slice(0, limit) + '...'}</p>
+      <button onClick={() => setExpanded(!expanded)}
+        className="text-[11px] text-indigo-500 hover:text-indigo-700 font-medium mt-0.5">
+        {expanded ? 'Voir moins' : 'Voir plus'}
+      </button>
+    </div>
+  )
+}
+
+function CustomFieldsSection({ prospectId, prospect }: { prospectId: string; prospect: Prospect }) {
+  const { properties } = usePropertyDefinitions()
+  const { data: customValues } = useProspectCustomValues(prospectId)
+  const queryClient = useQueryClient()
+
+  const customProps = properties.filter(p => p.type === 'custom')
+  const propsWithValues = customProps.filter(p => customValues?.[p.id])
+
+  if (propsWithValues.length === 0) return null
+
+  return (
+    <div className="pt-3 border-t border-gray-100 mt-3">
+      <p className="text-[10px] font-bold text-violet-400 uppercase tracking-wider mb-2">Champs personnalisés</p>
+      {propsWithValues.map(prop => {
+        const val = getPropertyValue(prospect, customValues, prop)
+        const isUrl = prop.fieldType === 'url' || val.startsWith('http://') || val.startsWith('https://')
+        return (
+          <div key={prop.id} className="mb-2.5">
+            <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">{prop.name}</p>
+            {isUrl && val ? (
+              <a href={val.startsWith('http') ? val : `https://${val}`} target="_blank" rel="noopener noreferrer"
+                className="text-[13px] text-indigo-500 hover:text-indigo-700 underline truncate block">{val.replace(/^https?:\/\/(www\.)?/, '').slice(0, 40)}</a>
+            ) : (
+              <ExpandableText text={val} />
+            )}
+          </div>
+        )
+      })}
+    </div>
   )
 }

@@ -20,7 +20,10 @@ export type CrmStatus =
   | 'bad_timing'
   | 'not_interested'
   | 'callback'
-  | 'rdv'
+  | 'rdv_pris'
+  | 'rdv_fait'
+  | 'en_attente_signature'
+  | 'signe'
   | 'mail_sent'
 
 export interface Prospect {

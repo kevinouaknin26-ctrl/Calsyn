@@ -177,6 +177,35 @@ serve(async (req) => {
         meeting_booked: anyMeeting,
       }
 
+      // Sync CRM status (même logique que status-callback)
+      const { data: currentProspect } = await supabase
+        .from('prospects')
+        .select('crm_status')
+        .eq('id', prospectId)
+        .single()
+
+      if (currentProspect) {
+        const crmPriority: Record<string, number> = {
+          'new': 0, 'open': 5, 'attempted_to_contact': 10, 'in_progress': 20,
+          'connected': 30, 'callback': 40, 'not_interested': 35, 'mail_sent': 45,
+          'rdv_pris': 50, 'rdv_fait': 55, 'en_attente_signature': 60, 'signe': 90, 'en_attente_paiement': 95, 'paye': 100,
+        }
+        const outcomeTocrm: Record<string, string> = {
+          'connected': 'connected',
+          'voicemail': 'attempted_to_contact',
+          'no_answer': 'attempted_to_contact',
+          'busy': 'attempted_to_contact',
+        }
+        const impliedCrm = outcomeTocrm[bestOutcome]
+        if (impliedCrm) {
+          const currentP = crmPriority[currentProspect.crm_status || 'new'] || 0
+          const impliedP = crmPriority[impliedCrm] || 0
+          if (impliedP > currentP) {
+            prospectUpdate.crm_status = impliedCrm
+          }
+        }
+      }
+
       if (disposition === 'wrong_number' || disposition === 'dnc') {
         prospectUpdate.do_not_call = true
       }

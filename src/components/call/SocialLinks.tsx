@@ -33,12 +33,12 @@ const PLATFORMS: Record<string, { label: string; color: string; bg: string; icon
   other:     { label: 'Autre', color: '#ffffff', bg: '#6b7280', icon: '🔗' },
 }
 
-/** Détecte la plateforme depuis l'URL */
+/** Détecte la plateforme depuis l'URL ou texte brut */
 function detectPlatform(url: string): string {
-  const u = url.toLowerCase()
-  if (u.includes('linkedin.com')) return 'linkedin'
-  if (u.includes('instagram.com')) return 'instagram'
-  if (u.includes('facebook.com') || u.includes('fb.com')) return 'facebook'
+  const u = url.toLowerCase().trim()
+  if (u.includes('linkedin.com') || u.includes('linkedin.fr')) return 'linkedin'
+  if (u.includes('instagram.com') || u.startsWith('insta:') || u.startsWith('ig:') || u.startsWith('@') && !u.includes('@') ) return 'instagram'
+  if (u.includes('facebook.com') || u.includes('fb.com') || u.includes('fb.me')) return 'facebook'
   if (u.includes('twitter.com') || u.includes('x.com')) return 'twitter'
   if (u.includes('tiktok.com')) return 'tiktok'
   if (u.includes('pinterest.com') || u.includes('pin.it')) return 'pinterest'
@@ -46,7 +46,74 @@ function detectPlatform(url: string): string {
   if (u.includes('behance.net')) return 'behance'
   if (u.includes('dribbble.com')) return 'dribbble'
   if (u.includes('snapchat.com')) return 'snapchat'
+  if (u.includes('artmajeur.com')) return 'website'
+  if (u.includes('canva.com')) return 'website'
+  if (u.includes('blogspot.') || u.includes('wordpress.')) return 'website'
   return 'website'
+}
+
+/** Extrait les URLs et réseaux sociaux depuis une liste de valeurs texte.
+ * Retourne des paires { platform, url } prêtes à insérer dans prospect_socials. */
+export function extractSocialsFromValues(values: Array<{ value: string }>): Array<{ platform: string; url: string }> {
+  const results: Array<{ platform: string; url: string }> = []
+  const seen = new Set<string>()
+
+  for (const { value } of values) {
+    if (!value) continue
+    const v = value.trim()
+
+    // URL directe
+    if (v.startsWith('http://') || v.startsWith('https://') || v.startsWith('www.')) {
+      const url = v.startsWith('www.') ? `https://${v}` : v
+      const platform = detectPlatform(url)
+      const key = `${platform}:${url.toLowerCase()}`
+      if (!seen.has(key)) {
+        seen.add(key)
+        results.push({ platform, url })
+      }
+      continue
+    }
+
+    // Format texte "insta: username" ou "instagram: @username"
+    const textPatterns = [
+      { prefix: /^insta(?:gram)?[\s:]+/i, platform: 'instagram', urlBase: 'https://instagram.com/' },
+      { prefix: /^fb[\s:]+/i, platform: 'facebook', urlBase: 'https://facebook.com/' },
+      { prefix: /^linkedin[\s:]+/i, platform: 'linkedin', urlBase: 'https://linkedin.com/in/' },
+      { prefix: /^twitter[\s:]+/i, platform: 'twitter', urlBase: 'https://x.com/' },
+      { prefix: /^tiktok[\s:]+/i, platform: 'tiktok', urlBase: 'https://tiktok.com/@' },
+      { prefix: /^youtube[\s:]+/i, platform: 'youtube', urlBase: 'https://youtube.com/' },
+    ]
+
+    for (const { prefix, platform, urlBase } of textPatterns) {
+      const match = v.match(prefix)
+      if (match) {
+        const handle = v.slice(match[0].length).replace(/^@/, '').trim()
+        if (handle) {
+          const url = urlBase + handle
+          const key = `${platform}:${url.toLowerCase()}`
+          if (!seen.has(key)) {
+            seen.add(key)
+            results.push({ platform, url })
+          }
+        }
+        break
+      }
+    }
+
+    // URL sans protocole — SEULEMENT si ça ressemble à un domaine pur (pas de spaces, pas de phrase)
+    // Ex: "artmajeur.com/john" → oui, "J'ai un site artmajeur.com" → non
+    if (!v.includes(' ') && /^[a-zA-Z0-9][a-zA-Z0-9.-]*\.(com|fr|net|org|io|art|gallery|studio|shop)(\/|$)/i.test(v)) {
+      const url = `https://${v}`
+      const platform = detectPlatform(url)
+      const key = `${platform}:${url.toLowerCase()}`
+      if (!seen.has(key)) {
+        seen.add(key)
+        results.push({ platform, url })
+      }
+    }
+  }
+
+  return results
 }
 
 function PlatformIcon({ platform, size = 'sm' }: { platform: string; size?: 'sm' | 'md' }) {

@@ -5,13 +5,17 @@
  */
 
 import { useState, useEffect, useCallback, memo, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import { useQueryClient, useQuery } from '@tanstack/react-query'
 import { useCallMachine } from '@/hooks/useCallMachine'
-import { useProspectLists, useProspects, useAddProspect } from '@/hooks/useProspects'
+import { useProspectLists, useProspects, useAddProspect, useCreateProspectField } from '@/hooks/useProspects'
+import { usePropertyDefinitions, useCustomFieldValues, groupProperties, updatePropertyValue, useCrmStatuses, type CrmStatusDef } from '@/hooks/useProperties'
+import { SYSTEM_PROPERTIES, DEFAULT_VISIBLE_COLUMNS, getPropertyValue, matchesSearch, CRM_STATUS_LABELS, type PropertyDefinition } from '@/config/properties'
 import { useCallsByProspect } from '@/hooks/useCalls'
 import { useAuth } from '@/hooks/useAuth'
 import { supabase } from '@/config/supabase'
 import CSVImport from '@/components/import/CSVImport'
+import ConfirmModal from '@/components/ui/ConfirmModal'
 import { PlatformIcon } from '@/components/call/SocialLinks'
 import SelectListPage from '@/components/dialer/SelectListPage'
 import ProspectModal from '@/components/call/ProspectModal'
@@ -68,7 +72,7 @@ function getCallStatusKey(prospect: Prospect): string {
   // Mapping direct — plus d'alias lossy
   if (o in CALL_STATUS_BADGE) return o
   // Legacy migration
-  if (o === 'rdv') return 'meeting_booked'
+  if (o === 'rdv_pris' || o === 'rdv') return 'meeting_booked'
   if (o === 'dnc') return 'disabled'
   return 'no_answer'
 }
@@ -101,6 +105,119 @@ function timeAgo(dateStr: string | null): string {
   return `il y a ${days}j`
 }
 
+// ── Column Picker (HubSpot-style, groupé, drag & drop) ──────────
+function ColumnPicker({ visible, setVisible, allProperties, open, onToggle, onCreateField }: {
+  visible: string[]; setVisible: (v: string[]) => void; allProperties: PropertyDefinition[]; open: boolean; onToggle: () => void; onCreateField: (name: string) => Promise<string | null>
+}) {
+  const pickable = allProperties.filter(p => p.id !== 'system:name')
+  const grouped = groupProperties(pickable)
+  const [dragIdx, setDragIdx] = useState<number | null>(null)
+  const [overIdx, setOverIdx] = useState<number | null>(null)
+  const [search, setSearch] = useState('')
+  const searchRef = useRef<HTMLInputElement>(null)
+  const q = search.toLowerCase()
+
+  const handleDragStart = (idx: number) => (e: React.DragEvent) => { setDragIdx(idx); e.dataTransfer.effectAllowed = 'move' }
+  const handleDragOver = (idx: number) => (e: React.DragEvent) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setOverIdx(idx) }
+  const handleDrop = (idx: number) => (e: React.DragEvent) => {
+    e.preventDefault()
+    if (dragIdx === null || dragIdx === idx) { setDragIdx(null); setOverIdx(null); return }
+    const next = [...visible]; const [moved] = next.splice(dragIdx, 1); next.splice(idx, 0, moved); setVisible(next); setDragIdx(null); setOverIdx(null)
+  }
+  const handleDragEnd = () => { setDragIdx(null); setOverIdx(null) }
+
+  const handleCreateFromSearch = async () => {
+    if (!search.trim()) return
+    const fieldId = await onCreateField(search.trim())
+    if (fieldId) setVisible([...visible, fieldId])
+    setSearch('')
+  }
+
+  // Filtrer les colonnes par recherche
+  const filteredGroups = grouped.map(g => ({
+    ...g,
+    properties: g.properties.filter(p => !q || p.name.toLowerCase().includes(q)),
+  })).filter(g => g.properties.length > 0)
+
+  const hasSearchResults = filteredGroups.some(g => g.properties.length > 0)
+
+  return (
+    <div className="relative">
+      <button onClick={onToggle} className="flex items-center gap-1.5 text-[13px] text-gray-500 hover:text-gray-700 px-2.5 py-1.5 rounded-lg border border-gray-200 bg-white">
+        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7" /></svg>
+        Colonnes
+        {visible.length > 0 && <span className="text-[10px] text-indigo-500 font-bold">{visible.length}</span>}
+      </button>
+      {open && (
+        <div className="absolute right-0 top-10 w-[320px] bg-white rounded-xl shadow-lg border border-gray-200 z-50 flex flex-col animate-slide-down" style={{ maxHeight: '500px' }}>
+          {/* Colonnes actives — drag & drop */}
+          {visible.length > 0 && !q && (
+            <div className="px-3 py-2 border-b border-gray-100 flex-shrink-0">
+              <p className="text-[10px] font-bold text-indigo-500 uppercase tracking-wider mb-1.5">Colonnes actives</p>
+              {visible.map((id, idx) => {
+                const prop = allProperties.find(p => p.id === id)
+                if (!prop) return null
+                return (
+                  <div key={id} draggable onDragStart={handleDragStart(idx)} onDragOver={handleDragOver(idx)} onDrop={handleDrop(idx)} onDragEnd={handleDragEnd}
+                    className={`flex items-center gap-2 py-1.5 px-1.5 rounded-lg group cursor-grab active:cursor-grabbing transition-colors ${
+                      overIdx === idx && dragIdx !== null && dragIdx !== idx ? 'bg-indigo-50 border border-indigo-200' : 'hover:bg-gray-50'
+                    } ${dragIdx === idx ? 'opacity-40' : ''}`}>
+                    <svg className="w-3.5 h-3.5 text-gray-300 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
+                      <path d="M7 2a2 2 0 10.001 4.001A2 2 0 007 2zm0 6a2 2 0 10.001 4.001A2 2 0 007 8zm0 6a2 2 0 10.001 4.001A2 2 0 007 14zm6-8a2 2 0 10-.001-4.001A2 2 0 0013 6zm0 2a2 2 0 10.001 4.001A2 2 0 0013 8zm0 6a2 2 0 10.001 4.001A2 2 0 0013 14z" />
+                    </svg>
+                    <span className={`text-[12px] flex-1 ${prop.type === 'custom' ? 'text-violet-700' : 'text-gray-700'}`}>{prop.name}</span>
+                    <button onClick={() => setVisible(visible.filter(c => c !== id))}
+                      className="text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity text-[10px]">✕</button>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+          {/* Toutes les colonnes — groupées, filtrées */}
+          <div className="flex-1 overflow-y-auto py-2">
+            {filteredGroups.map(group => (
+              <div key={group.key}>
+                <p className={`px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider ${group.key === 'custom' ? 'text-violet-400' : 'text-gray-400'}`}>{group.label}</p>
+                {group.properties.map(prop => (
+                  <label key={prop.id} className="flex items-center gap-2.5 px-3 py-1.5 hover:bg-gray-50 cursor-pointer">
+                    <input type="checkbox" checked={visible.includes(prop.id)}
+                      onChange={() => setVisible(visible.includes(prop.id) ? visible.filter(c => c !== prop.id) : [...visible, prop.id])}
+                      className={`w-3.5 h-3.5 rounded border-gray-300 ${prop.type === 'custom' ? 'accent-violet-600' : 'accent-indigo-600'}`} />
+                    <span className={`text-[12px] ${prop.type === 'custom' ? 'text-violet-700' : 'text-gray-700'}`}>{prop.name}</span>
+                    {prop.isReadOnly && <span className="text-[9px] text-gray-300 ml-auto">auto</span>}
+                  </label>
+                ))}
+                <div className="h-px bg-gray-100 my-0.5" />
+              </div>
+            ))}
+            {q && !hasSearchResults && (
+              <p className="px-3 py-3 text-[12px] text-gray-400 text-center">Aucune colonne trouvée</p>
+            )}
+          </div>
+          {/* Barre de recherche fixe en bas + créer */}
+          <div className="border-t border-gray-100 px-3 py-2 flex-shrink-0">
+            <div className="flex items-center gap-2">
+              <div className="flex-1 flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-gray-200 bg-gray-50 focus-within:border-indigo-300 focus-within:ring-1 focus-within:ring-indigo-200">
+                <svg className="w-3 h-3 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+                <input ref={searchRef} value={search} onChange={e => setSearch(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter' && q && !hasSearchResults) handleCreateFromSearch() }}
+                  placeholder="Rechercher ou créer..."
+                  className="text-[12px] bg-transparent outline-none flex-1 min-w-0 placeholder:text-gray-400" />
+              </div>
+              {q && !hasSearchResults && (
+                <button onClick={handleCreateFromSearch}
+                  className="px-2.5 py-1.5 text-[11px] font-medium text-white bg-violet-500 hover:bg-violet-600 rounded-lg transition-colors whitespace-nowrap flex-shrink-0">
+                  + Créer
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── Call Settings Dropdown (Minari frame 012 exact) ───────────────
 /** Helper pour persister les call settings */
 function useCallSetting<T>(key: string, defaultValue: T): [T, (v: T) => void] {
@@ -111,20 +228,23 @@ function useCallSetting<T>(key: string, defaultValue: T): [T, (v: T) => void] {
   return [val, set]
 }
 
-function CallSettingsDropdown({ open, onToggle }: { open: boolean; onToggle: () => void }) {
-  const [parallel, setParallel] = useCallSetting('parallel', 1)
-  const [autoRotate, setAutoRotate] = useCallSetting('auto_rotate', true)
-  const [voicemail, setVoicemail] = useCallSetting('voicemail', false)
-  const [completeTask, setCompleteTask] = useCallSetting('complete_task', false)
-  const [maxAttempts, setMaxAttempts] = useCallSetting('max_attempts', 'Illimité')
-  const [attemptPeriod, setAttemptPeriod] = useCallSetting('attempt_period', 'jour')
-  const [phoneField, setPhoneField] = useCallSetting('phone_field', 'phone')
+interface CallSettingsProps {
+  open: boolean; onToggle: () => void
+  parallel: number; setParallel: (v: number) => void
+  autoRotate: boolean; setAutoRotate: (v: boolean) => void
+  voicemail: boolean; setVoicemail: (v: boolean) => void
+  completeTask: boolean; setCompleteTask: (v: boolean) => void
+  maxAttempts: string; setMaxAttempts: (v: string) => void
+  attemptPeriod: string; setAttemptPeriod: (v: string) => void
+  phoneField: string; setPhoneField: (v: string) => void
+  selectedFromNumber: string; setSelectedFromNumber: (v: string) => void
+}
 
+function CallSettingsDropdown({ open, onToggle, parallel, setParallel, autoRotate, setAutoRotate, voicemail, setVoicemail, completeTask, setCompleteTask, maxAttempts, setMaxAttempts, attemptPeriod, setAttemptPeriod, phoneField, setPhoneField, selectedFromNumber, setSelectedFromNumber }: CallSettingsProps) {
   // From phone numbers (multi-numéros avec compteur)
   const [fromNumbers] = useState([
     { number: '+33 1 59 58 01 89', calls: 0 },
   ])
-  const [selectedFromNumber, setSelectedFromNumber] = useCallSetting('from_number', '+33 1 59 58 01 89')
 
   // Voicemail drop — messages enregistrés persistés en localStorage
   const [vmMessages, setVmMessages] = useCallSetting<Array<{ id: string; name: string; url: string; created: string }>>('vm_messages', [])
@@ -139,6 +259,7 @@ function CallSettingsDropdown({ open, onToggle }: { open: boolean; onToggle: () 
   const [selectedMic, setSelectedMic] = useCallSetting('mic_device', '')
   const [micTesting, setMicTesting] = useState(false)
   const [micAudioUrl, setMicAudioUrl] = useState<string | null>(null)
+  const [micError, setMicError] = useState(false)
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const chunksRef = useRef<Blob[]>([])
 
@@ -202,7 +323,7 @@ function CallSettingsDropdown({ open, onToggle }: { open: boolean; onToggle: () 
                   recorder.start()
                   setMicTesting(true)
                   setTimeout(() => { if (recorder.state === 'recording') { recorder.stop(); setMicTesting(false) } }, 5000)
-                } catch { alert('Impossible d\'accéder au microphone') }
+                } catch { setMicError(true); setTimeout(() => setMicError(false), 3000) }
               }} className={`px-2.5 py-1 rounded-lg border text-[11px] transition-colors ${micTesting ? 'border-red-300 text-red-500 bg-red-50' : 'border-gray-200 text-gray-500 hover:bg-gray-50'}`}>
                 {micTesting ? '⏹ Arrêter' : '🎤 Test'}
               </button>
@@ -311,7 +432,7 @@ function CallSettingsDropdown({ open, onToggle }: { open: boolean; onToggle: () 
                       recorder.start()
                       setVmRecording(true)
                       setTimeout(() => { if (recorder.state === 'recording') { recorder.stop(); setVmRecording(false) } }, 60000)
-                    } catch { alert('Impossible d\'accéder au microphone') }
+                    } catch { setMicError(true); setTimeout(() => setMicError(false), 3000) }
                   }} className={`px-2.5 py-1 rounded-lg border text-[11px] whitespace-nowrap ${vmRecording ? 'border-red-300 text-red-500 bg-red-50 animate-pulse' : 'border-gray-200 text-gray-500 hover:bg-white'}`}>
                     {vmRecording ? '⏹ Stop' : '🎤 Enregistrer'}
                   </button>
@@ -320,20 +441,29 @@ function CallSettingsDropdown({ open, onToggle }: { open: boolean; onToggle: () 
             )}
           </div>
 
-          {/* Contact phone number field (Minari exact) */}
-          <div className="flex items-center justify-between">
-            <div>
-              <span className="text-[13px] text-gray-700">Champ téléphone du contact</span>
-              <p className="text-[10px] text-gray-400">Quel champ utiliser pour appeler le contact</p>
+          {/* Séquence numéros (Minari : Contact phone number field) */}
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <div>
+                <span className="text-[13px] text-gray-700">Séquence d'appel</span>
+                <p className="text-[10px] text-gray-400">Ordre des numéros testés si pas de réponse</p>
+              </div>
             </div>
-            <select value={phoneField} onChange={e => setPhoneField(e.target.value)}
-              className="text-[12px] text-gray-600 bg-transparent border border-gray-200 rounded-lg px-2 py-1 outline-none">
-              <option value="phone">Phone number</option>
-              <option value="phone2">Mobile phone number</option>
-              <option value="phone3">Téléphone 3</option>
-              <option value="phone4">Téléphone 4</option>
-              <option value="phone5">Téléphone 5</option>
-            </select>
+            <div className="flex items-center gap-1.5 flex-wrap">
+              {['phone', 'phone2', 'phone3', 'phone4', 'phone5'].map((f, i) => {
+                const labels: Record<string, string> = { phone: 'Tél. principal', phone2: 'Mobile', phone3: 'Tél. 3', phone4: 'Tél. 4', phone5: 'Tél. 5' }
+                const isFirst = phoneField === f
+                return (
+                  <button key={f} onClick={() => setPhoneField(f)}
+                    className={`px-2.5 py-1 rounded-lg text-[11px] border transition-colors ${
+                      isFirst ? 'bg-indigo-50 border-indigo-300 text-indigo-700 font-semibold' : 'border-gray-200 text-gray-500 hover:border-gray-300'
+                    }`}>
+                    {i + 1}. {labels[f]}
+                  </button>
+                )
+              })}
+            </div>
+            <p className="text-[9px] text-gray-400 mt-1">Le dialer commence par le numéro sélectionné, puis essaie les suivants</p>
           </div>
 
           {/* Complete task when contact dialed */}
@@ -365,19 +495,270 @@ function CallSettingsDropdown({ open, onToggle }: { open: boolean; onToggle: () 
           </div>
         </div>
       )}
+
+      {/* Toast erreur micro */}
+      {micError && (
+        <div className="fixed top-6 left-1/2 -translate-x-1/2 z-[9999] bg-red-500 text-white px-5 py-3 rounded-xl shadow-lg text-[13px] font-medium flex items-center gap-2 animate-fade-in">
+          <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" /></svg>
+          Impossible d'accéder au microphone
+        </div>
+      )}
     </div>
   )
 }
 
-// ── Prospect Row (Minari exact : LinkedIn + contact icons) ────────
-const ProspectRow = memo(function ProspectRow({ prospect, isActive, liveStatus, selected, socials, onToggleSelect, onSelect, onCall }: {
-  prospect: Prospect; isActive: boolean; liveStatus?: string; selected: boolean; socials: Array<{ platform: string; url: string }>; onToggleSelect: (id: string) => void; onSelect: (p: Prospect) => void; onCall: (p: Prospect) => void
+// ── Textarea portal (sort du overflow:hidden du tableau) ────
+function TextareaPortal({ draft, setDraft, save, cancel }: {
+  draft: string; setDraft: (v: string) => void; save: () => void; cancel: () => void
 }) {
-  // Pendant un appel actif, le badge montre le statut live (Initié/En sonnerie/En cours)
+  const anchorRef = useRef<HTMLDivElement>(null)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null)
+
+  useEffect(() => {
+    if (anchorRef.current) {
+      const rect = anchorRef.current.getBoundingClientRect()
+      setPos({ top: rect.top, left: rect.left })
+    }
+  }, [])
+
+  useEffect(() => {
+    if (pos) textareaRef.current?.focus()
+  }, [pos])
+
+  return (
+    <>
+      <div ref={anchorRef} className="w-0 h-0" />
+      {pos && createPortal(
+        <>
+          <div className="fixed inset-0 z-[9998]" onClick={save} />
+          <textarea
+            ref={textareaRef}
+            value={draft}
+            onChange={e => setDraft(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Escape') cancel() }}
+            rows={Math.min(8, Math.max(3, draft.split('\n').length + 1))}
+            className="fixed z-[9999] text-[13px] bg-white border-2 border-indigo-400 rounded-lg px-2.5 py-2 outline-none shadow-2xl resize-none focus:ring-2 focus:ring-indigo-200"
+            style={{ top: pos.top, left: pos.left, minWidth: '320px', maxWidth: '480px' }}
+          />
+        </>,
+        document.body
+      )}
+    </>
+  )
+}
+
+// ── Cellule éditable inline (HubSpot-style) ────────────────
+function InlineEditCell({ prospectId, col, value, customValues, enumLabels, distinctValues, onSaved }: {
+  prospectId: string; col: PropertyDefinition; value: string; customValues?: Record<string, string>; enumLabels?: Record<string, string>; distinctValues?: string[]; onSaved: () => void
+}) {
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState(value)
+  const inputRef = useRef<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>(null)
+
+  // Smart type detection pour custom fields (qui sont tous fieldType='text')
+  const isDateValue = /^\d{2}\/\d{2}\/\d{4}$/.test(value) || /^\d{4}-\d{2}-\d{2}/.test(value)
+  const isTimeValue = /^\d{1,2}:\d{2}$/.test(value) || /^\d{1,2}h\d{2}$/.test(value)
+  const isLongText = (value.length > 80 || value.includes('\n')) && !isDateValue && !isTimeValue
+  const looksLikeDate = col.fieldType === 'date' || (col.type === 'custom' && isDateValue)
+
+  const save = async () => {
+    setEditing(false)
+    if (draft === value) return
+    let saveVal = draft
+    if (col.fieldType === 'boolean') saveVal = draft === 'Oui' ? 'true' : 'false'
+    try {
+      await updatePropertyValue(prospectId, col, saveVal)
+      onSaved()
+    } catch { /* silently fail */ }
+  }
+
+  if (col.isReadOnly && col.key !== 'crm_status' && col.key !== 'meeting_booked' && col.key !== 'do_not_call') {
+    return <span className="text-gray-400">{value || '-'}</span>
+  }
+
+  // Enum → select DIRECT (1 clic, pas 2)
+  if (col.fieldType === 'enum' && col.options) {
+    return (
+      <select value={value} onClick={e => e.stopPropagation()}
+        onChange={async e => {
+          const newVal = e.target.value
+          try {
+            await updatePropertyValue(prospectId, col, newVal)
+            onSaved()
+          } catch { /* silently fail */ }
+        }}
+        className="text-[13px] bg-transparent border-0 outline-none cursor-pointer text-gray-700 hover:text-indigo-700 w-full -mx-1 px-1 py-0 rounded hover:bg-indigo-50 transition-colors">
+        <option value="">—</option>
+        {col.options.map(o => <option key={o} value={o}>{enumLabels?.[o] || CRM_STATUS_LABELS[o] || o}</option>)}
+      </select>
+    )
+  }
+
+  // Boolean → select DIRECT (1 clic)
+  if (col.fieldType === 'boolean') {
+    const boolVal = value === 'Oui' ? 'true' : 'false'
+    return (
+      <select value={boolVal} onClick={e => e.stopPropagation()}
+        onChange={async e => {
+          try {
+            await updatePropertyValue(prospectId, col, e.target.value)
+            onSaved()
+          } catch { /* silently fail */ }
+        }}
+        className={`text-[13px] bg-transparent border-0 outline-none cursor-pointer w-full -mx-1 px-1 py-0 rounded hover:bg-indigo-50 transition-colors ${value === 'Oui' ? 'text-emerald-600' : 'text-gray-400'}`}>
+        <option value="false">Non</option>
+        <option value="true">Oui</option>
+      </select>
+    )
+  }
+
+  // Custom field avec peu de valeurs distinctes → select direct (comme Source, Confirmation RDV)
+  if (distinctValues && distinctValues.length > 0 && distinctValues.length <= 15 && !isDateValue && !isTimeValue && !isLongText) {
+    return (
+      <select value={value} onClick={e => e.stopPropagation()}
+        onChange={async e => {
+          try {
+            await updatePropertyValue(prospectId, col, e.target.value)
+            onSaved()
+          } catch { /* silently fail */ }
+        }}
+        className="text-[13px] bg-transparent border-0 outline-none cursor-pointer text-gray-700 hover:text-indigo-700 w-full -mx-1 px-1 py-0 rounded hover:bg-indigo-50 transition-colors">
+        <option value="">—</option>
+        {distinctValues.map(v => <option key={v} value={v}>{v}</option>)}
+      </select>
+    )
+  }
+
+  if (editing) {
+    // Date → input type="date"
+    if (looksLikeDate) {
+      let dateVal = ''
+      if (draft) {
+        try {
+          // Gérer DD/MM/YYYY
+          const ddmm = draft.match(/^(\d{2})\/(\d{2})\/(\d{4})/)
+          if (ddmm) dateVal = `${ddmm[3]}-${ddmm[2]}-${ddmm[1]}`
+          else dateVal = new Date(draft).toISOString().split('T')[0]
+        } catch { dateVal = '' }
+      }
+      return (
+        <input type="date" ref={inputRef as React.RefObject<HTMLInputElement>} autoFocus value={dateVal}
+          onChange={e => setDraft(e.target.value)}
+          onBlur={save}
+          onKeyDown={e => { if (e.key === 'Escape') { setDraft(value); setEditing(false) } }}
+          className="text-[13px] bg-white border border-indigo-300 rounded px-1.5 py-0.5 outline-none focus:ring-1 focus:ring-indigo-200"
+        />
+      )
+    }
+    // Time → input type="time"
+    if (isTimeValue) {
+      const timeVal = draft.replace('h', ':').replace(/^(\d):/, '0$1:')
+      return (
+        <input type="time" ref={inputRef as React.RefObject<HTMLInputElement>} autoFocus value={timeVal}
+          onChange={e => setDraft(e.target.value)}
+          onBlur={save}
+          onKeyDown={e => { if (e.key === 'Escape') { setDraft(value); setEditing(false) } }}
+          className="text-[13px] bg-white border border-indigo-300 rounded px-1.5 py-0.5 outline-none focus:ring-1 focus:ring-indigo-200"
+        />
+      )
+    }
+    // Long text → textarea flottante via portal
+    if (isLongText) {
+      return (
+        <TextareaPortal draft={draft} setDraft={setDraft} save={save} cancel={() => { setDraft(value); setEditing(false) }} />
+      )
+    }
+    // Short text/number/phone/email/url → input
+    return (
+      <input ref={inputRef as React.RefObject<HTMLInputElement>} autoFocus value={draft}
+        onChange={e => setDraft(e.target.value)}
+        onBlur={save}
+        onKeyDown={e => { if (e.key === 'Enter') save(); if (e.key === 'Escape') { setDraft(value); setEditing(false) } }}
+        className="text-[13px] bg-white border border-indigo-300 rounded px-1.5 py-0.5 outline-none w-full focus:ring-1 focus:ring-indigo-200"
+      />
+    )
+  }
+
+  // Mode lecture — clic = édition
+  const isUrl = col.fieldType === 'url' || (value.startsWith('http://') || value.startsWith('https://'))
+  const isPhone = col.fieldType === 'phone'
+  const isEmail = col.fieldType === 'email'
+  const isBool = col.fieldType === 'boolean'
+  const isCopyable = (isPhone || isEmail) && value
+
+  const copyBtn = isCopyable && (
+    <button onClick={e => { e.stopPropagation(); navigator.clipboard.writeText(value) }}
+      title="Copier"
+      className="text-gray-300 hover:text-indigo-500 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
+      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
+    </button>
+  )
+
+  if (isUrl && value) {
+    return (
+      <span className="flex items-center gap-1">
+        <a href={value.startsWith('http') ? value : `https://${value}`} target="_blank" rel="noopener noreferrer"
+          onClick={e => e.stopPropagation()}
+          className="text-indigo-500 hover:text-indigo-700 underline truncate">{value.replace(/^https?:\/\/(www\.)?/, '').slice(0, 25)}</a>
+        <button onClick={e => { e.stopPropagation(); setDraft(value); setEditing(true) }}
+          className="text-gray-300 hover:text-gray-500 opacity-0 group-hover:opacity-100 transition-opacity">
+          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+        </button>
+      </span>
+    )
+  }
+
+  if (isCopyable) {
+    return (
+      <span className="flex items-center gap-1">
+        <span onClick={e => { e.stopPropagation(); setDraft(value); setEditing(true) }}
+          className={`cursor-text hover:bg-indigo-50 hover:text-indigo-700 rounded px-1 -mx-1 transition-colors truncate ${
+            isPhone ? 'text-gray-400 font-mono' : 'text-gray-500'
+          }`}>
+          {value}
+        </span>
+        {copyBtn}
+      </span>
+    )
+  }
+
+  // Formater les dates en JJ/MM/AAAA pour l'affichage
+  let displayValue = value
+  if (looksLikeDate && value) {
+    try {
+      const d = /^\d{2}\/\d{2}\/\d{4}/.test(value) ? value : new Date(value).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' })
+      displayValue = d
+    } catch { /* keep raw */ }
+  }
+
+  return (
+    <span onClick={e => { e.stopPropagation(); setDraft(value); setEditing(true) }}
+      className={`cursor-text hover:bg-indigo-50 hover:text-indigo-700 rounded px-1 -mx-1 transition-colors block truncate ${
+        isPhone ? 'text-gray-400 font-mono' : 'text-gray-500'
+      }`}>
+      {displayValue || <span className="text-gray-300">-</span>}
+    </span>
+  )
+}
+
+// Largeurs fixes pour colonnes sticky (px)
+const STICKY_W = { checkbox: 44, status: 140, actions: 64, name: 180 }
+const STICKY_LEFT = {
+  checkbox: 0,
+  status: STICKY_W.checkbox,
+  actions: STICKY_W.checkbox + STICKY_W.status,
+  name: STICKY_W.checkbox + STICKY_W.status + STICKY_W.actions,
+}
+const STICKY_TOTAL = STICKY_LEFT.name + STICKY_W.name
+
+// ── Prospect Row (colonnes dynamiques HubSpot-style) ────────
+const ProspectRow = memo(function ProspectRow({ prospect, isActive, liveStatus, selected, socials, columns, customValues, colWidths, crmLabels, columnDistinctValues, onToggleSelect, onSelect, onCall, onSaved }: {
+  prospect: Prospect; isActive: boolean; liveStatus?: string; selected: boolean; socials: Array<{ platform: string; url: string }>; columns: PropertyDefinition[]; customValues?: Record<string, string>; colWidths?: Record<string, number>; crmLabels?: Record<string, string>; columnDistinctValues?: Record<string, string[]>; onToggleSelect: (id: string) => void; onSelect: (p: Prospect) => void; onCall: (p: Prospect) => void; onSaved: () => void
+}) {
   const statusKey = liveStatus || getCallStatusKey(prospect)
   const st = CALL_STATUS_BADGE[statusKey] || CALL_STATUS_BADGE.pending
 
-  // Fond de row pendant session d'appel (Minari : jaune/rouge pour initiated/ringing, vert pour in-progress)
   const rowBg = liveStatus === 'initiated' || liveStatus === 'ringing'
     ? 'bg-red-50/60'
     : liveStatus === 'in-progress'
@@ -388,13 +769,15 @@ const ProspectRow = memo(function ProspectRow({ prospect, isActive, liveStatus, 
 
   return (
     <tr className={`border-b border-gray-50 transition-all duration-300 ${rowBg}`}>
-      {/* Checkbox */}
-      <td className="py-3.5 pl-4 pr-1 w-8">
+      {/* Checkbox — sticky */}
+      <td className="py-3.5 pl-4 pr-1 border-r border-gray-100 sticky left-0 z-10 bg-violet-50/60"
+        style={{ width: STICKY_W.checkbox, minWidth: STICKY_W.checkbox }}>
         <input type="checkbox" checked={selected} onChange={() => onToggleSelect(prospect.id)}
           className="w-3.5 h-3.5 rounded border-gray-300 accent-indigo-600" />
       </td>
-      {/* CALL STATUS — pill badge with icon */}
-      <td className="py-3.5 px-3">
+      {/* CALL STATUS — sticky */}
+      <td className="py-3.5 px-3 border-r border-gray-100 sticky z-10 bg-violet-50/60"
+        style={{ left: STICKY_LEFT.status, width: STICKY_W.status, minWidth: STICKY_W.status }}>
         <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-semibold whitespace-nowrap transition-all duration-300 ${liveStatus ? 'animate-pulse-soft' : ''}`}
           style={{ background: st.bg, color: st.text }}>
           {st.icon === 'group' && <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" /></svg>}
@@ -403,15 +786,9 @@ const ProspectRow = memo(function ProspectRow({ prospect, isActive, liveStatus, 
           {st.label}
         </span>
       </td>
-      {/* CALLS */}
-      <td className="py-3.5 px-3 text-[13px] text-gray-400 text-center">
-        <span className="inline-flex items-center gap-1">
-          <svg className="w-3.5 h-3.5 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" /></svg>
-          {prospect.call_count || 0}
-        </span>
-      </td>
-      {/* Actions rapides — appel + mail */}
-      <td className="py-3.5 px-1">
+      {/* Actions — sticky */}
+      <td className="py-3.5 px-1 border-r border-gray-100 sticky z-10 bg-violet-50/60"
+        style={{ left: STICKY_LEFT.actions, width: STICKY_W.actions, minWidth: STICKY_W.actions }}>
         <div className="flex items-center justify-center gap-1">
           <button onClick={e => { e.stopPropagation(); onCall(prospect) }}
             title="Appeler"
@@ -427,40 +804,43 @@ const ProspectRow = memo(function ProspectRow({ prospect, isActive, liveStatus, 
           )}
         </div>
       </td>
-      {/* NAME — chip cliquable (Minari exact) + icones après */}
-      <td className="py-3.5 px-4">
-        <div className="flex items-center gap-2">
-          {/* Nom dans bulle cliquable */}
-          <button onClick={() => onSelect(prospect)}
-            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-gray-50 hover:bg-gray-100 transition-colors cursor-pointer border border-gray-200/60">
-            <svg className="w-3 h-3 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
-            <span className="text-[13px] font-medium text-gray-800">{prospect.name}</span>
-          </button>
-        </div>
+      {/* NAME — sticky + shadow de séparation */}
+      <td className="py-3.5 px-4 border-r border-gray-100 sticky z-10 bg-violet-50/60"
+        style={{ left: STICKY_LEFT.name, width: STICKY_W.name, minWidth: STICKY_W.name, boxShadow: '4px 0 8px -4px rgba(0,0,0,0.08)' }}>
+        <button onClick={() => onSelect(prospect)}
+          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-gray-50 hover:bg-gray-100 transition-colors cursor-pointer border border-gray-200/60">
+          <svg className="w-3 h-3 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+          <span className="text-[13px] font-medium text-gray-800 truncate max-w-[150px] block">{prospect.name}</span>
+        </button>
       </td>
-      {/* Colonne réseaux sociaux */}
-      <td className="py-3.5 px-1">
-        {socials.length > 0 && (
-          <div className="grid gap-0.5" style={{ gridTemplateColumns: `repeat(${Math.min(socials.length, 3)}, 1.25rem)` }}>
-            {socials.map((s, i) => (
-              <a key={i} href={s.url.startsWith('http') ? s.url : `https://${s.url}`} target="_blank" rel="noopener noreferrer"
-                onClick={e => e.stopPropagation()}>
-                <PlatformIcon platform={s.platform} size="sm" />
-              </a>
-            ))}
-          </div>
-        )}
-      </td>
-      {/* TITLE */}
-      <td className="py-3.5 px-4 text-[13px] text-gray-500 truncate max-w-[180px]">{prospect.title || '-'}</td>
-      {/* COMPANY */}
-      <td className="py-3.5 px-4 text-[13px] text-gray-500 truncate max-w-[160px]">{prospect.company || '-'}</td>
-      {/* LAST CALL */}
-      <td className="py-3.5 px-4 text-[13px] text-gray-400">{timeAgo(prospect.last_call_at)}</td>
-      {/* STATUS (CRM) */}
-      <td className="py-3.5 px-4 text-[13px] text-gray-500">{prospect.crm_status === 'new' ? 'Nouveau' : prospect.crm_status === 'open' ? 'Ouvert' : prospect.crm_status === 'in_progress' ? 'En cours' : prospect.crm_status === 'open_deal' ? 'Affaire ouverte' : prospect.crm_status === 'attempted_to_contact' ? 'Tenté de contacter' : prospect.crm_status === 'not_interested' ? 'Pas intéressé' : prospect.crm_status === 'callback' ? 'Rappel' : prospect.crm_status === 'rdv' ? 'RDV' : prospect.crm_status === 'mail_sent' ? 'Mail envoyé' : prospect.crm_status}</td>
-      {/* PHONE NUMBER */}
-      <td className="py-3.5 px-4 text-[13px] text-gray-400 font-mono">{prospect.phone}</td>
+      {/* COLONNES DYNAMIQUES — scrollables, éditables inline */}
+      {columns.map(col => {
+        if (col.id === 'system:socials') {
+          return (
+            <td key={col.id} className="py-3.5 px-2 border-r border-gray-100 group overflow-hidden"
+              style={colWidths?.[col.id] ? { width: colWidths[col.id], minWidth: colWidths[col.id], maxWidth: colWidths[col.id] } : undefined}>
+              {socials.length > 0 ? (
+                <div className="flex gap-1">
+                  {socials.map((s, i) => (
+                    <a key={i} href={s.url.startsWith('http') ? s.url : `https://${s.url}`} target="_blank" rel="noopener noreferrer"
+                      onClick={e => e.stopPropagation()}>
+                      <PlatformIcon platform={s.platform} size="sm" />
+                    </a>
+                  ))}
+                </div>
+              ) : <span className="text-gray-300">-</span>}
+            </td>
+          )
+        }
+
+        const value = getPropertyValue(prospect, customValues, col)
+        return (
+          <td key={col.id} className="py-3.5 px-4 text-[13px] border-r border-gray-100 group overflow-hidden" title={value}
+            style={colWidths?.[col.id] ? { width: colWidths[col.id], minWidth: colWidths[col.id], maxWidth: colWidths[col.id] } : { maxWidth: 200 }}>
+            <InlineEditCell prospectId={prospect.id} col={col} value={value} customValues={customValues} enumLabels={col.key === 'crm_status' ? crmLabels : undefined} distinctValues={columnDistinctValues?.[col.id]} onSaved={onSaved} />
+          </td>
+        )
+      })}
     </tr>
   )
 })
@@ -470,14 +850,124 @@ export default function Dialer() {
   const { isAdmin, isManager } = useAuth()
   const cm = useCallMachine()
   const { data: lists } = useProspectLists()
+
+  // ── Call Settings (montés ici pour être accessibles au call flow) ──
+  const [parallel, setParallel] = useCallSetting('parallel', 1)
+  const [autoRotate, setAutoRotate] = useCallSetting('auto_rotate', true)
+  const [voicemail, setVoicemail] = useCallSetting('voicemail', false)
+  const [completeTask, setCompleteTask] = useCallSetting('complete_task', false)
+  const [maxAttempts, setMaxAttempts] = useCallSetting('max_attempts', 'Illimité')
+  const [attemptPeriod, setAttemptPeriod] = useCallSetting('attempt_period', 'jour')
+  const [phoneField, setPhoneField] = useCallSetting('phone_field', 'phone')
+  const [selectedFromNumber, setSelectedFromNumber] = useCallSetting('from_number', '+33159580189')
+
+  // ── Propriétés CRM (HubSpot-style) ──
+  const { properties: allProperties } = usePropertyDefinitions()
+  const { data: crmStatuses } = useCrmStatuses()
+  const crmLabels: Record<string, string> = {}
+  crmStatuses?.forEach(s => { crmLabels[s.key] = s.label })
+
   const [activeListId, setActiveListId] = useState<string | null>(() => {
     try { return localStorage.getItem('callio_active_list') } catch { return null }
   })
+  // Colonnes visibles par liste
+  const [visibleColumnIds, setVisibleColumnIds] = useState<string[]>(DEFAULT_VISIBLE_COLUMNS)
+  useEffect(() => {
+    if (!activeListId) { setVisibleColumnIds(DEFAULT_VISIBLE_COLUMNS); return }
+    const key = `callio_cs_visible_columns_${activeListId}`
+    try {
+      const s = localStorage.getItem(key)
+      const parsed = s ? JSON.parse(s) : null
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        setVisibleColumnIds(parsed)
+      } else {
+        setVisibleColumnIds(DEFAULT_VISIBLE_COLUMNS)
+      }
+    } catch {
+      setVisibleColumnIds(DEFAULT_VISIBLE_COLUMNS)
+    }
+  }, [activeListId])
+  const saveVisibleColumns = useCallback((cols: string[]) => {
+    setVisibleColumnIds(cols)
+    if (activeListId) {
+      localStorage.setItem(`callio_cs_visible_columns_${activeListId}`, JSON.stringify(cols))
+    }
+  }, [activeListId])
+  const [showColumnPicker, setShowColumnPicker] = useState(false)
+  const [dragColId, setDragColId] = useState<string | null>(null)
+  const [colWidths, setColWidths] = useState<Record<string, number>>({})
+  const resizeRef = useRef<{ colId: string; startX: number; startW: number } | null>(null)
+  const activeColumns: PropertyDefinition[] = visibleColumnIds
+    .map(id => allProperties.find(p => p.id === id))
+    .filter(Boolean) as PropertyDefinition[]
+
   const [selectedProspect, setSelectedProspect] = useState<Prospect | null>(null)
   const [search, setSearch] = useState('')
-  const [sortBy, setSortBy] = useState<'last_call' | 'name' | 'status' | 'call_status' | 'calls' | 'company' | 'title'>('last_call')
-  const [filterStatus, setFilterStatus] = useState<string | null>(null)
+  const [sortBy, setSortBy] = useState<string>('last_call')
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
+  // ── Filtres multi-propriétés (HubSpot-style) ──
+  type FilterOp = 'eq' | 'neq' | 'contains' | 'not_contains' | 'starts' | 'empty' | 'not_empty' | 'gt' | 'lt' | 'in' | 'true' | 'false'
+  type Filter = { id: string; propertyId: string; op: FilterOp; value: string }
+  const [filters, setFilters] = useState<Filter[]>([])
   const [showFilters, setShowFilters] = useState(false)
+  const [showSortDropdown, setShowSortDropdown] = useState(false)
+  const [showViews, setShowViews] = useState(false)
+  const [savingView, setSavingView] = useState(false)
+  const [newViewName, setNewViewName] = useState('')
+  const [activeViewId, setActiveViewId] = useState<string | null>(null)
+  const newViewInputRef = useRef<HTMLInputElement>(null)
+
+  // ── Saved Views (localStorage per list) ──
+  type SavedView = { id: string; name: string; columns: string[]; sortBy: string; filters: Filter[] }
+  const viewsKey = activeListId ? `callio_views_${activeListId}` : null
+  const [savedViews, setSavedViews] = useState<SavedView[]>([])
+
+  useEffect(() => {
+    if (!viewsKey) { setSavedViews([]); setActiveViewId(null); return }
+    try {
+      const s = localStorage.getItem(viewsKey)
+      setSavedViews(s ? JSON.parse(s) : [])
+    } catch { setSavedViews([]) }
+    setActiveViewId(null)
+  }, [viewsKey])
+
+  const persistViews = (views: SavedView[]) => {
+    setSavedViews(views)
+    if (viewsKey) localStorage.setItem(viewsKey, JSON.stringify(views))
+  }
+
+  const saveCurrentView = (name: string) => {
+    const view: SavedView = {
+      id: crypto.randomUUID(),
+      name,
+      columns: visibleColumnIds,
+      sortBy,
+      filters,
+    }
+    persistViews([...savedViews, view])
+    setActiveViewId(view.id)
+    setSavingView(false)
+    setNewViewName('')
+  }
+
+  const loadView = (view: SavedView) => {
+    saveVisibleColumns(view.columns)
+    setSortBy(view.sortBy as typeof sortBy)
+    setFilters(view.filters || [])
+    setActiveViewId(view.id)
+    setShowViews(false)
+  }
+
+  const deleteView = (id: string) => {
+    persistViews(savedViews.filter(v => v.id !== id))
+    if (activeViewId === id) setActiveViewId(null)
+  }
+
+  const updateCurrentView = () => {
+    if (!activeViewId) return
+    persistViews(savedViews.map(v => v.id === activeViewId ? { ...v, columns: visibleColumnIds, sortBy, filters } : v))
+  }
+
   const [showCSVImport, setShowCSVImport] = useState(false)
   const [showSelectList, setShowSelectList] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
@@ -486,8 +976,10 @@ export default function Dialer() {
   const [showAddProspect, setShowAddProspect] = useState(false)
   const [showDTMF, setShowDTMF] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [confirmDeleteProspects, setConfirmDeleteProspects] = useState(false)
   const [newProspect, setNewProspect] = useState({ name: '', phone: '', email: '', company: '', title: '' })
   const addProspect = useAddProspect()
+  const createField = useCreateProspectField()
 
   // Statut live de l'appel pour animer la row (Minari: Initié → En sonnerie → En cours)
   function getLiveCallStatus(prospectId: string): string | undefined {
@@ -503,8 +995,12 @@ export default function Dialer() {
   const { data: prospects } = useProspects(activeListId)
   const { data: callHistory } = useCallsByProspect(selectedProspect?.id ?? null)
 
-  // Socials de tous les prospects (pour afficher les logos dans la table)
+  // Custom field values en batch
   const prospectIds = prospects?.map(p => p.id) || []
+  const hasCustomColumns = activeColumns.some(c => c.type === 'custom')
+  const { data: allCustomValues } = useCustomFieldValues(prospectIds, hasCustomColumns)
+
+  // Socials de tous les prospects (pour afficher les logos dans la table)
   const { data: allSocials } = useQuery({
     queryKey: ['all-socials', activeListId],
     queryFn: async () => {
@@ -557,10 +1053,42 @@ export default function Dialer() {
 
   const handleCall = useCallback((p: Prospect) => {
     if ((cm.isIdle || cm.isDisconnected) && cm.providerReady) {
-      // NE PAS ouvrir le modal ici — il s'ouvrira quand le prospect décroche
-      cm.call(p)
+      // ── Max Attempts : bloquer si le prospect a déjà atteint le max ──
+      if (maxAttempts !== 'Illimité') {
+        const max = parseInt(maxAttempts, 10)
+        if (!isNaN(max) && p.call_count >= max) {
+          console.log(`[Dialer] Skipping ${p.name}: ${p.call_count} calls >= max ${max}`)
+          return
+        }
+      }
+
+      // ── Phone Sequence : essayer les numéros dans l'ordre à partir du champ sélectionné ──
+      const phoneFields = ['phone', 'phone2', 'phone3', 'phone4', 'phone5']
+      const startIdx = phoneFields.indexOf(phoneField)
+      // Construire la séquence : à partir du champ sélectionné, puis les suivants, puis reboucler
+      const sequence = [...phoneFields.slice(startIdx), ...phoneFields.slice(0, startIdx)]
+      // Le call_count détermine quel numéro dans la séquence (rotation)
+      const seqIdx = p.call_count % sequence.length
+      let phoneNumber: string | null = null
+      // Essayer chaque numéro de la séquence à partir de l'index courant
+      for (let i = 0; i < sequence.length; i++) {
+        const field = sequence[(seqIdx + i) % sequence.length]
+        const num = (p as Record<string, unknown>)[field] as string | null
+        if (num && num.length >= 8) { phoneNumber = num; break }
+      }
+      if (!phoneNumber) {
+        console.warn(`[Dialer] No phone number for ${p.name}`)
+        return
+      }
+
+      // ── From Number : utiliser le numéro sélectionné dans les settings ──
+      const prospectWithPhone = phoneNumber !== p.phone
+        ? { ...p, phone: phoneNumber }
+        : p
+
+      cm.call(prospectWithPhone, selectedFromNumber)
     }
-  }, [cm])
+  }, [cm, maxAttempts, phoneField, selectedFromNumber])
 
   // Ouvrir le modal automatiquement quand le prospect DÉCROCHE (Minari exact)
   useEffect(() => {
@@ -576,32 +1104,90 @@ export default function Dialer() {
   const pending = prospects?.filter(p => p.call_count === 0).length || 0
   const activeList = lists?.find(l => l.id === activeListId)
 
+  // Calculer les valeurs distinctes par colonne custom (pour les rendre en select)
+  const columnDistinctValues = useRef<Record<string, string[]>>({})
+  if (prospects && allCustomValues && activeColumns.length > 0) {
+    const dvs: Record<string, string[]> = {}
+    for (const col of activeColumns) {
+      if (col.type !== 'custom') continue
+      const vals = new Set<string>()
+      for (const p of prospects) {
+        const cv = allCustomValues[p.id]
+        const v = cv?.[col.id]?.trim()
+        if (v) vals.add(v)
+      }
+      // Seulement si <= 15 valeurs distinctes et chaque valeur est courte
+      if (vals.size > 0 && vals.size <= 15 && [...vals].every(v => v.length < 40)) {
+        dvs[col.id] = [...vals].sort()
+      }
+    }
+    columnDistinctValues.current = dvs
+  }
+
+  // ── Évaluer un filtre sur un prospect ──
+  const evalFilter = useCallback((p: Prospect, f: Filter): boolean => {
+    // Propriété spéciale "call_status" (dérivée)
+    if (f.propertyId === '_call_status') {
+      const v = getCallStatusKey(p)
+      if (f.op === 'eq') return v === f.value
+      if (f.op === 'neq') return v !== f.value
+      if (f.op === 'in') return f.value.split(',').includes(v)
+      return true
+    }
+    // Trouver la propriété
+    const prop = allProperties.find(pr => pr.id === f.propertyId)
+    if (!prop) return true
+    const val = getPropertyValue(p, allCustomValues?.[p.id], prop)
+    const v = val.toLowerCase()
+    const fv = f.value.toLowerCase()
+
+    switch (f.op) {
+      case 'eq': return v === fv
+      case 'neq': return v !== fv
+      case 'contains': return v.includes(fv)
+      case 'not_contains': return !v.includes(fv)
+      case 'starts': return v.startsWith(fv)
+      case 'empty': return !val
+      case 'not_empty': return !!val
+      case 'gt': return parseFloat(val) > parseFloat(f.value)
+      case 'lt': return parseFloat(val) < parseFloat(f.value)
+      case 'in': return f.value.split(',').map(s => s.trim().toLowerCase()).includes(v)
+      case 'true': return val === 'Oui' || val === 'true' || val === '1'
+      case 'false': return val === 'Non' || val === 'false' || val === '0' || !val
+      default: return true
+    }
+  }, [allProperties, allCustomValues])
+
   const filtered = prospects
     ?.filter(p => {
-      // Filtre recherche
-      if (search && !(
-        p.name.toLowerCase().includes(search.toLowerCase())
-        || p.phone.includes(search)
-        || (p.company || '').toLowerCase().includes(search.toLowerCase())
-        || (p.title || '').toLowerCase().includes(search.toLowerCase())
-        || (p.email || '').toLowerCase().includes(search.toLowerCase())
-      )) return false
-      // Filtre par call status
-      if (filterStatus) {
-        const key = getCallStatusKey(p)
-        if (key !== filterStatus) return false
+      if (search && !matchesSearch(p, allCustomValues?.[p.id], activeColumns, search)) return false
+      // Filtres multi-propriétés (AND)
+      for (const f of filters) {
+        if (!evalFilter(p, f)) return false
       }
       return true
     })
     .sort((a, b) => {
-      if (sortBy === 'last_call') return (b.last_call_at || '').localeCompare(a.last_call_at || '')
-      if (sortBy === 'name') return a.name.localeCompare(b.name)
-      if (sortBy === 'status') return (a.crm_status || '').localeCompare(b.crm_status || '')
-      if (sortBy === 'call_status') return getCallStatusKey(a).localeCompare(getCallStatusKey(b))
-      if (sortBy === 'calls') return (b.call_count || 0) - (a.call_count || 0)
-      if (sortBy === 'company') return (a.company || '').localeCompare(b.company || '')
-      if (sortBy === 'title') return (a.title || '').localeCompare(b.title || '')
-      return 0
+      let cmp = 0
+      // Legacy sort keys
+      if (sortBy === 'last_call') cmp = (a.last_call_at || '').localeCompare(b.last_call_at || '')
+      else if (sortBy === 'created') cmp = (a.created_at || '').localeCompare(b.created_at || '')
+      else if (sortBy === 'name') cmp = a.name.localeCompare(b.name)
+      else if (sortBy === 'status') cmp = (a.crm_status || '').localeCompare(b.crm_status || '')
+      else if (sortBy === 'call_status') cmp = getCallStatusKey(a).localeCompare(getCallStatusKey(b))
+      else if (sortBy === 'calls') cmp = (a.call_count || 0) - (b.call_count || 0)
+      else if (sortBy === 'company') cmp = (a.company || '').localeCompare(b.company || '')
+      else if (sortBy === 'title') cmp = (a.title || '').localeCompare(b.title || '')
+      else {
+        // Tri dynamique par property id (system:xxx ou custom field)
+        const col = allProperties.find(p => p.id === sortBy)
+        if (col) {
+          const va = getPropertyValue(a, allCustomValues?.[a.id], col)
+          const vb = getPropertyValue(b, allCustomValues?.[b.id], col)
+          cmp = va.localeCompare(vb)
+        }
+      }
+      return sortDir === 'desc' ? -cmp : cmp
     })
 
   // Page "Choisir une liste" (Minari frame 005)
@@ -618,9 +1204,9 @@ export default function Dialer() {
   }
 
   return (
-    <div className="min-h-screen bg-[#f5f3ff] dark:bg-[#e8e0f0] p-4 pl-2">
+    <div className="h-screen bg-[#f5f3ff] dark:bg-[#e8e0f0] p-4 pl-2 overflow-hidden">
       {/* ── UN SEUL conteneur blanc arrondi (Minari exact) ── */}
-      <div className="bg-white dark:bg-[#f0eaf5] rounded-2xl shadow-sm border border-gray-200/50 dark:border-[#d4cade]/50 min-h-[calc(100vh-2rem)] flex flex-col overflow-hidden">
+      <div className="bg-white dark:bg-[#f0eaf5] rounded-2xl shadow-sm border border-gray-200/50 dark:border-[#d4cade]/50 h-full flex flex-col overflow-hidden">
 
       {/* ── Tabs listes ── */}
       <div className="border-b border-gray-100 flex items-center overflow-x-auto px-3">
@@ -778,39 +1364,110 @@ export default function Dialer() {
           )}
 
 
-          {/* Sorted by */}
-          <div className="flex items-center gap-1.5 text-[13px] text-gray-500 px-3 py-1.5 rounded-lg border border-gray-200 bg-white">
-            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4h13M3 8h9m-9 4h6m4 0l4-4m0 0l4 4m-4-4v12" /></svg>
-            Trié par
-            <select value={sortBy} onChange={e => setSortBy(e.target.value as typeof sortBy)}
-              className="text-[13px] text-gray-700 font-medium bg-transparent outline-none cursor-pointer">
-              <option value="last_call">Dernier appel</option>
-              <option value="name">Nom</option>
-              <option value="call_status">Statut appel</option>
-              <option value="status">Statut CRM</option>
-              <option value="calls">Nombre d'appels</option>
-              <option value="company">Société</option>
-              <option value="title">Poste</option>
-            </select>
+          {/* Vues sauvegardées */}
+          <div className="relative">
+            <button onClick={() => setShowViews(!showViews)}
+              className={`flex items-center gap-1.5 text-[13px] px-3 py-1.5 rounded-lg border transition-colors ${activeViewId ? 'text-indigo-600 font-medium border-indigo-200 bg-indigo-50' : 'text-gray-500 hover:text-gray-700 border-gray-200 bg-white'}`}>
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" /></svg>
+              {activeViewId ? savedViews.find(v => v.id === activeViewId)?.name || 'Vue' : 'Vues'}
+            </button>
+            {showViews && (
+              <div className="absolute top-10 left-0 bg-white rounded-xl shadow-lg border border-gray-200 z-50 w-64 animate-slide-down">
+                {/* Liste des vues */}
+                {savedViews.length > 0 && (
+                  <div className="py-2 border-b border-gray-100">
+                    <p className="px-3 py-1 text-[10px] font-bold text-gray-400 uppercase tracking-wider">Vues enregistrées</p>
+                    {savedViews.map(v => (
+                      <div key={v.id} className={`flex items-center gap-2 px-3 py-1.5 hover:bg-gray-50 group ${activeViewId === v.id ? 'bg-indigo-50' : ''}`}>
+                        <button onClick={() => loadView(v)} className="flex-1 text-left text-[12px] text-gray-700 truncate">
+                          {v.name}
+                        </button>
+                        <span className="text-[9px] text-gray-300">{v.columns.length} col</span>
+                        <button onClick={() => deleteView(v.id)}
+                          className="text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity text-[10px]">✕</button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {/* Sauvegarder vue courante */}
+                <div className="p-2">
+                  {savingView ? (
+                    <div className="flex items-center gap-2">
+                      <input ref={newViewInputRef} value={newViewName} onChange={e => setNewViewName(e.target.value)}
+                        onKeyDown={e => { if (e.key === 'Enter' && newViewName.trim()) saveCurrentView(newViewName.trim()); if (e.key === 'Escape') { setSavingView(false); setNewViewName('') } }}
+                        placeholder="Nom de la vue..."
+                        autoFocus
+                        className="flex-1 text-[12px] px-2.5 py-1.5 rounded-lg border border-indigo-200 outline-none focus:border-indigo-400 focus:ring-1 focus:ring-indigo-200" />
+                      <button onClick={() => { if (newViewName.trim()) saveCurrentView(newViewName.trim()) }}
+                        className="px-2.5 py-1.5 text-[11px] font-medium text-white bg-indigo-500 hover:bg-indigo-600 rounded-lg transition-colors whitespace-nowrap">
+                        Sauver
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col gap-1">
+                      <button onClick={() => { setSavingView(true); setTimeout(() => newViewInputRef.current?.focus(), 50) }}
+                        className="flex items-center gap-1.5 text-[12px] text-indigo-500 hover:text-indigo-700 font-medium w-full py-1 px-1">
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+                        Enregistrer la vue actuelle
+                      </button>
+                      {activeViewId && (
+                        <button onClick={() => { updateCurrentView(); setShowViews(false) }}
+                          className="flex items-center gap-1.5 text-[12px] text-gray-500 hover:text-gray-700 font-medium w-full py-1 px-1">
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+                          Mettre à jour "{savedViews.find(v => v.id === activeViewId)?.name}"
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
 
-          {/* Filter */}
+          {/* Sorted by (robot d'appel uniquement) */}
+          <div className="relative">
+            <button onClick={() => setShowSortDropdown(!showSortDropdown)}
+              className="flex items-center gap-1.5 text-[13px] text-gray-500 hover:text-gray-700 px-2.5 py-1.5 rounded-lg border border-gray-200 bg-white">
+              <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4h13M3 8h9m-9 4h6m4 0l4-4m0 0l4 4m-4-4v12" /></svg>
+              <span className="text-gray-700 font-medium">{sortBy === 'created' ? 'Dernier créé' : 'Dernier appel'}</span>
+              <svg className="w-3 h-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+            </button>
+            {showSortDropdown && (
+              <div className="absolute top-10 left-0 bg-white rounded-xl shadow-lg border border-gray-200 z-50 py-1 w-44 animate-slide-down">
+                <button onClick={() => { setSortBy('last_call'); setSortDir('desc'); setShowSortDropdown(false) }}
+                  className={`w-full text-left px-3 py-1.5 text-[12px] hover:bg-gray-50 ${sortBy === 'last_call' ? 'text-indigo-600 font-medium' : 'text-gray-600'}`}>
+                  Dernier appel
+                </button>
+                <button onClick={() => { setSortBy('created'); setSortDir('desc'); setShowSortDropdown(false) }}
+                  className={`w-full text-left px-3 py-1.5 text-[12px] hover:bg-gray-50 ${sortBy === 'created' ? 'text-indigo-600 font-medium' : 'text-gray-600'}`}>
+                  Dernier créé
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Filter statut appel (robot d'appel — Minari) */}
           <div className="relative">
             <button onClick={() => setShowFilters(!showFilters)}
-              className={`flex items-center gap-1 text-[13px] px-3 py-1.5 rounded-lg border transition-colors ${filterStatus ? 'text-indigo-600 font-medium border-indigo-200 bg-indigo-50' : 'text-gray-500 hover:text-gray-700 border-gray-200 bg-white'}`}>
+              className={`flex items-center gap-1 text-[13px] px-2.5 py-1.5 rounded-lg border transition-colors ${filters.some(f => f.propertyId === '_call_status') ? 'text-indigo-600 font-medium border-indigo-200 bg-indigo-50' : 'text-gray-500 hover:text-gray-700 border-gray-200 bg-white'}`}>
               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" /></svg>
-              Filtrer{filterStatus ? ' 1' : ''}
+              Filtrer
             </button>
             {showFilters && (
-              <div className="absolute top-8 left-0 bg-white dark:bg-[#ede6f3] rounded-xl shadow-lg border border-gray-200 dark:border-[#d4cade] z-50 py-2 w-48 animate-slide-down">
-                <button onClick={() => { setFilterStatus(null); setShowFilters(false) }}
-                  className={`w-full text-left px-3 py-1.5 text-[12px] hover:bg-gray-50 ${!filterStatus ? 'text-indigo-600 font-medium' : 'text-gray-600'}`}>Tous les statuts</button>
+              <div className="absolute top-8 left-0 bg-white rounded-xl shadow-lg border border-gray-200 z-50 py-2 w-52 animate-slide-down">
+                {/* Filtre par statut d'appel (robot — Minari) */}
+                <button onClick={() => { setFilters([]); setShowFilters(false) }}
+                  className={`w-full text-left px-3 py-1.5 text-[12px] hover:bg-gray-50 ${filters.length === 0 ? 'text-indigo-600 font-medium' : 'text-gray-600'}`}>Tous les statuts</button>
                 {['pending', 'connected', 'meeting_booked', 'callback', 'not_interested', 'no_answer', 'voicemail', 'busy', 'cancelled', 'failed', 'snoozed', 'disabled'].map(s => {
                   const badge = CALL_STATUS_BADGE[s]
                   if (!badge) return null
+                  const isActive = filters.some(f => f.propertyId === '_call_status' && f.value === s)
                   return (
-                    <button key={s} onClick={() => { setFilterStatus(s); setShowFilters(false) }}
-                      className={`w-full text-left px-3 py-1.5 text-[12px] hover:bg-gray-50 flex items-center gap-2 ${filterStatus === s ? 'text-indigo-600 font-medium' : 'text-gray-600'}`}>
+                    <button key={s} onClick={() => {
+                      setFilters([{ id: 'call_filter', propertyId: '_call_status', op: 'eq', value: s }])
+                      setShowFilters(false)
+                    }}
+                      className={`w-full text-left px-3 py-1.5 text-[12px] hover:bg-gray-50 flex items-center gap-2 ${isActive ? 'text-indigo-600 font-medium' : 'text-gray-600'}`}>
                       <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: badge.text }} />
                       {badge.label}
                     </button>
@@ -819,6 +1476,17 @@ export default function Dialer() {
               </div>
             )}
           </div>
+
+          {/* Colonnes */}
+          <ColumnPicker visible={visibleColumnIds} setVisible={saveVisibleColumns}
+            allProperties={allProperties} open={showColumnPicker} onToggle={() => setShowColumnPicker(!showColumnPicker)}
+            onCreateField={async (name) => {
+              const key = name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '')
+              try {
+                const field = await createField.mutateAsync({ name, key })
+                return field.id
+              } catch { return null }
+            }} />
 
           {/* Search */}
           <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-200 bg-white">
@@ -830,9 +1498,55 @@ export default function Dialer() {
 
         <div className="flex items-center gap-3">
           {/* Call settings dropdown (Minari exact position) */}
-          <CallSettingsDropdown open={showCallSettings} onToggle={() => setShowCallSettings(!showCallSettings)} />
+          <CallSettingsDropdown open={showCallSettings} onToggle={() => setShowCallSettings(!showCallSettings)}
+            parallel={parallel} setParallel={setParallel}
+            autoRotate={autoRotate} setAutoRotate={setAutoRotate}
+            voicemail={voicemail} setVoicemail={setVoicemail}
+            completeTask={completeTask} setCompleteTask={setCompleteTask}
+            maxAttempts={maxAttempts} setMaxAttempts={setMaxAttempts}
+            attemptPeriod={attemptPeriod} setAttemptPeriod={setAttemptPeriod}
+            phoneField={phoneField} setPhoneField={setPhoneField}
+            selectedFromNumber={selectedFromNumber} setSelectedFromNumber={setSelectedFromNumber} />
         </div>
       </div>
+
+      {/* ── Filtres CRM actifs (colonnes) ── */}
+      {filters.filter(f => f.propertyId !== '_call_status').length > 0 && (
+        <div className="px-5 py-1.5 bg-amber-50 border-b border-amber-100 flex items-center gap-2 flex-wrap">
+          <span className="text-[11px] text-amber-600 font-medium">Filtres :</span>
+          {filters.filter(f => f.propertyId !== '_call_status').map(f => {
+            const prop = allProperties.find(p => p.id === f.propertyId)
+            const opLabel: Record<string, string> = { eq: '=', neq: '≠', contains: '∋', starts: '→', empty: 'vide', not_empty: '≠ vide', gt: '>', lt: '<', in: '∈', true: 'Oui', false: 'Non' }
+            const dv = columnDistinctValues.current[f.propertyId]
+            return (
+              <div key={f.id} className="flex items-center gap-1 bg-white rounded-lg border border-amber-200 px-2 py-0.5">
+                <span className="text-[11px] text-gray-600 font-medium">{prop?.name || '?'}</span>
+                <span className="text-[10px] text-amber-500">{opLabel[f.op] || f.op}</span>
+                {!['empty', 'not_empty', 'true', 'false'].includes(f.op) && (
+                  (dv || (prop?.fieldType === 'enum' && (prop as PropertyDefinition).options)) ? (
+                    <select value={f.value} onChange={e => setFilters(prev => prev.map(pf => pf.id === f.id ? { ...pf, value: e.target.value } : pf))}
+                      className="text-[11px] bg-transparent border-0 outline-none text-gray-700 font-medium cursor-pointer">
+                      <option value="">tout</option>
+                      {(dv || (prop as PropertyDefinition).options || []).map(v => (
+                        <option key={v} value={v}>{crmLabels[v] || CRM_STATUS_LABELS[v] || v}</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <input value={f.value} onChange={e => setFilters(prev => prev.map(pf => pf.id === f.id ? { ...pf, value: e.target.value } : pf))}
+                      placeholder="..." className="text-[11px] bg-transparent border-0 outline-none text-gray-700 font-medium w-20" />
+                  )
+                )}
+                <button onClick={() => setFilters(prev => prev.filter(pf => pf.id !== f.id))}
+                  className="text-amber-400 hover:text-red-500 ml-0.5">
+                  <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                </button>
+              </div>
+            )
+          })}
+          <button onClick={() => setFilters(prev => prev.filter(f => f.propertyId === '_call_status'))}
+            className="text-[10px] text-amber-500 hover:text-red-500 ml-1">Effacer filtres</button>
+        </div>
+      )}
 
       {/* ── Barre actions groupées (quand sélection active) ── */}
       {selectedIds.size > 0 && (
@@ -841,12 +1555,7 @@ export default function Dialer() {
           <div className="h-4 w-px bg-indigo-200" />
 
           {/* Supprimer */}
-          <button onClick={async () => {
-            if (!confirm(`Supprimer ${selectedIds.size} contact${selectedIds.size > 1 ? 's' : ''} ?`)) return
-            await supabase.from('prospects').delete().in('id', Array.from(selectedIds))
-            setSelectedIds(new Set())
-            queryClient.invalidateQueries({ queryKey: ['prospects', activeListId] })
-          }} className="text-[12px] text-red-500 hover:text-red-700 flex items-center gap-1">
+          <button onClick={() => setConfirmDeleteProspects(true)} className="text-[12px] text-red-500 hover:text-red-700 flex items-center gap-1">
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
             Supprimer
           </button>
@@ -886,28 +1595,136 @@ export default function Dialer() {
         </div>
       )}
 
-      {/* ── Table ── */}
-      <div className="flex-1 overflow-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-gray-100 bg-gray-50/80 dark:bg-gray-800/50">
-                <th className="py-3 pl-4 pr-1 w-8"><input type="checkbox"
-                  checked={filtered ? filtered.length > 0 && selectedIds.size === filtered.length : false}
-                  onChange={e => {
-                    if (e.target.checked && filtered) setSelectedIds(new Set(filtered.map(p => p.id)))
-                    else setSelectedIds(new Set())
-                  }}
-                  className="w-3.5 h-3.5 rounded border-gray-300 accent-indigo-600" /></th>
-                <th className="py-3 px-3 text-left text-[10px] font-bold text-gray-400 uppercase tracking-[0.08em]">Statut appel</th>
-                <th className="py-3 px-3 text-center text-[10px] font-bold text-gray-400 uppercase tracking-[0.08em]">Appels</th>
-                <th className="py-3 px-1 text-center text-[10px] font-bold text-gray-400 uppercase tracking-[0.08em] w-16">Actions</th>
-                <th className="py-3 px-4 text-left text-[10px] font-bold text-gray-400 uppercase tracking-[0.08em]">Nom</th>
-                <th className="py-3 px-1 text-left text-[10px] font-bold text-gray-400 uppercase tracking-[0.08em]">Liens</th>
-                <th className="py-3 px-4 text-left text-[10px] font-bold text-gray-400 uppercase tracking-[0.08em]">Poste</th>
-                <th className="py-3 px-4 text-left text-[10px] font-bold text-gray-400 uppercase tracking-[0.08em]">Societe</th>
-                <th className="py-3 px-4 text-left text-[10px] font-bold text-gray-400 uppercase tracking-[0.08em]">Dernier appel</th>
-                <th className="py-3 px-4 text-left text-[10px] font-bold text-gray-400 uppercase tracking-[0.08em]">Statut</th>
-                <th className="py-3 px-4 text-left text-[10px] font-bold text-gray-400 uppercase tracking-[0.08em]">Telephone</th>
+      {/* ── Table (scroll horizontal contenu dans le cadre blanc) ── */}
+      <div className="flex-1 min-h-0 overflow-auto">
+          <table className="min-w-full border-collapse" style={{ width: 'max-content' }}>
+            <thead className="sticky top-0 z-20">
+              <tr className="border-b border-gray-100 bg-gray-50/80">
+                {/* Sticky headers */}
+                <th className="py-3 pl-4 pr-1 border-r border-gray-100 sticky left-0 z-30 bg-violet-100/70"
+                  style={{ width: STICKY_W.checkbox, minWidth: STICKY_W.checkbox }}>
+                  <input type="checkbox"
+                    checked={filtered ? filtered.length > 0 && selectedIds.size === filtered.length : false}
+                    onChange={e => {
+                      if (e.target.checked && filtered) setSelectedIds(new Set(filtered.map(p => p.id)))
+                      else setSelectedIds(new Set())
+                    }}
+                    className="w-3.5 h-3.5 rounded border-gray-300 accent-indigo-600" />
+                </th>
+                <th className="py-3 px-3 text-left text-[10px] font-bold text-gray-400 uppercase tracking-[0.08em] border-r border-gray-100 sticky z-30 bg-violet-100/70 group/th"
+                  style={{ left: STICKY_LEFT.status, width: STICKY_W.status, minWidth: STICKY_W.status }}>
+                  <div className="flex items-center gap-1">
+                    <span className="flex-1">Statut appel</span>
+                    <button onClick={() => { if (sortBy === 'call_status') setSortDir(d => d === 'asc' ? 'desc' : 'asc'); else { setSortBy('call_status'); setSortDir('asc') } }}
+                      className={`flex-shrink-0 transition-opacity ${sortBy === 'call_status' ? 'opacity-100 text-indigo-500' : 'opacity-0 group-hover/th:opacity-60 text-gray-400'}`}>
+                      {sortBy === 'call_status' && sortDir === 'desc'
+                        ? <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                        : <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" /></svg>}
+                    </button>
+                  </div>
+                </th>
+                <th className="py-3 px-1 text-center text-[10px] font-bold text-gray-400 uppercase tracking-[0.08em] border-r border-gray-100 sticky z-30 bg-violet-100/70"
+                  style={{ left: STICKY_LEFT.actions, width: STICKY_W.actions, minWidth: STICKY_W.actions }}>Actions</th>
+                <th className="py-3 px-4 text-left text-[10px] font-bold text-gray-400 uppercase tracking-[0.08em] border-r border-gray-100 sticky z-30 bg-violet-100/70 group/th"
+                  style={{ left: STICKY_LEFT.name, width: STICKY_W.name, minWidth: STICKY_W.name, boxShadow: '4px 0 8px -4px rgba(0,0,0,0.08)' }}>
+                  <div className="flex items-center gap-1">
+                    <span className="flex-1">Nom</span>
+                    <button onClick={() => { if (sortBy === 'name') setSortDir(d => d === 'asc' ? 'desc' : 'asc'); else { setSortBy('name'); setSortDir('asc') } }}
+                      className={`flex-shrink-0 transition-opacity ${sortBy === 'name' ? 'opacity-100 text-indigo-500' : 'opacity-0 group-hover/th:opacity-60 text-gray-400'}`}>
+                      {sortBy === 'name' && sortDir === 'desc'
+                        ? <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                        : <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" /></svg>}
+                    </button>
+                  </div>
+                </th>
+                {activeColumns.map(col => {
+                  const isSorted = sortBy === col.id
+                  const w = colWidths[col.id]
+                  return (
+                    <th key={col.id}
+                      draggable
+                      onDragStart={() => setDragColId(col.id)}
+                      onDragOver={e => e.preventDefault()}
+                      onDrop={() => {
+                        if (dragColId && dragColId !== col.id) {
+                          const from = visibleColumnIds.indexOf(dragColId)
+                          const to = visibleColumnIds.indexOf(col.id)
+                          if (from !== -1 && to !== -1) {
+                            const next = [...visibleColumnIds]
+                            next.splice(from, 1)
+                            next.splice(to, 0, dragColId)
+                            saveVisibleColumns(next)
+                          }
+                        }
+                        setDragColId(null)
+                      }}
+                      onDragEnd={() => setDragColId(null)}
+                      className={`py-3 px-3 text-left text-[10px] font-bold uppercase tracking-[0.08em] cursor-grab active:cursor-grabbing select-none whitespace-nowrap border-r border-gray-100 group/th relative ${
+                        dragColId === col.id ? 'opacity-40' : ''
+                      } ${col.type === 'custom' ? 'text-violet-400' : 'text-gray-400'}`}
+                      style={w ? { width: w, minWidth: w } : undefined}>
+                      <div className="flex items-center gap-1">
+                        <span className="flex-1 truncate">{col.name}</span>
+                        <button onClick={e => { e.stopPropagation(); if (isSorted) setSortDir(d => d === 'asc' ? 'desc' : 'asc'); else { setSortBy(col.id); setSortDir('asc') } }}
+                          title="Trier"
+                          className={`flex-shrink-0 transition-opacity ${isSorted ? 'opacity-100 text-indigo-500' : 'opacity-0 group-hover/th:opacity-60 text-gray-400 hover:text-gray-600'}`}>
+                          {isSorted && sortDir === 'desc'
+                            ? <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                            : <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" /></svg>
+                          }
+                        </button>
+                        {/* Filtre colonne (HubSpot) */}
+                        <button onClick={e => {
+                          e.stopPropagation()
+                          const existing = filters.find(f => f.propertyId === col.id)
+                          if (existing) {
+                            setFilters(prev => prev.filter(f => f.propertyId !== col.id))
+                          } else {
+                            const dv = columnDistinctValues.current[col.id]
+                            const op: FilterOp = (col.fieldType === 'boolean') ? 'true' : (col.fieldType === 'enum' || dv) ? 'eq' : 'contains'
+                            setFilters(prev => [...prev, { id: crypto.randomUUID(), propertyId: col.id, op, value: '' }])
+                            setShowFilters(true)
+                          }
+                        }}
+                          title="Filtrer"
+                          className={`flex-shrink-0 transition-opacity ${filters.some(f => f.propertyId === col.id) ? 'opacity-100 text-indigo-500' : 'opacity-0 group-hover/th:opacity-60 text-gray-400 hover:text-gray-600'}`}>
+                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" /></svg>
+                        </button>
+                        <button onClick={e => { e.stopPropagation(); saveVisibleColumns(visibleColumnIds.filter(c => c !== col.id)) }}
+                          title="Masquer la colonne"
+                          className="flex-shrink-0 opacity-0 group-hover/th:opacity-60 text-gray-400 hover:text-red-500 transition-opacity">
+                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                        </button>
+                      </div>
+                      {/* Resize handle */}
+                      <div
+                        className="absolute top-0 right-0 w-1.5 h-full cursor-col-resize hover:bg-indigo-400 active:bg-indigo-500 transition-colors z-10"
+                        onMouseDown={e => {
+                          e.preventDefault()
+                          e.stopPropagation()
+                          const th = (e.target as HTMLElement).parentElement!
+                          const startW = th.offsetWidth
+                          const startX = e.clientX
+                          resizeRef.current = { colId: col.id, startX, startW }
+
+                          const onMove = (ev: MouseEvent) => {
+                            if (!resizeRef.current) return
+                            const diff = ev.clientX - resizeRef.current.startX
+                            const newW = Math.max(60, resizeRef.current.startW + diff)
+                            setColWidths(prev => ({ ...prev, [resizeRef.current!.colId]: newW }))
+                          }
+                          const onUp = () => {
+                            resizeRef.current = null
+                            document.removeEventListener('mousemove', onMove)
+                            document.removeEventListener('mouseup', onUp)
+                          }
+                          document.addEventListener('mousemove', onMove)
+                          document.addEventListener('mouseup', onUp)
+                        }}
+                      />
+                    </th>
+                  )
+                })}
               </tr>
             </thead>
             <tbody>
@@ -919,6 +1736,8 @@ export default function Dialer() {
                   liveStatus={getLiveCallStatus(p.id)}
                   selected={selectedIds.has(p.id)}
                   socials={socialsByProspect.get(p.id) || []}
+                  columns={activeColumns}
+                  customValues={allCustomValues?.[p.id]}
                   onToggleSelect={id => setSelectedIds(prev => {
                     const next = new Set(prev)
                     if (next.has(id)) next.delete(id)
@@ -927,6 +1746,10 @@ export default function Dialer() {
                   })}
                   onSelect={(p) => { if (cm.isDisconnected) cm.reset(); setSelectedProspect(p) }}
                   onCall={handleCall}
+                  colWidths={colWidths}
+                  crmLabels={crmLabels}
+                  columnDistinctValues={columnDistinctValues.current}
+                  onSaved={() => queryClient.invalidateQueries({ queryKey: ['prospects', activeListId] })}
                 />
               ))}
             </tbody>
@@ -1124,7 +1947,24 @@ export default function Dialer() {
       )}
 
       {/* Close dropdowns when clicking outside */}
-      {(showCallSettings || showFilters) && <div className="fixed inset-0 z-40" onClick={() => { setShowCallSettings(false); setShowFilters(false) }} />}
+      {(showCallSettings || showFilters || showColumnPicker || showViews || showSortDropdown) && <div className="fixed inset-0 z-40" onClick={() => { setShowCallSettings(false); setShowFilters(false); setShowColumnPicker(false); setShowViews(false); setSavingView(false); setShowSortDropdown(false) }} />}
+
+      {/* Modal confirmation suppression prospects */}
+      <ConfirmModal
+        open={confirmDeleteProspects}
+        title="Supprimer les contacts"
+        message={`Supprimer ${selectedIds.size} contact${selectedIds.size > 1 ? 's' : ''} ? Cette action est irréversible.`}
+        confirmLabel="Supprimer"
+        cancelLabel="Annuler"
+        variant="danger"
+        onCancel={() => setConfirmDeleteProspects(false)}
+        onConfirm={async () => {
+          await supabase.from('prospects').delete().in('id', Array.from(selectedIds))
+          setSelectedIds(new Set())
+          setConfirmDeleteProspects(false)
+          queryClient.invalidateQueries({ queryKey: ['prospects', activeListId] })
+        }}
+      />
     </div>
   )
 }
