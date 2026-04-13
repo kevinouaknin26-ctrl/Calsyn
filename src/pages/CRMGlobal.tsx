@@ -266,10 +266,11 @@ export default function CRMGlobal() {
     return m
   }, [crmStatuses])
 
-  const activeColumns = useMemo(
-    () => visibleColumnIds.map(id => allProperties.find(p => p.id === id)).filter(Boolean) as PropertyDefinition[],
-    [allProperties, visibleColumnIds],
-  )
+  const activeColumns = useMemo(() => {
+    const cols = visibleColumnIds.map(id => allProperties.find(p => p.id === id)).filter(Boolean) as PropertyDefinition[]
+    console.log('[CRMGlobal] activeColumns:', cols.length, 'from', visibleColumnIds.length, 'visible, allProperties:', allProperties.length)
+    return cols
+  }, [allProperties, visibleColumnIds])
 
   // Build list name map
   const listNameMap = useMemo(() => {
