@@ -267,9 +267,26 @@ export default function CRMGlobal() {
   }, [crmStatuses])
 
   const activeColumns = useMemo(() => {
+    if (allProperties.length === 0) return []
     const cols = visibleColumnIds.map(id => allProperties.find(p => p.id === id)).filter(Boolean) as PropertyDefinition[]
-    console.log('[CRMGlobal] activeColumns:', cols.length, 'from', visibleColumnIds.length, 'visible, allProperties:', allProperties.length)
+    // Migration auto : si localStorage contient des IDs invalides (version antérieure), réinitialiser au défaut
+    if (cols.length === 0 && visibleColumnIds.length > 0) {
+      const defaults = [...DEFAULT_VISIBLE_COLUMNS, 'system:call_count']
+      return defaults.map(id => allProperties.find(p => p.id === id)).filter(Boolean) as PropertyDefinition[]
+    }
     return cols
+  }, [allProperties, visibleColumnIds])
+
+  // Si activeColumns a été auto-récupéré via défaut, resynchroniser visibleColumnIds
+  useEffect(() => {
+    if (allProperties.length > 0 && visibleColumnIds.length > 0) {
+      const valid = visibleColumnIds.filter(id => allProperties.some(p => p.id === id))
+      if (valid.length === 0) {
+        setVisibleColumnIds([...DEFAULT_VISIBLE_COLUMNS, 'system:call_count'])
+      } else if (valid.length !== visibleColumnIds.length) {
+        setVisibleColumnIds(valid)
+      }
+    }
   }, [allProperties, visibleColumnIds])
 
   // Build list name map

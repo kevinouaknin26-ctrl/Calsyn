@@ -67,7 +67,7 @@ export function useDialingSession() {
     }
     setSession(s)
     return s
-  }, [profile, organisation])
+  }, [profile?.id, organisation?.id])
 
   const getCurrentProspectId = useCallback((): string | null => {
     if (!session || session.status !== 'active') return null

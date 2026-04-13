@@ -476,7 +476,7 @@ function CalendarInner() {
       setClickedEvent(null)
       setSelectedProspect(data as Prospect)
     }
-  }, [organisation, profile, lists, queryClient])
+  }, [organisation?.id, profile?.id, lists, queryClient])
 
   // ── GCal event click handler ──
   const handleGCalEventClick = useCallback(async (ev: GCalEvent) => {
