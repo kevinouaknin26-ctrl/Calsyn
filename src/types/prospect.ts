@@ -24,6 +24,8 @@ export type CrmStatus =
   | 'rdv_fait'
   | 'en_attente_signature'
   | 'signe'
+  | 'en_attente_paiement'
+  | 'paye'
   | 'mail_sent'
 
 export interface Prospect {

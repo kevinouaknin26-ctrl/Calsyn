@@ -452,10 +452,8 @@ export default function SelectListPage({ onSelect, onClose }: Props) {
 
   // Charger le fichier et afficher le mapping
   function handleCSVFile(e: ChangeEvent<HTMLInputElement>) {
-    console.log('[CSV] handleCSVFile triggered', e.target.files)
     const file = e.target.files?.[0]
-    if (!file) { console.log('[CSV] No file selected'); return }
-    console.log('[CSV] File:', file.name, file.size, file.type)
+    if (!file) return
     setCsvError(null)
 
     const reader = new FileReader()
@@ -953,7 +951,7 @@ export default function SelectListPage({ onSelect, onClose }: Props) {
           </div>
           <div className="space-y-1.5">
             <input ref={fileRef} type="file" accept=".csv,.txt,.tsv,text/csv,text/plain,application/vnd.ms-excel" onChange={handleCSVFile} className="hidden" />
-            <button onClick={() => { console.log('[CSV] Button clicked, fileRef:', fileRef.current); if (fileRef.current) { fileRef.current.value = ''; fileRef.current.click() } else { console.error('[CSV] fileRef is null!') } }} disabled={importing}
+            <button onClick={() => { if (fileRef.current) { fileRef.current.value = ''; fileRef.current.click() } }} disabled={importing}
               className="w-full text-left px-3 py-2.5 rounded-xl bg-white border border-dashed border-gray-300 hover:border-indigo-400 hover:bg-indigo-50/30 transition-colors flex items-center gap-2">
               <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" /></svg>
               <p className="text-[13px] text-gray-500">{importing ? 'Import en cours...' : 'Importer un CSV'}</p>
