@@ -35,21 +35,34 @@ export function useCalls(limit = 200) {
   })
 }
 
-export function useCallsByProspect(prospectId: string | null) {
+export function useCallsByProspect(prospectId: string | null, phone?: string | null) {
   return useQuery({
-    queryKey: ['calls-by-prospect', prospectId],
+    queryKey: ['calls-by-prospect', prospectId, phone],
     queryFn: async () => {
-      if (!prospectId) return []
-      const { data, error } = await supabase
-        .from('calls')
-        .select('*')
-        .eq('prospect_id', prospectId)
-        .order('created_at', { ascending: false })
-        .limit(50)
-      if (error) throw error
-      return data as Call[]
+      if (!prospectId && !phone) return []
+      // Chercher par téléphone (cross-listes) puis fallback par prospect_id
+      if (phone) {
+        const { data, error } = await supabase
+          .from('calls')
+          .select('*')
+          .eq('prospect_phone', phone)
+          .order('created_at', { ascending: false })
+          .limit(50)
+        if (!error && data && data.length > 0) return data as Call[]
+      }
+      if (prospectId) {
+        const { data, error } = await supabase
+          .from('calls')
+          .select('*')
+          .eq('prospect_id', prospectId)
+          .order('created_at', { ascending: false })
+          .limit(50)
+        if (error) throw error
+        return data as Call[]
+      }
+      return []
     },
-    enabled: !!prospectId,
+    enabled: !!(prospectId || phone),
   })
 }
 

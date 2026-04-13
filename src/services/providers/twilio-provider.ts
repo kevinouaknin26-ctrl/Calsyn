@@ -57,9 +57,19 @@ export class TwilioProvider implements CallProvider {
   readonly name = 'twilio' as const
   private device: Device | null = null
   private listeners: Partial<CallProviderEvents>[] = []
+  private tokenFetcher: (() => Promise<string>) | null = null
 
   get isReady(): boolean {
     return this.device?.state === Device.State.Registered
+  }
+
+  setTokenFetcher(fn: () => Promise<string>): void {
+    this.tokenFetcher = fn
+  }
+
+  private async fetchToken(): Promise<string | null> {
+    if (!this.tokenFetcher) return null
+    return this.tokenFetcher()
   }
 
   async init(token: string): Promise<void> {
@@ -68,6 +78,9 @@ export class TwilioProvider implements CallProvider {
     this.device = new Device(token, {
       logLevel: 1,
       codecPreferences: [Call.Codec.Opus, Call.Codec.PCMU],
+      // Stabilité connexion — éviter les coupures
+      closeProtection: true, // Alerte si l'utilisateur ferme l'onglet pendant un appel
+      enableIceRestart: true, // Reconnecte automatiquement si ICE échoue
     } as ConstructorParameters<typeof Device>[1])
 
     this.device.on('registered', () => {
@@ -78,9 +91,18 @@ export class TwilioProvider implements CallProvider {
       this.emit('onError', new Error(err.message))
     })
 
-    this.device.on('tokenWillExpire', () => {
-      // Le hook useCallMachine gerera le refresh du token
-      this.emit('onError', new Error('TOKEN_WILL_EXPIRE'))
+    this.device.on('tokenWillExpire', async () => {
+      // Auto-refresh du token avant expiration
+      try {
+        const newToken = await this.fetchToken()
+        if (newToken && this.device) {
+          this.device.updateToken(newToken)
+          this.log('[TwilioVoice] Token refreshed automatically')
+        }
+      } catch (err) {
+        this.log('[TwilioVoice] Token refresh failed:', err)
+        this.emit('onError', new Error('TOKEN_REFRESH_FAILED'))
+      }
     })
 
     await this.device.register()

@@ -242,10 +242,11 @@ serve(async (req) => {
       if (callData && callData.call_outcome !== 'voicemail') {
         await supabase.from('calls').update({ call_outcome: 'voicemail' }).eq('id', job.call_id)
         if (callData.prospect_id) {
-          // Ne downgrade pas si le prospect a déjà un meilleur statut
+          // La transcription IA fait foi — corriger même si "connected" (faux connected = messagerie longue)
+          // Ne pas downgrade seulement si meeting_booked/callback/rdv_pris (actions humaines volontaires)
           const { data: prospect } = await supabase.from('prospects').select('last_call_outcome').eq('id', callData.prospect_id).single()
-          const betterStatuses = ['meeting_booked', 'rdv', 'connected', 'callback']
-          if (prospect && !betterStatuses.includes(prospect.last_call_outcome || '')) {
+          const humanStatuses = ['meeting_booked', 'rdv_pris', 'callback']
+          if (prospect && !humanStatuses.includes(prospect.last_call_outcome || '')) {
             await supabase.from('prospects').update({ last_call_outcome: 'voicemail' }).eq('id', callData.prospect_id)
           }
         }

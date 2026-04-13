@@ -83,6 +83,9 @@ export function useCallMachine() {
       },
     })
 
+    // Auto-refresh token
+    provider.setTokenFetcher(fetchVoiceToken)
+
     fetchVoiceToken()
       .then(token => { if (!cancelled) return provider.init(token) })
       .catch(err => { if (!cancelled) console.error('[useCallMachine] Init failed:', err) })
@@ -95,6 +98,23 @@ export function useCallMachine() {
       setProviderReady(false)
     }
   }, [organisation, send])
+
+  // ── Wake Lock : empêcher Chrome de mettre en veille pendant un appel ──
+  const isInCallState = state.matches('dialing') || state.matches('connected')
+  useEffect(() => {
+    if (!isInCallState) return
+    let wakeLock: any = null
+    const request = async () => {
+      try {
+        if ('wakeLock' in navigator) {
+          wakeLock = await (navigator as any).wakeLock.request('screen')
+          console.log('[useCallMachine] Wake Lock acquired')
+        }
+      } catch { /* silently fail on unsupported browsers */ }
+    }
+    request()
+    return () => { if (wakeLock) { wakeLock.release(); console.log('[useCallMachine] Wake Lock released') } }
+  }, [isInCallState])
 
   // ── Autosave : quand on passe en disconnected, save en background ──
   const isDisconnectedState = state.matches('disconnected')
@@ -159,7 +179,7 @@ export function useCallMachine() {
     // POWER DIALER : appel direct via SDK client (pas de conférence, pas d'AMD temps réel)
     // Le SDR entend la sonnerie et parle dès le décroché — 0 latence
     // La détection messagerie se fait post-appel via process-analysis (transcription Deepgram)
-    const fromNumber = overrideFromNumber || organisation?.from_number || '+33159580189'
+    const fromNumber = overrideFromNumber || organisation?.from_number || '+33757905591'
     console.log(`[useCallMachine] Calling ${prospect.name} from ${fromNumber}`)
     send({ type: 'CALL', prospect })
 

@@ -179,7 +179,7 @@ export default function Calendar() {
   const [currentDate, setCurrentDate] = useState(getDayStart(new Date()))
   const [view, setView] = useState<'day' | 'week'>('week')
   const [selectedProspect, setSelectedProspect] = useState<Prospect | null>(null)
-  const { data: callHistory } = useCallsByProspect(selectedProspect?.id || null)
+  const { data: callHistory } = useCallsByProspect(selectedProspect?.id || null, selectedProspect?.phone)
 
   // Event popup state (for unmatched GCal events)
   const [clickedEvent, setClickedEvent] = useState<GCalEvent | null>(null)

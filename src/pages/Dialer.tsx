@@ -859,7 +859,7 @@ export default function Dialer() {
   const [maxAttempts, setMaxAttempts] = useCallSetting('max_attempts', 'Illimité')
   const [attemptPeriod, setAttemptPeriod] = useCallSetting('attempt_period', 'jour')
   const [phoneField, setPhoneField] = useCallSetting('phone_field', 'phone')
-  const [selectedFromNumber, setSelectedFromNumber] = useCallSetting('from_number', '+33159580189')
+  const [selectedFromNumber, setSelectedFromNumber] = useCallSetting('from_number', '+33757905591')
 
   // ── Propriétés CRM (HubSpot-style) ──
   const { properties: allProperties } = usePropertyDefinitions()
@@ -904,7 +904,7 @@ export default function Dialer() {
 
   const [selectedProspect, setSelectedProspect] = useState<Prospect | null>(null)
   const [search, setSearch] = useState('')
-  const [sortBy, setSortBy] = useState<string>('last_call')
+  const [sortBy, setSortBy] = useState<string>('none')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
   // ── Filtres multi-propriétés (HubSpot-style) ──
   type FilterOp = 'eq' | 'neq' | 'contains' | 'not_contains' | 'starts' | 'empty' | 'not_empty' | 'gt' | 'lt' | 'in' | 'true' | 'false'
@@ -994,7 +994,7 @@ export default function Dialer() {
   })
   const [showCallSettings, setShowCallSettings] = useState(false)
   const { data: prospects } = useProspects(activeListId)
-  const { data: callHistory } = useCallsByProspect(selectedProspect?.id ?? null)
+  const { data: callHistory } = useCallsByProspect(selectedProspect?.id ?? null, selectedProspect?.phone)
 
   // Custom field values en batch
   const prospectIds = prospects?.map(p => p.id) || []
@@ -1169,8 +1169,9 @@ export default function Dialer() {
       return true
     })
     .sort((a, b) => {
+      // Aucun tri = ordre de la DB (stable, ne bouge pas)
+      if (sortBy === 'none') return 0
       let cmp = 0
-      // Legacy sort keys
       if (sortBy === 'last_call') cmp = (a.last_call_at || '').localeCompare(b.last_call_at || '')
       else if (sortBy === 'created') cmp = (a.created_at || '').localeCompare(b.created_at || '')
       else if (sortBy === 'name') cmp = a.name.localeCompare(b.name)
@@ -1430,11 +1431,15 @@ export default function Dialer() {
             <button onClick={() => setShowSortDropdown(!showSortDropdown)}
               className="flex items-center gap-1.5 text-[13px] text-gray-500 hover:text-gray-700 px-2.5 py-1.5 rounded-lg border border-gray-200 bg-white">
               <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4h13M3 8h9m-9 4h6m4 0l4-4m0 0l4 4m-4-4v12" /></svg>
-              <span className="text-gray-700 font-medium">{sortBy === 'created' ? 'Dernier créé' : 'Dernier appel'}</span>
+              <span className="text-gray-700 font-medium">{sortBy === 'none' ? 'Ordre par défaut' : sortBy === 'created' ? 'Dernier créé' : 'Dernier appel'}</span>
               <svg className="w-3 h-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
             </button>
             {showSortDropdown && (
               <div className="absolute top-10 left-0 bg-white rounded-xl shadow-lg border border-gray-200 z-50 py-1 w-44 animate-slide-down">
+                <button onClick={() => { setSortBy('none'); setShowSortDropdown(false) }}
+                  className={`w-full text-left px-3 py-1.5 text-[12px] hover:bg-gray-50 ${sortBy === 'none' ? 'text-indigo-600 font-medium' : 'text-gray-600'}`}>
+                  Ordre par défaut
+                </button>
                 <button onClick={() => { setSortBy('last_call'); setSortDir('desc'); setShowSortDropdown(false) }}
                   className={`w-full text-left px-3 py-1.5 text-[12px] hover:bg-gray-50 ${sortBy === 'last_call' ? 'text-indigo-600 font-medium' : 'text-gray-600'}`}>
                   Dernier appel
@@ -1520,7 +1525,7 @@ export default function Dialer() {
               <span className="text-[13px] font-semibold text-teal-700">RDV du jour</span>
               <span className="text-[11px] text-teal-500 bg-teal-100 px-1.5 py-0.5 rounded-full font-bold">{rdvToday.length}</span>
             </div>
-            <div className="flex items-center gap-2 flex-1 overflow-x-auto">
+            <div className="flex items-center gap-2 flex-1 overflow-x-auto scrollbar-hide" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
               {rdvToday.map(rdv => {
                 const time = rdv.rdv_date ? new Date(rdv.rdv_date).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : ''
                 const isPast = rdv.rdv_date && new Date(rdv.rdv_date) < new Date()
@@ -1536,15 +1541,20 @@ export default function Dialer() {
                     if (p) { if (cm.isDisconnected) cm.reset(); setSelectedProspect(p) }
                   }}
                     className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border transition-all flex-shrink-0 ${
-                      isPast
+                      isPast && rdv.last_call_outcome
+                        ? 'bg-emerald-50 border-emerald-200 hover:border-emerald-400 shadow-sm'
+                        : isPast
                         ? 'bg-white border-amber-200 hover:border-amber-400 shadow-sm'
                         : 'bg-white border-teal-200 hover:border-teal-400 shadow-sm'
                     }`}>
                     <span className={`text-[12px] font-mono font-bold ${isPast ? 'text-amber-600' : 'text-teal-600'}`}>{time}</span>
                     <span className="text-[12px] text-gray-700 font-medium">{rdv.name}</span>
                     {rdv.company && <span className="text-[10px] text-gray-400">· {rdv.company}</span>}
-                    {isPast && !rdv.meeting_booked && (
+                    {isPast && !rdv.last_call_outcome && (
                       <span className="text-[9px] text-amber-500 font-bold bg-amber-50 px-1.5 py-0.5 rounded">EN RETARD</span>
+                    )}
+                    {isPast && rdv.last_call_outcome && (
+                      <span className="text-[9px] text-emerald-500 font-bold bg-emerald-50 px-1.5 py-0.5 rounded">FAIT</span>
                     )}
                   </button>
                 )
