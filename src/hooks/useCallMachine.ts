@@ -28,10 +28,14 @@ export function useCallMachine() {
   const [state, send] = useMachine(callMachine)
 
   // ── Init provider ─────────────────────────────────────────────────
+  // CRITIQUE : ne dépendre que de l'ID et du provider, PAS de tout l'objet organisation
+  // Sinon chaque refresh org (10s) détruit le Device Twilio → coupe l'appel
+  const orgId = organisation?.id
+  const voiceProvider = organisation?.voice_provider || 'twilio'
   useEffect(() => {
-    if (!organisation) return
+    if (!orgId) return
 
-    const providerName = organisation.voice_provider || 'twilio'
+    const providerName = voiceProvider
     const provider = createProvider(providerName)
     providerRef.current = provider
     let cancelled = false
@@ -98,7 +102,7 @@ export function useCallMachine() {
       providerRef.current = null
       setProviderReady(false)
     }
-  }, [organisation, send])
+  }, [orgId, voiceProvider, send])
 
   // ── Wake Lock : empêcher Chrome de mettre en veille pendant un appel ──
   const isInCallState = state.matches('dialing') || state.matches('connected')

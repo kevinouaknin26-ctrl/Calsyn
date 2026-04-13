@@ -19,6 +19,7 @@ import ConfirmModal from '@/components/ui/ConfirmModal'
 import { PlatformIcon } from '@/components/call/SocialLinks'
 import SelectListPage from '@/components/dialer/SelectListPage'
 import ProspectModal from '@/components/call/ProspectModal'
+import { exportListWithAudios, type ExportProgress } from '@/services/exportList'
 import { useRealtimeProspects } from '@/hooks/useRealtime'
 import { useDialingSession } from '@/hooks/useDialingSession'
 import type { Prospect } from '@/types/prospect'
@@ -198,6 +199,45 @@ function ColumnPicker({ visible, setVisible, allProperties, open, onToggle, onCr
 
 // ── Call Settings Dropdown (Minari frame 012 exact) ───────────────
 /** Helper pour persister les call settings */
+// ── Export complet (CSV + audios + fiches coaching) ──
+function ExportButton({ listId, listName, prospects }: { listId: string | null; listName: string; prospects: Prospect[] }) {
+  const [exporting, setExporting] = useState(false)
+  const [progress, setProgress] = useState<ExportProgress | null>(null)
+
+  const handleExport = async () => {
+    if (!listId || !prospects.length || exporting) return
+    setExporting(true)
+    try {
+      await exportListWithAudios(listId, listName, prospects, setProgress)
+    } catch (err) {
+      console.error('[Export] Failed:', err)
+    }
+    setExporting(false)
+    setProgress(null)
+  }
+
+  return (
+    <div className="relative">
+      <button onClick={handleExport} disabled={exporting || !prospects.length}
+        className={`text-[13px] flex items-center gap-1 transition-colors ${
+          exporting ? 'text-violet-500' : 'text-gray-400 hover:text-gray-600'
+        }`}>
+        {exporting ? (
+          <>
+            <div className="w-3.5 h-3.5 border-2 border-violet-500 border-t-transparent rounded-full animate-spin" />
+            <span className="max-w-[160px] truncate">{progress?.step || 'Export...'}</span>
+          </>
+        ) : (
+          <>
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+            Exporter
+          </>
+        )}
+      </button>
+    </div>
+  )
+}
+
 function useCallSetting<T>(key: string, defaultValue: T): [T, (v: T) => void] {
   const [val, setVal] = useState<T>(() => {
     try { const s = localStorage.getItem(`callio_cs_${key}`); return s ? JSON.parse(s) : defaultValue } catch { return defaultValue }
@@ -1278,26 +1318,13 @@ export default function Dialer() {
               <svg className={`w-3.5 h-3.5 transition-transform ${refreshing ? 'animate-spin-fast' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
               {refreshing ? 'Chargement...' : 'Actualiser'}
             </button>
-            {/* Export CSV (admin/manager only) */}
+            {/* Export complet (admin/manager only) */}
             {(isAdmin || isManager) && (
-              <button onClick={() => {
-                if (!prospects?.length) return
-                const headers = ['Nom', 'Téléphone', 'Email', 'Entreprise', 'Poste', 'Statut appel', 'Statut CRM', 'Nb appels', 'Dernier appel']
-                const rows = prospects.map(p => [
-                  p.name, p.phone, p.email || '', p.company || '', p.title || '',
-                  p.last_call_outcome || 'pending', p.crm_status || 'new',
-                  String(p.call_count || 0), p.last_call_at || ''
-                ])
-                const csv = [headers, ...rows].map(r => r.map(c => `"${c.replace(/"/g, '""')}"`).join(',')).join('\n')
-                const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8' })
-                const url = URL.createObjectURL(blob)
-                const a = document.createElement('a')
-                a.href = url; a.download = `${activeList?.name || 'export'}.csv`; a.click()
-                URL.revokeObjectURL(url)
-              }} className="text-[13px] text-gray-400 hover:text-gray-600 flex items-center gap-1">
-                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
-                Exporter
-              </button>
+              <ExportButton
+                listId={activeListId}
+                listName={activeList?.name || 'export'}
+                prospects={prospects || []}
+              />
             )}
           </div>
           <div className="flex flex-col items-end gap-1">
@@ -1510,46 +1537,56 @@ export default function Dialer() {
         </div>
       </div>
 
-      {/* ── Bandeau RDV du jour ── */}
-      {rdvToday && rdvToday.length > 0 && (
+      {/* ── Bandeau RDV du jour — auto-scroll vers le prochain ── */}
+      {rdvToday && rdvToday.length > 0 && (() => {
+        const now = new Date()
+        const nextIdx = rdvToday.findIndex(r => r.rdv_date && new Date(r.rdv_date) > now)
+        return (
         <div className="px-5 py-2 bg-gradient-to-r from-teal-50 to-emerald-50 border-b border-teal-100">
           <div className="flex items-center gap-3">
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-1.5 flex-shrink-0">
               <svg className="w-4 h-4 text-teal-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
               <span className="text-[13px] font-semibold text-teal-700">RDV du jour</span>
               <span className="text-[11px] text-teal-500 bg-teal-100 px-1.5 py-0.5 rounded-full font-bold">{rdvToday.length}</span>
             </div>
-            <div className="flex items-center gap-2 flex-1 overflow-x-auto scrollbar-hide" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
-              {rdvToday.map(rdv => {
+            <div className="flex items-center gap-2 flex-1 overflow-x-auto scrollbar-hide" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+              ref={el => {
+                // Auto-scroll vers le prochain RDV
+                if (el && nextIdx >= 0) {
+                  const target = el.children[nextIdx] as HTMLElement
+                  if (target) el.scrollLeft = target.offsetLeft - 20
+                }
+              }}>
+              {rdvToday.map((rdv, idx) => {
                 const time = rdv.rdv_date ? new Date(rdv.rdv_date).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : ''
-                const isPast = rdv.rdv_date && new Date(rdv.rdv_date) < new Date()
+                const isPast = rdv.rdv_date && new Date(rdv.rdv_date) < now
+                const isNext = idx === nextIdx
                 return (
                   <button key={rdv.id} onClick={() => {
-                    // Naviguer vers la liste du prospect et ouvrir sa fiche
                     if (rdv.list_id) {
                       setActiveListId(rdv.list_id)
                       setOpenTabIds(prev => prev.includes(rdv.list_id) ? prev : [...prev, rdv.list_id])
                     }
-                    // Ouvrir la fiche prospect — rdv a déjà les champs nécessaires
-                    // On cherche d'abord dans la liste active, sinon on utilise le rdv directement
                     const p = prospects?.find(pr => pr.id === rdv.id) || rdv as unknown as Prospect
                     if (cm.isDisconnected) cm.reset()
                     setSelectedProspect(p)
                   }}
                     className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border transition-all flex-shrink-0 ${
-                      isPast && rdv.last_call_outcome
+                      isNext
+                        ? 'bg-teal-100 border-teal-400 shadow-md ring-2 ring-teal-200'
+                        : isPast && rdv.last_call_outcome
                         ? 'bg-emerald-50 border-emerald-200 hover:border-emerald-400 shadow-sm'
                         : isPast
-                        ? 'bg-white border-amber-200 hover:border-amber-400 shadow-sm'
+                        ? 'bg-white border-amber-200 hover:border-amber-400 shadow-sm opacity-60'
                         : 'bg-white border-teal-200 hover:border-teal-400 shadow-sm'
                     }`}>
-                    <span className={`text-[12px] font-mono font-bold ${isPast ? 'text-amber-600' : 'text-teal-600'}`}>{time}</span>
-                    <span className="text-[12px] text-gray-700 font-medium">{rdv.name}</span>
-                    {rdv.company && <span className="text-[10px] text-gray-400">· {rdv.company}</span>}
-                    {isPast && !rdv.last_call_outcome && (
+                    {isNext && <span className="text-[9px] text-white font-bold bg-teal-500 px-1.5 py-0.5 rounded animate-pulse">PROCHAIN</span>}
+                    <span className={`text-[12px] font-mono font-bold ${isNext ? 'text-teal-700' : isPast ? 'text-amber-600' : 'text-teal-600'}`}>{time}</span>
+                    <span className={`text-[12px] font-medium ${isNext ? 'text-teal-800' : 'text-gray-700'}`}>{rdv.name}</span>
+                    {!isNext && isPast && !rdv.last_call_outcome && (
                       <span className="text-[9px] text-amber-500 font-bold bg-amber-50 px-1.5 py-0.5 rounded">EN RETARD</span>
                     )}
-                    {isPast && rdv.last_call_outcome && (
+                    {!isNext && isPast && rdv.last_call_outcome && (
                       <span className="text-[9px] text-emerald-500 font-bold bg-emerald-50 px-1.5 py-0.5 rounded">FAIT</span>
                     )}
                   </button>
@@ -1558,7 +1595,8 @@ export default function Dialer() {
             </div>
           </div>
         </div>
-      )}
+        )
+      })()}
 
       {/* ── Filtres CRM actifs (colonnes) ── */}
       {filters.filter(f => f.propertyId !== '_call_status').length > 0 && (

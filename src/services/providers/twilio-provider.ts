@@ -92,15 +92,19 @@ export class TwilioProvider implements CallProvider {
       this.emit('onError', new Error(err.message))
     })
 
-    // Device déconnecté du signaling (réseau tombé)
+    // Device déconnecté du signaling (réseau tombé — PAS un destroy intentionnel)
     this.device.on('unregistered', () => {
+      // Ne PAS re-register si le device a été détruit (cleanup React)
+      if (!this.device || this.device.state === Device.State.Destroyed) {
+        this.log('[TwilioVoice] Device destroyed — skip re-register')
+        return
+      }
       this.log('[TwilioVoice] ⚠️ DEVICE UNREGISTERED — tentative de re-register...')
-      // Re-register automatiquement
       setTimeout(async () => {
         try {
-          if (this.device && this.device.state !== Device.State.Registered) {
+          if (this.device && this.device.state !== Device.State.Registered && this.device.state !== Device.State.Destroyed) {
             const newToken = await this.fetchToken()
-            if (newToken) {
+            if (newToken && this.device) {
               this.device.updateToken(newToken)
               await this.device.register()
               this.log('[TwilioVoice] ✅ Re-registered successfully')
