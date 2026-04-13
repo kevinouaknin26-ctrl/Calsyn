@@ -38,9 +38,15 @@ export async function callEdgeFunction<T = unknown>(
   return res.json()
 }
 
-/** Demander un token VoIP (Twilio ou Telnyx) */
+/** Demander un token VoIP Twilio */
 export async function fetchVoiceToken(): Promise<string> {
   const data = await callEdgeFunction<{ token: string }>('token-gen')
+  return data.token
+}
+
+/** Demander un token VoIP Telnyx */
+export async function fetchTelnyxToken(): Promise<string> {
+  const data = await callEdgeFunction<{ token: string }>('telnyx-token')
   return data.token
 }
 

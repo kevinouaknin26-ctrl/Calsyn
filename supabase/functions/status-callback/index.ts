@@ -50,13 +50,22 @@ serve(async (req) => {
       })
     }
 
-    // ── Filtrer les doublons ──
+    // ── Filtrer les legs parasites ──
     // Le SDK browser crée un appel "inbound" (browser → Twilio).
     // Le TwiML <Dial><Number> crée un child "outbound-dial" (Twilio → prospect).
     // On ne garde QUE le child (le vrai appel vers le prospect).
     if (direction === 'inbound') {
       console.log(`[status-callback] Skipping inbound/SDR leg ${callSid}`)
       return new Response(JSON.stringify({ ok: true, skipped: 'sdr-leg' }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
+    // Filtrer les appels vers nos propres numéros Twilio (parent leg qui passe avec direction != inbound)
+    // Le "To" d'un vrai appel est TOUJOURS le numéro du prospect, jamais notre propre numéro
+    if (to.startsWith('client:') || from.startsWith('client:') || to === from) {
+      console.log(`[status-callback] Skipping self-call/client leg ${callSid}: to=${to} from=${from}`)
+      return new Response(JSON.stringify({ ok: true, skipped: 'self-call' }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
     }
@@ -194,6 +203,14 @@ serve(async (req) => {
     }
 
     // ── 3. Upsert le call enrichi ──
+    // Ne pas créer d'entrée si aucun prospect trouvé (appels fantômes Twilio)
+    if (!prospectId && !prospectName) {
+      console.log(`[status-callback] Skipping call ${callSid} — no prospect found for ${to}`)
+      return new Response(JSON.stringify({ ok: true, skipped: 'no-prospect' }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
     const { error } = await supabase
       .from('calls')
       .upsert({

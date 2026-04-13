@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
+import { createContext, useContext, useEffect, useState, useCallback, type ReactNode } from 'react'
 import { supabase } from '@/config/supabase'
 import { SESSION_CHECK_INTERVAL_MS, TOKEN_REFRESH_BUFFER_MS } from '@/config/constants'
 import type { Profile, Organisation, Role } from '@/types/user'
@@ -12,11 +12,13 @@ interface AuthState {
   role: Role | null
   isAdmin: boolean
   isManager: boolean
+  refreshOrganisation: () => Promise<void>
 }
 
 const AuthContext = createContext<AuthState>({
   user: null, profile: null, organisation: null,
   loading: true, role: null, isAdmin: false, isManager: false,
+  refreshOrganisation: async () => {},
 })
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -77,11 +79,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const role = profile?.role ?? null
 
+  const refreshOrganisation = useCallback(async () => {
+    if (!profile?.organisation_id) return
+    const { data: org } = await supabase
+      .from('organisations')
+      .select('*')
+      .eq('id', profile.organisation_id)
+      .single()
+    if (org) setOrganisation(org as Organisation)
+  }, [profile?.organisation_id])
+
+  // Auto-refresh org toutes les 10s pour synchro Settings ↔ Dialer
+  useEffect(() => {
+    if (!profile?.organisation_id) return
+    const iv = setInterval(refreshOrganisation, 10000)
+    return () => clearInterval(iv)
+  }, [profile?.organisation_id, refreshOrganisation])
+
   return (
     <AuthContext.Provider value={{
       user, profile, organisation, loading, role,
       isAdmin: role === 'super_admin' || role === 'admin',
       isManager: role === 'super_admin' || role === 'admin' || role === 'manager',
+      refreshOrganisation,
     }}>
       {children}
     </AuthContext.Provider>

@@ -150,29 +150,7 @@ function ColumnPicker({ visible, setVisible, allProperties, open, onToggle, onCr
       </button>
       {open && (
         <div className="absolute right-0 top-10 w-[320px] bg-white rounded-xl shadow-lg border border-gray-200 z-50 flex flex-col animate-slide-down" style={{ maxHeight: '500px' }}>
-          {/* Colonnes actives — drag & drop */}
-          {visible.length > 0 && !q && (
-            <div className="px-3 py-2 border-b border-gray-100 flex-shrink-0">
-              <p className="text-[10px] font-bold text-indigo-500 uppercase tracking-wider mb-1.5">Colonnes actives</p>
-              {visible.map((id, idx) => {
-                const prop = allProperties.find(p => p.id === id)
-                if (!prop) return null
-                return (
-                  <div key={id} draggable onDragStart={handleDragStart(idx)} onDragOver={handleDragOver(idx)} onDrop={handleDrop(idx)} onDragEnd={handleDragEnd}
-                    className={`flex items-center gap-2 py-1.5 px-1.5 rounded-lg group cursor-grab active:cursor-grabbing transition-colors ${
-                      overIdx === idx && dragIdx !== null && dragIdx !== idx ? 'bg-indigo-50 border border-indigo-200' : 'hover:bg-gray-50'
-                    } ${dragIdx === idx ? 'opacity-40' : ''}`}>
-                    <svg className="w-3.5 h-3.5 text-gray-300 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
-                      <path d="M7 2a2 2 0 10.001 4.001A2 2 0 007 2zm0 6a2 2 0 10.001 4.001A2 2 0 007 8zm0 6a2 2 0 10.001 4.001A2 2 0 007 14zm6-8a2 2 0 10-.001-4.001A2 2 0 0013 6zm0 2a2 2 0 10.001 4.001A2 2 0 0013 8zm0 6a2 2 0 10.001 4.001A2 2 0 0013 14z" />
-                    </svg>
-                    <span className={`text-[12px] flex-1 ${prop.type === 'custom' ? 'text-violet-700' : 'text-gray-700'}`}>{prop.name}</span>
-                    <button onClick={() => setVisible(visible.filter(c => c !== id))}
-                      className="text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity text-[10px]">✕</button>
-                  </div>
-                )
-              })}
-            </div>
-          )}
+          {/* Colonnes actives sont cochées dans la liste en dessous — pas de section fixe */}
           {/* Toutes les colonnes — groupées, filtrées */}
           <div className="flex-1 overflow-y-auto py-2">
             {filteredGroups.map(group => (
@@ -847,19 +825,35 @@ const ProspectRow = memo(function ProspectRow({ prospect, isActive, liveStatus, 
 
 // ── Page ────────────────────────────────────────────────────────────
 export default function Dialer() {
-  const { isAdmin, isManager } = useAuth()
+  const { isAdmin, isManager, organisation } = useAuth()
   const cm = useCallMachine()
   const { data: lists } = useProspectLists()
 
   // ── Call Settings (montés ici pour être accessibles au call flow) ──
-  const [parallel, setParallel] = useCallSetting('parallel', 1)
-  const [autoRotate, setAutoRotate] = useCallSetting('auto_rotate', true)
-  const [voicemail, setVoicemail] = useCallSetting('voicemail', false)
+  // Call settings — source unique : DB (organisation) via React Query
+  // Les deux sens (Dialer ↔ Settings) passent par la même table organisations
+  const org = organisation
+  const qc = useQueryClient()
+  const updateOrg = useCallback(async (updates: Record<string, unknown>) => {
+    if (!org?.id) return
+    await supabase.from('organisations').update(updates).eq('id', org.id)
+    qc.invalidateQueries({ queryKey: ['organisation'] })
+  }, [org?.id, qc])
+
+  const parallel = org?.parallel_calls || 1
+  const setParallel = (v: number) => updateOrg({ parallel_calls: v })
+  const autoRotate = org?.auto_rotate_numbers ?? true
+  const setAutoRotate = (v: boolean) => updateOrg({ auto_rotate_numbers: v })
+  const voicemail = org?.voicemail_drop ?? false
+  const setVoicemail = (v: boolean) => updateOrg({ voicemail_drop: v })
   const [completeTask, setCompleteTask] = useCallSetting('complete_task', false)
-  const [maxAttempts, setMaxAttempts] = useCallSetting('max_attempts', 'Illimité')
-  const [attemptPeriod, setAttemptPeriod] = useCallSetting('attempt_period', 'jour')
+  const maxAttempts = org?.max_call_attempts || 'unlimited'
+  const setMaxAttempts = (v: string) => updateOrg({ max_call_attempts: v })
+  const attemptPeriod = org?.attempt_period || 'per_day'
+  const setAttemptPeriod = (v: string) => updateOrg({ attempt_period: v })
   const [phoneField, setPhoneField] = useCallSetting('phone_field', 'phone')
-  const [selectedFromNumber, setSelectedFromNumber] = useCallSetting('from_number', '+33757905591')
+  const selectedFromNumber = org?.from_number || '+33757905591'
+  const setSelectedFromNumber = (v: string) => updateOrg({ from_number: v })
 
   // ── Propriétés CRM (HubSpot-style) ──
   const { properties: allProperties } = usePropertyDefinitions()
@@ -1099,8 +1093,8 @@ export default function Dialer() {
   }, [cm.isConnected, cm.context.prospect, selectedProspect])
 
   const isInCall = cm.isDialing || cm.isConnected
-  const meetings = prospects?.filter(p => p.meeting_booked).length || 0
-  const connected = prospects?.filter(p => p.last_call_outcome === 'connected' && !p.meeting_booked).length || 0
+  const meetings = prospects?.filter(p => p.meeting_booked || p.crm_status === 'rdv_pris' || p.crm_status === 'rdv_fait').length || 0
+  const connected = prospects?.filter(p => p.last_call_outcome === 'connected' && !p.meeting_booked && p.crm_status !== 'rdv_pris' && p.crm_status !== 'rdv_fait').length || 0
   const attempted = prospects?.filter(p => p.call_count > 0).length || 0
   const pending = prospects?.filter(p => p.call_count === 0).length || 0
   const activeList = lists?.find(l => l.id === activeListId)
@@ -1525,7 +1519,7 @@ export default function Dialer() {
               <span className="text-[13px] font-semibold text-teal-700">RDV du jour</span>
               <span className="text-[11px] text-teal-500 bg-teal-100 px-1.5 py-0.5 rounded-full font-bold">{rdvToday.length}</span>
             </div>
-            <div className="flex items-center gap-2 flex-1 overflow-x-auto scrollbar-hide" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+            <div className="flex items-center gap-2 flex-1 overflow-x-auto scrollbar-hide" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
               {rdvToday.map(rdv => {
                 const time = rdv.rdv_date ? new Date(rdv.rdv_date).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : ''
                 const isPast = rdv.rdv_date && new Date(rdv.rdv_date) < new Date()
@@ -1536,9 +1530,11 @@ export default function Dialer() {
                       setActiveListId(rdv.list_id)
                       setOpenTabIds(prev => prev.includes(rdv.list_id) ? prev : [...prev, rdv.list_id])
                     }
-                    // Ouvrir la fiche prospect
-                    const p = prospects?.find(pr => pr.id === rdv.id)
-                    if (p) { if (cm.isDisconnected) cm.reset(); setSelectedProspect(p) }
+                    // Ouvrir la fiche prospect — rdv a déjà les champs nécessaires
+                    // On cherche d'abord dans la liste active, sinon on utilise le rdv directement
+                    const p = prospects?.find(pr => pr.id === rdv.id) || rdv as unknown as Prospect
+                    if (cm.isDisconnected) cm.reset()
+                    setSelectedProspect(p)
                   }}
                     className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border transition-all flex-shrink-0 ${
                       isPast && rdv.last_call_outcome

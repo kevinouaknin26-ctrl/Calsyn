@@ -143,29 +143,7 @@ export default function Sidebar() {
         </nav>
       </aside>
 
-      {/* ── Sous-navigation Settings (Minari exact — deuxieme panneau) ── */}
-      {isSettingsActive && expanded && (
-        <div className="fixed left-[200px] top-0 w-[220px] h-screen bg-white border-r border-gray-200 py-5 px-4 z-40 overflow-y-auto">
-          <h3 className="text-[15px] font-bold text-gray-800 mb-4">Parametres</h3>
-          <div className="space-y-0.5">
-            {SETTINGS_SUBNAV.map(item => (
-              <NavLink key={item.path} to={item.path}
-                className={({ isActive }) => `block px-3 py-2 rounded-lg text-[13px] transition-colors ${
-                  isActive ? 'bg-gray-100 text-gray-800 font-medium' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
-                }`}>{item.label}</NavLink>
-            ))}
-          </div>
-          <h4 className="text-[13px] font-bold text-gray-800 mt-6 mb-2">Parametres du compte</h4>
-          <div className="space-y-0.5">
-            {ACCOUNT_SUBNAV.map(item => (
-              <NavLink key={item.path} to={item.path}
-                className={({ isActive }) => `block px-3 py-2 rounded-lg text-[13px] transition-colors ${
-                  isActive ? 'bg-gray-100 text-gray-800 font-medium' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
-                }`}>{item.label}</NavLink>
-            ))}
-          </div>
-        </div>
-      )}
+      {/* Sous-nav Settings retirée — Settings.tsx a sa propre nav interne */}
     </>
   )
 }

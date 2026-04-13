@@ -11,7 +11,7 @@ import { useEffect, useRef, useCallback, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { callMachine } from '@/machines/callMachine'
 import { createProvider, type CallProvider, type CallSession, type AudioSample } from '@/services/providers'
-import { fetchVoiceToken, saveCallDisposition } from '@/services/api'
+import { fetchVoiceToken, fetchTelnyxToken, saveCallDisposition } from '@/services/api'
 import { useAuth } from '@/hooks/useAuth'
 import { MOS_ALERT_THRESHOLD } from '@/config/constants'
 import type { Prospect } from '@/types/prospect'
@@ -83,10 +83,11 @@ export function useCallMachine() {
       },
     })
 
-    // Auto-refresh token
-    provider.setTokenFetcher(fetchVoiceToken)
+    // Auto-refresh token — utiliser le bon fetcher selon le provider
+    const tokenFetcher = providerName === 'telnyx' ? fetchTelnyxToken : fetchVoiceToken
+    provider.setTokenFetcher(tokenFetcher)
 
-    fetchVoiceToken()
+    tokenFetcher()
       .then(token => { if (!cancelled) return provider.init(token) })
       .catch(err => { if (!cancelled) console.error('[useCallMachine] Init failed:', err) })
 

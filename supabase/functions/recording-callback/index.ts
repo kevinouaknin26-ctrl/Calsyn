@@ -45,6 +45,24 @@ serve(async (req) => {
       })
     }
 
+    // ── Optimisation coûts : skip recordings < 10s (voicemail/rejet) ──
+    // Pas besoin de transcrire ni stocker ces appels courts
+    if (recordingDuration < 10) {
+      console.log(`[recording-callback] Skipping short recording ${recordingSid} (${recordingDuration}s) — deleting from Twilio`)
+      // Supprimer le recording de Twilio pour ne pas payer le stockage
+      const accountSid = Deno.env.get('TWILIO_ACCOUNT_SID') || ''
+      const authToken = Deno.env.get('TWILIO_AUTH_TOKEN') || ''
+      if (accountSid && authToken && recordingSid) {
+        fetch(`https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Recordings/${recordingSid}.json`, {
+          method: 'DELETE',
+          headers: { Authorization: 'Basic ' + btoa(`${accountSid}:${authToken}`) },
+        }).catch(() => {})
+      }
+      return new Response(JSON.stringify({ ok: true, skipped: 'too_short' }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL') || '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '',

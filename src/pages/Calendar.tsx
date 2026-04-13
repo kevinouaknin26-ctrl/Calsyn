@@ -4,7 +4,7 @@
  * Vue jour par défaut avec navigation semaine.
  */
 
-import { useState, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo, Component, type ReactNode } from 'react'
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
 import { supabase } from '@/config/supabase'
 import { useAuth } from '@/hooks/useAuth'
@@ -99,7 +99,16 @@ function getWeekDays(base: Date): Date[] {
   })
 }
 
-const HOURS = Array.from({ length: 12 }, (_, i) => i + 8) // 8h -> 19h
+const HOURS = Array.from({ length: 24 }, (_, i) => i) // 0h -> 23h
+
+/** Normalise un numéro au format E.164 — source unique de vérité */
+function normalizePhone(p: string | null | undefined): string {
+  if (!p) return ''
+  let n = p.replace(/[\s.\-()]/g, '')
+  if (n.startsWith('0') && n.length === 10) n = '+33' + n.slice(1)
+  if (!n.startsWith('+') && n.length === 9) n = '+33' + n
+  return n
+}
 
 // ── GCal event type ─────────────────────────────────────────────
 type GCalEvent = {
@@ -171,7 +180,61 @@ function parseGCalEvent(ev: GCalEvent): ParsedEventData {
   }
 }
 
-export default function Calendar() {
+// Error boundary pour voir le crash au lieu d'une page blanche
+class CalendarErrorBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
+  state = { error: null as Error | null }
+  static getDerivedStateFromError(error: Error) { return { error } }
+  render() {
+    if (this.state.error) {
+      return (
+        <div className="h-screen bg-[#f5f3ff] flex items-center justify-center">
+          <div className="bg-white rounded-2xl shadow-lg border border-red-200 p-8 max-w-lg">
+            <h2 className="text-[16px] font-bold text-red-600 mb-2">Erreur Calendar</h2>
+            <p className="text-[13px] text-gray-600 mb-3">{this.state.error.message}</p>
+            <pre className="text-[10px] text-gray-400 bg-gray-50 rounded-lg p-3 overflow-auto max-h-40">{this.state.error.stack}</pre>
+            <button onClick={() => { this.setState({ error: null }); window.location.reload() }}
+              className="mt-4 px-4 py-2 bg-violet-500 text-white rounded-lg text-[13px] font-medium">Recharger</button>
+          </div>
+        </div>
+      )
+    }
+    return this.props.children
+  }
+}
+
+function NowLine({ weekDays }: { weekDays: Date[] }) {
+  const [now, setNow] = useState(new Date())
+  useEffect(() => {
+    const iv = setInterval(() => setNow(new Date()), 60000) // update every minute
+    return () => clearInterval(iv)
+  }, [])
+
+  const todayIdx = weekDays.findIndex(d =>
+    d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth() && d.getDate() === now.getDate()
+  )
+  if (todayIdx === -1) return null // today not in this week
+
+  const hour = now.getHours()
+  const minutes = now.getMinutes()
+  const firstHour = HOURS[0]
+  const lastHour = HOURS[HOURS.length - 1] + 1
+  if (hour < firstHour || hour >= lastHour) return null
+
+  const top = (hour - firstHour) * 80 + (minutes / 60) * 80
+  const left = `calc(56px + ${(todayIdx / 7)} * (100% - 56px))`
+  const width = `calc((100% - 56px) / 7)`
+
+  return (
+    <div className="absolute z-20 pointer-events-none" style={{ top, left, width }}>
+      <div className="flex items-center">
+        <div className="w-2.5 h-2.5 rounded-full bg-red-500 -ml-1 shadow-sm shadow-red-200" />
+        <div className="flex-1 h-[2px] bg-red-500 shadow-sm shadow-red-200" />
+      </div>
+    </div>
+  )
+}
+
+function CalendarInner() {
   const { organisation, profile } = useAuth()
   const queryClient = useQueryClient()
   const gcal = useGoogleCalendar()
@@ -204,6 +267,31 @@ export default function Calendar() {
         .lt('rdv_date', weekEnd.toISOString())
         .order('rdv_date', { ascending: true })
       if (error) throw error
+      // Dédupliquer par téléphone (même prospect dans plusieurs listes)
+      const seen = new Set<string>()
+      const unique = (data || []).filter(p => {
+        const key = normalizePhone(p.phone) || p.id
+        if (seen.has(key)) return false
+        seen.add(key)
+        return true
+      })
+      return unique as Prospect[]
+    },
+    enabled: !!organisation?.id,
+  })
+
+  // Rappels de la semaine (snoozed_until)
+  const { data: weekReminders } = useQuery({
+    queryKey: ['reminders-calendar', weekStart.toISOString(), organisation?.id],
+    queryFn: async () => {
+      if (!organisation?.id) return []
+      const { data } = await supabase
+        .from('prospects')
+        .select('id, list_id, name, phone, email, company, title, crm_status, last_call_outcome, rdv_date, snoozed_until, meeting_booked, call_count')
+        .eq('organisation_id', organisation.id)
+        .gte('snoozed_until', weekStart.toISOString())
+        .lt('snoozed_until', weekEnd.toISOString())
+        .order('snoozed_until', { ascending: true })
       return (data || []) as Prospect[]
     },
     enabled: !!organisation?.id,
@@ -224,11 +312,14 @@ export default function Calendar() {
     enabled: !!organisation?.id,
   })
 
-  // Phone -> prospect map
+  // Phone -> prospect map (normalisé E.164, inclut phone2-5)
   const phoneMap = useMemo(() => {
     const m = new Map<string, Prospect>()
     for (const p of (allOrgProspects || [])) {
-      if (p.phone) m.set(p.phone.replace(/\s+/g, ''), p)
+      for (const ph of [p.phone, p.phone2, p.phone3, p.phone4, p.phone5]) {
+        const norm = normalizePhone(ph)
+        if (norm && !m.has(norm)) m.set(norm, p)
+      }
     }
     return m
   }, [allOrgProspects])
@@ -244,8 +335,60 @@ export default function Calendar() {
     enabled: gcal.connected,
   })
 
+  // Tous les RDV + rappels à venir pour la barre du bas
+  const { data: allUpcomingRdvs } = useQuery({
+    queryKey: ['rdv-upcoming', organisation?.id],
+    queryFn: async () => {
+      if (!organisation?.id) return []
+      const now = new Date().toISOString()
+      // RDV à venir
+      const { data: rdvData } = await supabase
+        .from('prospects')
+        .select('id, list_id, name, phone, email, company, title, crm_status, last_call_outcome, rdv_date, snoozed_until, meeting_booked, call_count')
+        .eq('organisation_id', organisation.id)
+        .gte('rdv_date', now)
+        .order('rdv_date', { ascending: true })
+        .limit(50)
+      // Rappels à venir (snoozed_until)
+      const { data: reminderData } = await supabase
+        .from('prospects')
+        .select('id, list_id, name, phone, email, company, title, crm_status, last_call_outcome, rdv_date, snoozed_until, meeting_booked, call_count')
+        .eq('organisation_id', organisation.id)
+        .is('rdv_date', null)
+        .gte('snoozed_until', now)
+        .order('snoozed_until', { ascending: true })
+        .limit(30)
+      // Fusionner et trier par date effective (rdv_date ou snoozed_until)
+      const all = [...(rdvData || []), ...(reminderData || [])]
+      all.sort((a, b) => {
+        const dateA = new Date(a.rdv_date || a.snoozed_until || 0).getTime()
+        const dateB = new Date(b.rdv_date || b.snoozed_until || 0).getTime()
+        return dateA - dateB
+      })
+      // Dédupliquer
+      const seen = new Set<string>()
+      return all.filter(p => {
+        const key = normalizePhone(p.phone) || p.id
+        if (seen.has(key)) return false
+        seen.add(key)
+        return true
+      }) as Prospect[]
+    },
+    enabled: !!organisation?.id,
+  })
+
   const today = getDayStart(new Date())
   const isToday = (d: Date) => d.getTime() === today.getTime()
+
+  // Auto-scroll pile sur la ligne rouge (heure actuelle centrée)
+  useEffect(() => {
+    const el = document.getElementById('calendar-grid')
+    if (el) {
+      const now = new Date()
+      const pos = now.getHours() * 80 + (now.getMinutes() / 60) * 80
+      el.scrollTop = Math.max(0, pos - el.clientHeight / 3) // ligne rouge dans le premier tiers
+    }
+  }, [])
 
   // Grouper par jour — prospects DB
   const byDay: Record<string, Prospect[]> = {}
@@ -282,7 +425,7 @@ export default function Calendar() {
       for (const ev of events) {
         const parsed = parseGCalEvent(ev)
         if (!parsed.isMurmuse || !parsed.phone) continue
-        const cleanPhone = parsed.phone.replace(/\s+/g, '')
+        const cleanPhone = normalizePhone(parsed.phone)
         if (phoneMap.has(cleanPhone)) continue
         const { error } = await supabase.from('prospects').insert({
           list_id: agendaList.id, organisation_id: organisation.id,
@@ -310,29 +453,7 @@ export default function Calendar() {
   })
 
   // ── GCal event click handler — auto-crée la fiche si pas trouvée ──
-  const handleGCalEventClick = useCallback(async (ev: GCalEvent) => {
-    const parsed = parseGCalEvent(ev)
-    // 1. Chercher par téléphone
-    if (parsed.phone) {
-      const cleanPhone = parsed.phone.replace(/[\s.]/g, '').replace(/^0/, '+33')
-      const prospect = phoneMap.get(cleanPhone)
-      if (prospect) { setSelectedProspect(prospect); return }
-    }
-    // 2. Chercher par nom
-    if (rdvProspects) {
-      const name = extractNameFromSummary(ev.summary || '').toLowerCase()
-      if (name) {
-        const match = rdvProspects.find(p => p.name.toLowerCase().includes(name) || name.includes(p.name.toLowerCase()))
-        if (match) { setSelectedProspect(match as Prospect); return }
-      }
-    }
-    // 3. Pas trouvé → auto-créer la fiche
-    if (parsed.phone) {
-      await createFromEvent(ev)
-    }
-  }, [phoneMap, rdvProspects, createFromEvent])
-
-  // ── Create contact from event popup ──
+  // ── Create contact from event ──
   const createFromEvent = useCallback(async (ev: GCalEvent) => {
     if (!organisation?.id || !profile?.id) return
     const parsed = parseGCalEvent(ev)
@@ -365,13 +486,32 @@ export default function Calendar() {
     }
   }, [organisation, profile, lists, queryClient])
 
+  // ── GCal event click handler ──
+  const handleGCalEventClick = useCallback(async (ev: GCalEvent) => {
+    const parsed = parseGCalEvent(ev)
+    if (parsed.phone) {
+      const prospect = phoneMap.get(normalizePhone(parsed.phone))
+      if (prospect) { setSelectedProspect(prospect); return }
+    }
+    if (rdvProspects) {
+      const name = extractNameFromSummary(ev.summary || '').toLowerCase()
+      if (name) {
+        const match = rdvProspects.find(p => p.name.toLowerCase().includes(name) || name.includes(p.name.toLowerCase()))
+        if (match) { setSelectedProspect(match as Prospect); return }
+      }
+    }
+    if (parsed.phone) {
+      await createFromEvent(ev)
+    }
+  }, [phoneMap, rdvProspects, createFromEvent])
+
   // Count syncable Murmuse events
   const syncableCount = useMemo(() => {
     if (!gcalEvents) return 0
     return gcalEvents.filter(ev => {
       const parsed = parseGCalEvent(ev)
       if (!parsed.isMurmuse || !parsed.phone) return false
-      return !phoneMap.has(parsed.phone.replace(/\s+/g, ''))
+      return !phoneMap.has(normalizePhone(parsed.phone))
     }).length
   }, [gcalEvents, phoneMap])
 
@@ -435,7 +575,9 @@ export default function Calendar() {
       {/* Grille semaine */}
       <div className="flex-1 bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden flex flex-col">
         {/* Header jours */}
-        <div className="grid grid-cols-7 border-b border-gray-100">
+        <div className="flex border-b border-gray-100">
+          <div className="w-14 flex-shrink-0" />
+          <div className="flex-1 grid grid-cols-7">
           {weekDays.map((day, i) => {
             const dayRdvs = byDay[day.toISOString()] || []
             return (
@@ -452,20 +594,29 @@ export default function Calendar() {
               </div>
             )
           })}
+          </div>
         </div>
 
         {/* Grille horaires */}
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 overflow-y-auto" id="calendar-grid">
           <div className="relative">
+            {/* Ligne rouge "maintenant" */}
+            <NowLine weekDays={weekDays} />
             {HOURS.map(hour => (
-              <div key={hour} className="grid grid-cols-7 border-b border-gray-50" style={{ height: 80 }}>
+              <div key={hour} className="flex border-b border-gray-50" style={{ height: 80 }}>
+                {/* Heure à gauche */}
+                <div className="w-14 flex-shrink-0 text-right pr-2 pt-1">
+                  <span className="text-[10px] text-gray-300 font-mono">{hour}:00</span>
+                </div>
+                {/* Colonnes jours */}
+                <div className="flex-1 grid grid-cols-7">
                 {weekDays.map((day, di) => {
                   const dayKey = day.toISOString()
                   // Combiner TOUS les events de cette heure (DB + Google) en une seule liste
                   type CalEvent = { id: string; time: string; name: string; subtitle?: string; color: string; bg: string; onClick: () => void; minutes: number }
                   const cellEvents: CalEvent[] = []
 
-                  // Events DB
+                  // Events DB (RDV)
                   const dayRdvs = (byDay[dayKey] || []).filter(p => p.rdv_date && new Date(p.rdv_date).getHours() === hour)
                   for (const p of dayRdvs) {
                     const isPast = new Date(p.rdv_date!) < new Date()
@@ -478,6 +629,22 @@ export default function Calendar() {
                     })
                   }
 
+                  // Rappels (snoozed_until) — affichés à 9h par défaut
+                  if (hour === 9 && weekReminders) {
+                    const dayReminders = weekReminders.filter(p => {
+                      if (!p.snoozed_until) return false
+                      return getDayStart(new Date(p.snoozed_until)).getTime() === day.getTime()
+                    })
+                    for (const p of dayReminders) {
+                      cellEvents.push({
+                        id: 'rem-' + p.id, minutes: 0,
+                        time: '09:00',
+                        name: '🔔 ' + p.name, color: '#d97706', bg: '#fef3c720',
+                        onClick: () => setSelectedProspect(p as Prospect),
+                      })
+                    }
+                  }
+
                   // Events Google (seulement ceux PAS déjà dans DB par matching)
                   const gcalForHour = (gcalEvents || []).filter(ev => {
                     if (!ev.start?.dateTime) return false
@@ -485,13 +652,21 @@ export default function Calendar() {
                     return evDate.getTime() === day.getTime() && new Date(ev.start.dateTime).getHours() === hour
                   })
                   for (const ev of gcalForHour) {
-                    // Skip si déjà dans DB (même heure + même nom)
-                    const evName = extractNameFromSummary(ev.summary || '').toLowerCase()
-                    const alreadyInDb = dayRdvs.some(p => p.name.toLowerCase().includes(evName) || evName.includes(p.name.toLowerCase()))
-                    if (alreadyInDb) continue
-
                     const parsed = parseGCalEvent(ev)
-                    const hasMatch = parsed.phone ? phoneMap.has(parsed.phone.replace(/[\s.]/g, '').replace(/^0/, '+33')) : false
+                    // Skip si déjà dans DB — match par PHONE (prioritaire) puis par NOM
+                    const evPhone = normalizePhone(parsed.phone)
+                    const evName = extractNameFromSummary(ev.summary || '').toLowerCase().trim()
+                    const matchByPhone = evPhone && dayRdvs.some(p => normalizePhone(p.phone) === evPhone)
+                    const matchByName = evName.length > 2 && dayRdvs.some(p => {
+                      const pName = p.name.toLowerCase().trim()
+                      // Match exact ou premier/dernier mot en commun (pas substring aveugle)
+                      return pName === evName ||
+                        pName.split(' ')[0] === evName.split(' ')[0] ||
+                        pName.split(' ').pop() === evName.split(' ').pop()
+                    })
+                    if (matchByPhone || matchByName) continue
+
+                    const hasMatch = evPhone ? phoneMap.has(evPhone) : false
                     const c = parsed.isMurmuse ? (hasMatch ? '#7c3aed' : '#f59e0b') : '#6366f1'
                     cellEvents.push({
                       id: ev.id, minutes: new Date(ev.start.dateTime!).getMinutes(),
@@ -523,35 +698,47 @@ export default function Calendar() {
                     </div>
                   )
                 })}
+                </div>
               </div>
             ))}
           </div>
         </div>
       </div>
 
-      {/* RDV du jour — résumé en bas */}
-      {(byDay[today.toISOString()] || []).length > 0 && (
-        <div className="mt-3 bg-gradient-to-r from-teal-50 to-emerald-50 rounded-xl border border-teal-100 px-4 py-3">
-          <div className="flex items-center gap-2 mb-2">
-            <svg className="w-4 h-4 text-teal-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-            <span className="text-[13px] font-semibold text-teal-700">RDV aujourd'hui</span>
+      {/* RDV à venir */}
+      {allUpcomingRdvs && allUpcomingRdvs.length > 0 && (() => {
+        const allRdvs = allUpcomingRdvs
+        return (
+          <div className="mt-2 bg-white rounded-xl border border-teal-100 px-4 py-2.5 flex-shrink-0">
+            <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+              <div className="flex items-center gap-1.5 flex-shrink-0 pr-2 border-r border-teal-100">
+                <svg className="w-3.5 h-3.5 text-teal-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                <span className="text-[11px] font-semibold text-teal-600">{allRdvs.length}</span>
+              </div>
+              {allRdvs.map((p, i) => {
+                const isReminder = !p.rdv_date && p.snoozed_until
+                const effectiveDate = new Date(p.rdv_date || p.snoozed_until || 0)
+                const time = effectiveDate.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
+                const day = effectiveDate.toLocaleDateString('fr-FR', { weekday: 'short', day: '2-digit', month: 'short' })
+                const isFirst = i === 0
+                return (
+                  <div key={p.id} onClick={() => setSelectedProspect(p as Prospect)}
+                    className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border flex-shrink-0 cursor-pointer hover:shadow-sm transition-all ${
+                      isFirst ? 'border-teal-300 bg-teal-50' :
+                      isReminder ? 'border-amber-200 bg-amber-50/50 hover:border-amber-300' :
+                      'border-gray-200 bg-white hover:border-teal-200'
+                    }`}>
+                    {isReminder && <svg className="w-3 h-3 text-amber-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>}
+                    <span className={`text-[9px] font-bold uppercase ${isReminder ? 'text-amber-400' : 'text-teal-400'}`}>{day}</span>
+                    <span className={`text-[11px] font-mono font-bold ${isFirst ? 'text-teal-700' : isReminder ? 'text-amber-600' : 'text-teal-600'}`}>{time}</span>
+                    <span className="text-[11px] font-medium text-gray-700 max-w-[120px] truncate">{p.name}</span>
+                  </div>
+                )
+              })}
+            </div>
           </div>
-          <div className="flex items-center gap-2 overflow-x-auto">
-            {(byDay[today.toISOString()] || []).map(p => {
-              const time = p.rdv_date ? new Date(p.rdv_date).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : ''
-              const isPast = p.rdv_date && new Date(p.rdv_date) < new Date()
-              return (
-                <div key={p.id} onClick={() => setSelectedProspect(p as Prospect)}
-                  className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border bg-white flex-shrink-0 cursor-pointer hover:shadow-sm transition-shadow ${isPast ? 'border-amber-200' : 'border-teal-200'}`}>
-                  <span className={`text-[12px] font-mono font-bold ${isPast ? 'text-amber-600' : 'text-teal-600'}`}>{time}</span>
-                  <span className="text-[12px] text-gray-700 font-medium">{p.name}</span>
-                  <span className="text-[11px] text-gray-400">{p.phone}</span>
-                </div>
-              )
-            })}
-          </div>
-        </div>
-      )}
+        )
+      })()}
       {/* ── Event Popup (for unmatched GCal events) ── */}
       {showEventPopup && clickedEvent && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20" onClick={() => { setShowEventPopup(false); setClickedEvent(null) }}>
@@ -628,7 +815,7 @@ export default function Calendar() {
           prospect={selectedProspect}
           callContext={cm.context}
           callHistory={callHistory || []}
-          isInCall={cm.state.matches('connected') || cm.state.matches('ringing')}
+          isInCall={cm.isConnected || cm.isDialing}
           isDisconnected={cm.isDisconnected}
           onCall={p => cm.call(p)}
           onClose={() => { if (cm.isDisconnected) cm.reset(); setSelectedProspect(null) }}
@@ -641,5 +828,13 @@ export default function Calendar() {
         />
       )}
     </div>
+  )
+}
+
+export default function Calendar() {
+  return (
+    <CalendarErrorBoundary>
+      <CalendarInner />
+    </CalendarErrorBoundary>
   )
 }

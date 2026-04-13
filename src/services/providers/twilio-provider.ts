@@ -88,7 +88,28 @@ export class TwilioProvider implements CallProvider {
     })
 
     this.device.on('error', (err) => {
+      this.log(`[TwilioVoice] ❌ DEVICE ERROR: code=${err.code}, message=${err.message}`)
       this.emit('onError', new Error(err.message))
+    })
+
+    // Device déconnecté du signaling (réseau tombé)
+    this.device.on('unregistered', () => {
+      this.log('[TwilioVoice] ⚠️ DEVICE UNREGISTERED — tentative de re-register...')
+      // Re-register automatiquement
+      setTimeout(async () => {
+        try {
+          if (this.device && this.device.state !== Device.State.Registered) {
+            const newToken = await this.fetchToken()
+            if (newToken) {
+              this.device.updateToken(newToken)
+              await this.device.register()
+              this.log('[TwilioVoice] ✅ Re-registered successfully')
+            }
+          }
+        } catch (e) {
+          this.log('[TwilioVoice] ❌ Re-register failed:', e)
+        }
+      }, 2000)
     })
 
     this.device.on('tokenWillExpire', async () => {
@@ -142,18 +163,41 @@ export class TwilioProvider implements CallProvider {
         this.emit('onStateChange', 'active', session)
       })
 
+      // Reconnecting — réseau instable, Twilio tente de reconnecter
+      call.on('reconnecting', (twilioError: any) => {
+        this.log(`[TwilioVoice] ⚠️ RECONNECTING — ${twilioError?.message || 'network issue'}`)
+        // NE PAS émettre 'done' — laisser Twilio tenter la reconnexion
+      })
+
+      // Reconnected — connexion rétablie
+      call.on('reconnected', () => {
+        this.log('[TwilioVoice] ✅ RECONNECTED — appel rétabli')
+      })
+
+      // Warning — qualité dégradée mais pas encore coupé
+      call.on('warning', (name: string, data: any) => {
+        this.log(`[TwilioVoice] ⚠️ WARNING: ${name}`, data)
+      })
+
+      call.on('warning-cleared', (name: string) => {
+        this.log(`[TwilioVoice] ✅ WARNING CLEARED: ${name}`)
+      })
+
       // Disconnected
-      call.on('disconnect', () => {
+      call.on('disconnect', (call: any) => {
+        this.log(`[TwilioVoice] 📴 DISCONNECT — duration: ${call?.duration || '?'}s, status: ${call?.status?.() || '?'}`)
         this.emit('onStateChange', 'done', session)
       })
 
       // Cancelled (prospect didn't pick up)
       call.on('cancel', () => {
+        this.log('[TwilioVoice] 📴 CANCEL — prospect did not pick up')
         this.emit('onStateChange', 'done', session)
       })
 
       // Error
       call.on('error', (err) => {
+        this.log(`[TwilioVoice] ❌ ERROR: ${err.message}`, err)
         this.emit('onError', new Error(err.message))
         this.emit('onStateChange', 'error', session)
       })
@@ -210,5 +254,9 @@ export class TwilioProvider implements CallProvider {
     for (const l of this.listeners) {
       l.onAudioSample?.(sample)
     }
+  }
+
+  private log(...args: unknown[]): void {
+    console.log(...args)
   }
 }

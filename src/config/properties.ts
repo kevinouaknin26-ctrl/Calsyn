@@ -64,6 +64,10 @@ export const SYSTEM_PROPERTIES: PropertyDefinition[] = [
   { id: 'system:last_call_at', key: 'last_call_at', name: 'Dernier appel', type: 'system', fieldType: 'date', group: 'call_data', groupLabel: 'Données appels', isReadOnly: true },
   { id: 'system:last_call_outcome', key: 'last_call_outcome', name: 'Résultat dernier appel', type: 'system', fieldType: 'text', group: 'call_data', groupLabel: 'Données appels', isReadOnly: true },
 
+  // Dates
+  { id: 'system:created_at', key: 'created_at', name: 'Date de création', type: 'system', fieldType: 'date', group: 'call_data', groupLabel: 'Données appels', isReadOnly: true },
+  { id: 'system:rdv_date', key: 'rdv_date', name: 'Date du RDV', type: 'system', fieldType: 'date', group: 'crm', groupLabel: 'CRM' },
+
   // CRM
   { id: 'system:crm_status', key: 'crm_status', name: 'Statut CRM', type: 'system', fieldType: 'enum', group: 'crm', groupLabel: 'CRM',
     options: ['new', 'attempted_to_contact', 'connected', 'in_progress', 'callback', 'not_interested', 'mail_sent', 'rdv_pris', 'rdv_fait', 'en_attente_signature', 'signe', 'en_attente_paiement', 'paye'] },

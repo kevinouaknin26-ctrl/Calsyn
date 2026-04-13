@@ -648,6 +648,13 @@ export default function ProspectModal({
     // Décocher ne change PAS la disposition
   }
 
+  const invalidateAfterSnooze = () => {
+    queryClient.invalidateQueries({ queryKey: ['prospects'] })
+    queryClient.invalidateQueries({ queryKey: ['rdv-upcoming'] })
+    queryClient.invalidateQueries({ queryKey: ['reminders-calendar'] })
+    queryClient.invalidateQueries({ queryKey: ['rdv-today'] })
+  }
+
   async function handleSnooze(days: number) {
     const until = new Date()
     until.setDate(until.getDate() + days)
@@ -655,14 +662,14 @@ export default function ProspectModal({
     await supabase.from('activity_logs').insert({ prospect_id: prospect.id, action: 'snoozed', details: `En pause jusqu'au ${until.toLocaleDateString('fr-FR')}` })
     setLocalSnoozedUntil(until.toISOString())
     setShowSnoozeMenu(false)
-    queryClient.invalidateQueries({ queryKey: ['prospects'] })
+    invalidateAfterSnooze()
   }
 
   async function handleRemoveSnooze() {
     await supabase.from('prospects').update({ snoozed_until: null }).eq('id', prospect.id)
     await supabase.from('activity_logs').insert({ prospect_id: prospect.id, action: 'snooze_removed', details: 'Pause retirée' })
     setLocalSnoozedUntil(null)
-    queryClient.invalidateQueries({ queryKey: ['prospects'] })
+    invalidateAfterSnooze()
   }
 
   async function handleToggleDNC() {
@@ -1167,6 +1174,40 @@ const FALLBACK_STAGES: Array<{ key: string; label: string; color: string }> = [
 function DealSidebar({ prospect }: { prospect: Prospect }) {
   const queryClient = useQueryClient()
   const { data: dbStatuses } = useCrmStatuses()
+
+  // Google Meet link — cherche dans les events Calendar autour du rdv_date
+  const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL
+  const { data: meetLink } = useQuery({
+    queryKey: ['meet-link', prospect.id, prospect.rdv_date],
+    queryFn: async () => {
+      if (!prospect.rdv_date) return null
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) return null
+      const rdvDate = new Date(prospect.rdv_date)
+      const timeMin = new Date(rdvDate.getTime() - 30 * 60 * 1000).toISOString()
+      const timeMax = new Date(rdvDate.getTime() + 30 * 60 * 1000).toISOString()
+      const params = new URLSearchParams({ action: 'list', timeMin, timeMax })
+      try {
+        const res = await fetch(`${SUPABASE_URL}/functions/v1/google-calendar?${params}`, {
+          headers: { Authorization: `Bearer ${session.access_token}` },
+        })
+        if (!res.ok) return null
+        const data = await res.json()
+        const events = data.items || data.events || []
+        const prospectName = (prospect.name || '').toLowerCase()
+        for (const ev of events) {
+          const link = ev.hangoutLink || ev.conferenceData?.entryPoints?.find((e: any) => e.entryPointType === 'video')?.uri
+          if (!link) continue
+          const summary = (ev.summary || '').toLowerCase()
+          if (prospectName && summary.includes(prospectName.split(' ')[0])) return link
+          return link
+        }
+        return null
+      } catch { return null }
+    },
+    enabled: !!prospect.rdv_date,
+    staleTime: 60_000,
+  })
   const stages = dbStatuses && dbStatuses.length > 0
     ? dbStatuses.map(s => ({ key: s.key, label: s.label, color: s.color }))
     : FALLBACK_STAGES
@@ -1229,18 +1270,27 @@ function DealSidebar({ prospect }: { prospect: Prospect }) {
     queryClient.invalidateQueries({ queryKey: ['activity-logs'] })
   }
 
+  const invalidateSnooze = () => {
+    queryClient.invalidateQueries({ queryKey: ['prospects'] })
+    queryClient.invalidateQueries({ queryKey: ['rdv-upcoming'] })
+    queryClient.invalidateQueries({ queryKey: ['reminders-calendar'] })
+    queryClient.invalidateQueries({ queryKey: ['rdv-today'] })
+  }
+
   const setReminder = async () => {
     const d = new Date(); d.setDate(d.getDate() + parseInt(reminderDays))
     setLocalSnoozed(d.toISOString())
     await supabase.from('prospects').update({ snoozed_until: d.toISOString() }).eq('id', prospect.id)
-    queryClient.invalidateQueries({ queryKey: ['prospects'] })
+    await supabase.from('activity_logs').insert({ prospect_id: prospect.id, action: 'snoozed', details: `Rappel programmé le ${d.toLocaleDateString('fr-FR')}` })
+    invalidateSnooze()
     setSettingReminder(false)
   }
 
   const clearReminder = async () => {
     setLocalSnoozed(null)
     await supabase.from('prospects').update({ snoozed_until: null }).eq('id', prospect.id)
-    queryClient.invalidateQueries({ queryKey: ['prospects'] })
+    await supabase.from('activity_logs').insert({ prospect_id: prospect.id, action: 'snooze_removed', details: 'Rappel supprimé' })
+    invalidateSnooze()
   }
 
   return (
@@ -1310,6 +1360,20 @@ function DealSidebar({ prospect }: { prospect: Prospect }) {
           {new Date(prospect.rdv_date) < new Date() && localStatus !== 'rdv_fait' && (
             <p className="text-[10px] text-amber-600 font-medium mt-0.5">RDV passé — à statuer</p>
           )}
+          {meetLink && (
+            <a
+              href={meetLink}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-1.5 flex items-center gap-1.5 px-2.5 py-1.5 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition-colors"
+            >
+              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none">
+                <path d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14v-4z" fill="#1a73e8"/>
+                <rect x="3" y="6" width="12" height="12" rx="2" fill="#1a73e8"/>
+              </svg>
+              <span className="text-[11px] font-semibold text-blue-700">Rejoindre le Meet</span>
+            </a>
+          )}
         </div>
       )}
 
@@ -1332,17 +1396,38 @@ function DealSidebar({ prospect }: { prospect: Prospect }) {
             </button>
           </div>
         ) : settingReminder ? (
-          <div className="flex items-center gap-2">
-            <select value={reminderDays} onChange={e => setReminderDays(e.target.value)}
-              className="text-[12px] border border-gray-200 rounded-lg px-2 py-1.5 outline-none flex-1">
-              <option value="1">Demain</option>
-              <option value="3">Dans 3 jours</option>
-              <option value="7">Dans 7 jours</option>
-              <option value="14">Dans 14 jours</option>
-              <option value="30">Dans 30 jours</option>
-            </select>
-            <button onClick={setReminder} className="px-2.5 py-1.5 bg-amber-500 text-white text-[11px] rounded-lg hover:bg-amber-600 font-medium">OK</button>
-            <button onClick={() => setSettingReminder(false)} className="text-gray-400 hover:text-gray-600 text-[11px]">x</button>
+          <div className="space-y-1.5">
+            <div className="flex items-center gap-2">
+              <select value={reminderDays} onChange={e => setReminderDays(e.target.value)}
+                className="text-[12px] border border-gray-200 rounded-lg px-2 py-1.5 outline-none flex-1">
+                <option value="1">Demain</option>
+                <option value="2">Dans 2 jours</option>
+                <option value="3">Dans 3 jours</option>
+                <option value="7">Dans 1 semaine</option>
+                <option value="14">Dans 2 semaines</option>
+                <option value="30">Dans 1 mois</option>
+                <option value="60">Dans 2 mois</option>
+                <option value="90">Dans 3 mois</option>
+              </select>
+              <button onClick={setReminder} className="px-2.5 py-1.5 bg-amber-500 text-white text-[11px] rounded-lg hover:bg-amber-600 font-medium">OK</button>
+              <button onClick={() => setSettingReminder(false)} className="text-gray-400 hover:text-gray-600 text-[11px]">x</button>
+            </div>
+            <div className="flex items-center gap-1.5 text-[11px] text-gray-400">
+              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+              Ou choisir une date :
+              <input type="date" className="text-[11px] border border-gray-200 rounded px-1.5 py-0.5 outline-none"
+                min={new Date().toISOString().split('T')[0]}
+                onChange={async e => {
+                  if (e.target.value) {
+                    const d = new Date(e.target.value)
+                    await supabase.from('prospects').update({ snoozed_until: d.toISOString() }).eq('id', prospect.id)
+                    await supabase.from('activity_logs').insert({ prospect_id: prospect.id, action: 'snoozed', details: `Rappel programmé le ${d.toLocaleDateString('fr-FR')}` })
+                    setLocalSnoozed(d.toISOString())
+                    setSettingReminder(false)
+                    queryClient.invalidateQueries({ queryKey: ['prospects'] })
+                  }
+                }} />
+            </div>
           </div>
         ) : (
           <button onClick={() => setSettingReminder(true)}

@@ -82,10 +82,19 @@ export function useRdvToday() {
         .lt('rdv_date', end)
         .order('rdv_date', { ascending: true })
       if (error) throw error
-      return data || []
+      // Dédupliquer par téléphone normalisé E.164
+      const seen = new Set<string>()
+      return (data || []).filter(p => {
+        let ph = (p.phone || '').replace(/[\s.\-()]/g, '')
+        if (ph.startsWith('0') && ph.length === 10) ph = '+33' + ph.slice(1)
+        const key = ph || p.id
+        if (seen.has(key)) return false
+        seen.add(key)
+        return true
+      })
     },
     enabled: !!orgId,
-    refetchInterval: 60000, // Refresh toutes les minutes
+    refetchInterval: 60000,
   })
 }
 
@@ -182,20 +191,32 @@ export function useImportProspects() {
     mutationFn: async ({ listId, prospects }: { listId: string; prospects: Array<{ name: string; phone: string; phone2?: string; email?: string; company?: string; title?: string; sector?: string; address?: string; city?: string; postal_code?: string; country?: string; linkedin_url?: string; website_url?: string }> }) => {
       if (!organisation?.id) throw new Error('No organisation')
 
-      // Dédupliquer : récupérer les numéros déjà dans cette liste
+      // Normaliser un numéro au format E.164 pour comparaison
+      const normalizePhone = (p: string) => {
+        let n = p.replace(/[\s.\-()]/g, '')
+        if (n.startsWith('0') && n.length === 10) n = '+33' + n.slice(1)
+        if (!n.startsWith('+') && n.length === 9) n = '+33' + n
+        return n
+      }
+
+      // Dédupliquer cross-listes : récupérer TOUS les numéros de l'org
       const { data: existing } = await supabase
         .from('prospects')
         .select('phone')
-        .eq('list_id', listId)
-      const existingPhones = new Set(existing?.map(p => p.phone) || [])
+        .eq('organisation_id', organisation.id)
+      const existingPhones = new Set((existing || []).map(p => normalizePhone(p.phone || '')).filter(Boolean))
 
-      // Dédupliquer aussi dans le CSV lui-même (garder le premier)
+      // Dédupliquer dans le CSV (garder le premier) + contre l'existant
       const seen = new Set<string>()
       const unique = prospects.filter(p => {
-        if (existingPhones.has(p.phone) || seen.has(p.phone)) return false
-        seen.add(p.phone)
+        const norm = normalizePhone(p.phone)
+        if (!norm || existingPhones.has(norm) || seen.has(norm)) return false
+        seen.add(norm)
         return true
       })
+
+      // Normaliser les numéros avant insertion
+      unique.forEach(p => { p.phone = normalizePhone(p.phone) })
 
       if (unique.length === 0) return
 
