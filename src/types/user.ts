@@ -21,4 +21,5 @@ export interface Profile {
   full_name: string | null
   role: Role
   is_active: boolean
+  assigned_phone: string | null
 }

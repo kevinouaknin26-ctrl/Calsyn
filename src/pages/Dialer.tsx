@@ -20,6 +20,7 @@ import { PlatformIcon } from '@/components/call/SocialLinks'
 import SelectListPage from '@/components/dialer/SelectListPage'
 import ProspectModal from '@/components/call/ProspectModal'
 import { exportListWithAudios, type ExportProgress } from '@/services/exportList'
+import { usePermissions } from '@/hooks/usePermissions'
 import { useRealtimeProspects } from '@/hooks/useRealtime'
 import { useDialingSession } from '@/hooks/useDialingSession'
 import type { Prospect } from '@/types/prospect'
@@ -866,6 +867,7 @@ const ProspectRow = memo(function ProspectRow({ prospect, isActive, liveStatus, 
 // ── Page ────────────────────────────────────────────────────────────
 export default function Dialer() {
   const { isAdmin, isManager, organisation } = useAuth()
+  const perms = usePermissions()
   const cm = useCallMachine()
   const { data: lists } = useProspectLists()
 
@@ -1313,7 +1315,7 @@ export default function Dialer() {
       <div className="px-5 pt-4 pb-2">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            {renamingList && (isAdmin || isManager) ? (
+            {renamingList && (perms.isAdmin) ? (
               <input autoFocus type="text" value={renameValue}
                 onChange={e => setRenameValue(e.target.value)}
                 onKeyDown={async e => {
@@ -1333,8 +1335,8 @@ export default function Dialer() {
                 }}
                 className="text-[17px] font-bold text-gray-800 outline-none border-b-2 border-indigo-400 bg-transparent" />
             ) : (
-              <h1 onClick={() => { if (isAdmin || isManager) { setRenameValue(activeList?.name || ''); setRenamingList(true) } }}
-                className={`text-[17px] font-bold text-gray-800 ${(isAdmin || isManager) ? 'cursor-pointer hover:text-indigo-700' : ''} transition-colors`}>{activeList?.name || 'Prospects'}</h1>
+              <h1 onClick={() => { if (perms.isAdmin) { setRenameValue(activeList?.name || ''); setRenamingList(true) } }}
+                className={`text-[17px] font-bold text-gray-800 ${(perms.isAdmin) ? 'cursor-pointer hover:text-indigo-700' : ''} transition-colors`}>{activeList?.name || 'Prospects'}</h1>
             )}
             <span className="text-[13px] text-gray-400">{prospects?.length || 0} contacts</span>
             <button onClick={() => setShowAddProspect(true)} className="text-[13px] text-gray-400 hover:text-indigo-600 flex items-center gap-1">
@@ -1351,7 +1353,7 @@ export default function Dialer() {
               {refreshing ? 'Chargement...' : 'Actualiser'}
             </button>
             {/* Export complet (admin/manager only) */}
-            {(isAdmin || isManager) && (
+            {(perms.isAdmin) && (
               <ExportButton
                 listId={activeListId}
                 listName={activeList?.name || 'export'}
@@ -1691,7 +1693,7 @@ export default function Dialer() {
           </button>
 
           {/* Exporter la sélection */}
-          {(isAdmin || isManager) && (
+          {(perms.isAdmin) && (
             <button onClick={() => {
               const selected = prospects?.filter(p => selectedIds.has(p.id))
               if (!selected?.length) return

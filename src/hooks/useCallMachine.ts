@@ -18,7 +18,7 @@ import type { Prospect } from '@/types/prospect'
 import type { Disposition } from '@/types/call'
 
 export function useCallMachine() {
-  const { organisation } = useAuth()
+  const { organisation, profile } = useAuth()
   const queryClient = useQueryClient()
   const providerRef = useRef<CallProvider | null>(null)
   const sessionRef = useRef<CallSession | null>(null)
@@ -184,7 +184,8 @@ export function useCallMachine() {
     // POWER DIALER : appel direct via SDK client (pas de conférence, pas d'AMD temps réel)
     // Le SDR entend la sonnerie et parle dès le décroché — 0 latence
     // La détection messagerie se fait post-appel via process-analysis (transcription Deepgram)
-    const fromNumber = overrideFromNumber || organisation?.from_number || '+33757905591'
+    // Priorité : override (dropdown Dialer) > numéro assigné au profil > numéro par défaut org
+    const fromNumber = overrideFromNumber || profile?.assigned_phone || organisation?.from_number || '+33757905591'
     console.log(`[useCallMachine] Calling ${prospect.name} from ${fromNumber}`)
     send({ type: 'CALL', prospect })
 

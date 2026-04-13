@@ -10,6 +10,7 @@ interface AuthState {
   organisation: Organisation | null
   loading: boolean
   role: Role | null
+  isSuperAdmin: boolean
   isAdmin: boolean
   isManager: boolean
   refreshOrganisation: () => Promise<void>
@@ -17,7 +18,7 @@ interface AuthState {
 
 const AuthContext = createContext<AuthState>({
   user: null, profile: null, organisation: null,
-  loading: true, role: null, isAdmin: false, isManager: false,
+  loading: true, role: null, isSuperAdmin: false, isAdmin: false, isManager: false,
   refreshOrganisation: async () => {},
 })
 
@@ -30,7 +31,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   async function loadProfile(userId: string) {
     const { data: p } = await supabase
       .from('profiles')
-      .select('id, organisation_id, email, full_name, role, is_active')
+      .select('id, organisation_id, email, full_name, role, is_active, assigned_phone')
       .eq('id', userId)
       .single()
 
@@ -99,6 +100,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   return (
     <AuthContext.Provider value={{
       user, profile, organisation, loading, role,
+      isSuperAdmin: role === 'super_admin',
       isAdmin: role === 'super_admin' || role === 'admin',
       isManager: role === 'super_admin' || role === 'admin' || role === 'manager',
       refreshOrganisation,

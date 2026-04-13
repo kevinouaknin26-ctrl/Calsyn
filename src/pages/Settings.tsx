@@ -10,6 +10,7 @@ import { useAuth } from '@/hooks/useAuth'
 import { useCrmStatuses, useCreateCrmStatus, useDeleteCrmStatus } from '@/hooks/useProperties'
 import { supabase } from '@/config/supabase'
 import { SYSTEM_PROPERTIES } from '@/config/properties'
+import { usePermissions } from '@/hooks/usePermissions'
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL
 
@@ -17,7 +18,7 @@ const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL
 // SECTIONS
 // ══════════════════════════════════════════════════════════════════
 
-type Section = { id: string; label: string; icon: string; adminOnly?: boolean; group?: string }
+type Section = { id: string; label: string; icon: string; adminOnly?: boolean; superAdminOnly?: boolean; group?: string }
 
 const SECTIONS: Section[] = [
   { id: 'call-settings', label: 'Appels', icon: '📞', group: 'Dialer' },
@@ -34,8 +35,8 @@ const SECTIONS: Section[] = [
   { id: 'webhooks', label: 'Webhooks', icon: '🪝', group: 'Connexions' },
   { id: 'users', label: 'Utilisateurs', icon: '👥', group: 'Admin', adminOnly: true },
   { id: 'permissions', label: 'Permissions', icon: '🔒', group: 'Admin', adminOnly: true },
-  { id: 'billing', label: 'Facturation', icon: '💳', group: 'Admin', adminOnly: true },
-  { id: 'organisation', label: 'Organisation', icon: '🏢', group: 'Admin' },
+  { id: 'billing', label: 'Facturation', icon: '💳', group: 'Admin', superAdminOnly: true },
+  { id: 'organisation', label: 'Organisation', icon: '🏢', group: 'Admin', adminOnly: true },
 ]
 
 // ══════════════════════════════════════════════════════════════════
@@ -748,16 +749,28 @@ function IntegrationsSection() {
 function UsersSection({ orgId, phoneNumbers }: { orgId: string; phoneNumbers?: TwilioNumber[] }) {
   const { data: members } = useOrgMembers(orgId)
   const queryClient = useQueryClient()
+  const perms = usePermissions()
 
-  const roles = [
-    { value: 'super_admin', label: 'Super Admin', color: '#dc2626' },
-    { value: 'admin', label: 'Admin', color: '#7c3aed' },
-    { value: 'manager', label: 'Manager', color: '#2563eb' },
-    { value: 'sdr', label: 'SDR', color: '#059669' },
-  ]
+  // 3 rôles effectifs — super_admin visible uniquement pour les super_admin
+  const roles = perms.isSuperAdmin
+    ? [
+        { value: 'super_admin', label: 'Super Admin', color: '#dc2626' },
+        { value: 'admin', label: 'Admin', color: '#7c3aed' },
+        { value: 'sdr', label: 'Commercial', color: '#059669' },
+      ]
+    : [
+        { value: 'admin', label: 'Admin', color: '#7c3aed' },
+        { value: 'sdr', label: 'Commercial', color: '#059669' },
+      ]
 
   const changeRole = async (profileId: string, role: string) => {
+    if (!perms.canChangeRoles && role !== 'sdr') return // Admin ne peut créer que des SDRs
     await supabase.from('profiles').update({ role }).eq('id', profileId)
+    queryClient.invalidateQueries({ queryKey: ['org-members'] })
+  }
+
+  const assignPhone = async (profileId: string, phone: string) => {
+    await supabase.from('profiles').update({ assigned_phone: phone || null }).eq('id', profileId)
     queryClient.invalidateQueries({ queryKey: ['org-members'] })
   }
 
@@ -817,8 +830,10 @@ function UsersSection({ orgId, phoneNumbers }: { orgId: string; phoneNumbers?: T
               </div>
               {/* Phone number */}
               <div className="col-span-3">
-                <select className="text-[11px] border border-gray-200 rounded-lg px-2 py-1 outline-none w-full text-gray-600">
-                  <option value="">Sélectionner un numéro</option>
+                <select value={m.assigned_phone || ''} onChange={e => assignPhone(m.id, e.target.value)}
+                  disabled={!perms.canAssignPhoneNumbers}
+                  className="text-[11px] border border-gray-200 rounded-lg px-2 py-1 outline-none w-full text-gray-600">
+                  <option value="">Numéro par défaut org</option>
                   {(phoneNumbers || []).map(n => (
                     <option key={n.sid} value={n.phone}>{n.phone}</option>
                   ))}
@@ -1185,6 +1200,7 @@ function PermissionsSection() {
 // ══════════════════════════════════════════════════════════════════
 export default function Settings() {
   const { organisation, profile, isAdmin, refreshOrganisation } = useAuth()
+  const perms = usePermissions()
   const [activeSection, setActiveSection] = useState('call-settings')
   const orgUpdate = useOrgUpdate()
 
@@ -1193,7 +1209,12 @@ export default function Settings() {
   }, [organisation?.id, orgUpdate, refreshOrganisation])
 
   const { data: phoneNumbersForUsers } = usePhoneNumbers()
-  const visibleSections = SECTIONS.filter(s => !s.adminOnly || isAdmin)
+  const visibleSections = SECTIONS.filter(s => {
+    if (s.superAdminOnly && !perms.isSuperAdmin) return false
+    if (s.adminOnly && !perms.isAdmin) return false
+    if (perms.isSdr && !['call-settings', 'phone-fields'].includes(s.id)) return false
+    return true
+  })
   const groups = [...new Set(visibleSections.map(s => s.group))]
 
   const renderSection = () => {
