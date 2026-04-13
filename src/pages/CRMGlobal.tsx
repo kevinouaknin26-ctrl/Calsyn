@@ -17,6 +17,7 @@ import { useProspectLists } from '@/hooks/useProspects'
 import SocialLinks from '@/components/call/SocialLinks'
 import ProspectModal from '@/components/call/ProspectModal'
 import type { Prospect } from '@/types/prospect'
+import { normalizePhone } from '@/utils/phone'
 
 // ══════════════════════════════════════════════════════════════════
 // TYPES
@@ -30,8 +31,6 @@ interface MergedProspect extends Prospect {
 type FilterOp = 'eq' | 'neq' | 'contains' | 'not_contains' | 'starts' | 'empty' | 'not_empty' | 'gt' | 'lt' | 'in' | 'true' | 'false'
 type Filter = { id: string; propertyId: string; op: FilterOp; value: string }
 type SavedView = { id: string; name: string; columns: string[]; filters: Filter[]; sortBy: string; sortDir: 'asc' | 'desc' }
-
-import { normalizePhone } from '@/utils/phone'
 
 // ══════════════════════════════════════════════════════════════════
 // FILTER EVALUATION (reusable)

@@ -5,6 +5,7 @@
  */
 
 import { useState, useEffect, useCallback, useMemo, Component, type ReactNode } from 'react'
+import { normalizePhone } from '@/utils/phone'
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
 import { supabase } from '@/config/supabase'
 import { useAuth } from '@/hooks/useAuth'
@@ -100,8 +101,6 @@ function getWeekDays(base: Date): Date[] {
 }
 
 const HOURS = Array.from({ length: 24 }, (_, i) => i) // 0h -> 23h
-
-import { normalizePhone } from '@/utils/phone'
 
 // ── GCal event type ─────────────────────────────────────────────
 type GCalEvent = {
