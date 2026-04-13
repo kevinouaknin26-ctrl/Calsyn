@@ -5,6 +5,7 @@ import Layout from '@/components/layout/Layout'
 import Login from '@/pages/Login'
 import Dialer from '@/pages/Dialer'
 import History from '@/pages/History'
+import CRMGlobal from '@/pages/CRMGlobal'
 import Dashboard from '@/pages/Dashboard'
 import Team from '@/pages/Team'
 import Settings from '@/pages/Settings'
@@ -34,6 +35,7 @@ function AppRoutes() {
     <Routes>
       <Route path="/login" element={<Login />} />
       <Route path="/app/dialer" element={<Protected><Layout><Dialer /></Layout></Protected>} />
+      <Route path="/app/contacts" element={<Protected><Layout><CRMGlobal /></Layout></Protected>} />
       <Route path="/app/history" element={<Protected><Layout><History /></Layout></Protected>} />
       <Route path="/app/dashboard" element={<Protected admin><Layout><Dashboard /></Layout></Protected>} />
       <Route path="/app/team" element={<Protected admin><Layout><Team /></Layout></Protected>} />

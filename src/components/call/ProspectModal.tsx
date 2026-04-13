@@ -680,6 +680,25 @@ export default function ProspectModal({
   const callsDisabled = localDoNotCall
   const isSnoozed = localSnoozedUntil && new Date(localSnoozedUntil) > new Date()
 
+  // Liste(s) du prospect
+  const { data: prospectLists } = useQuery({
+    queryKey: ['prospect-lists-for', prospect.id, prospect.phone],
+    queryFn: async () => {
+      // Chercher toutes les listes qui contiennent ce prospect (par phone pour cross-listes)
+      const { data: allMatches } = await supabase
+        .from('prospects')
+        .select('list_id')
+        .eq('phone', prospect.phone)
+      if (!allMatches?.length) return []
+      const listIds = [...new Set(allMatches.map(m => m.list_id))]
+      const { data: lists } = await supabase
+        .from('prospect_lists')
+        .select('id, name')
+        .in('id', listIds)
+      return lists || []
+    },
+  })
+
   // Activity logs
   const { data: activityLogs } = useQuery({
     queryKey: ['activity-logs', prospect.id],
@@ -711,6 +730,17 @@ export default function ProspectModal({
 
             {/* Logos réseaux en ligne (petits, cliquables — ouvrir le lien) */}
             <SocialIconsBar prospectId={prospect.id} />
+
+            {/* Badges listes */}
+            {prospectLists && prospectLists.length > 0 && (
+              <div className="flex flex-wrap gap-1 mb-1">
+                {prospectLists.map((l: { id: string; name: string }) => (
+                  <span key={l.id} className="text-[9px] px-2 py-0.5 rounded-full bg-violet-100 text-violet-600 font-medium truncate max-w-[140px]">
+                    {l.name}
+                  </span>
+                ))}
+              </div>
+            )}
 
             {/* Poste + Entreprise */}
             {prospect.title && (
