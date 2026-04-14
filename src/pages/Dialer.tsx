@@ -1073,6 +1073,7 @@ export default function Dialer() {
   })
   const queryClient = useQueryClient()
   const dialSession = useDialingSession()
+  const startingRef = useRef(false)
   const duration = useTimer(cm.context.startedAt)
   useRealtimeProspects()
 
@@ -1398,21 +1399,25 @@ export default function Dialer() {
             </button>
           ) : (
             <button onClick={async () => {
-              if (dialSession.isActive) {
-                // Session en cours — appeler le prospect courant
-                const pid = dialSession.currentProspectId
-                const p = (filtered || prospects)?.find(pr => pr.id === pid)
-                if (p) handleCall(p)
-              } else {
-                // Nouvelle session — snapshot la liste FILTRÉE dans l'ordre affiché
-                const visibleList = filtered?.length ? filtered : prospects
-                if (visibleList?.length) {
-                  const s = await dialSession.startSession(visibleList, activeListId)
-                  if (s && s.prospects.length > 0) {
-                    const p = visibleList.find(pr => pr.id === s.prospects[0])
-                    if (p) handleCall(p)
+              if (startingRef.current) return
+              startingRef.current = true
+              try {
+                if (dialSession.isActive) {
+                  const pid = dialSession.currentProspectId
+                  const p = (filtered || prospects)?.find(pr => pr.id === pid)
+                  if (p) handleCall(p)
+                } else {
+                  const visibleList = filtered?.length ? filtered : prospects
+                  if (visibleList?.length) {
+                    const s = await dialSession.startSession(visibleList, activeListId)
+                    if (s && s.prospects.length > 0) {
+                      const p = visibleList.find(pr => pr.id === s.prospects[0])
+                      if (p) handleCall(p)
+                    }
                   }
                 }
+              } finally {
+                setTimeout(() => { startingRef.current = false }, 1000)
               }
             }}
               disabled={!cm.providerReady || !(cm.isIdle || cm.isDisconnected)}
