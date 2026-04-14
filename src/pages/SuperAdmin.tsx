@@ -109,6 +109,29 @@ export default function SuperAdmin() {
     }
   }
 
+  const handleDeleteOrg = async (org: OrgRow) => {
+    const memberCount = (membersByOrg[org.id] || []).length
+    const msg = memberCount > 0
+      ? `Supprimer définitivement "${org.name}" ? ${memberCount} membre${memberCount > 1 ? 's' : ''} seront aussi supprimés. Cette action est irréversible.`
+      : `Supprimer définitivement "${org.name}" ? Cette action est irréversible.`
+    if (!confirm(msg)) return
+
+    // 1. Supprimer tous les auth.users de l'org via team-manage
+    const members = membersByOrg[org.id] || []
+    for (const m of members) {
+      await handleTeamAction(m.id, 'delete_user')
+    }
+    // 2. Supprimer l'org elle-même
+    const { error } = await supabase.from('organisations').delete().eq('id', org.id)
+    if (error) {
+      pushFeedback({ type: 'err', msg: `Erreur suppression org : ${error.message}` })
+      return
+    }
+    pushFeedback({ type: 'ok', msg: `Organisation "${org.name}" supprimée.` })
+    queryClient.invalidateQueries({ queryKey: ['super-admin-orgs'] })
+    queryClient.invalidateQueries({ queryKey: ['super-admin-all-members'] })
+  }
+
   if (!isSuperAdmin) {
     return <div className="min-h-screen flex items-center justify-center text-gray-400 text-sm">Accès réservé au Super Admin.</div>
   }
@@ -147,6 +170,7 @@ export default function SuperAdmin() {
               onToggle={() => toggleExpand(org.id)}
               onInviteAdmin={() => setInviteAdminFor(org)}
               onToggleActive={() => handleToggleOrgActive(org)}
+              onDeleteOrg={() => handleDeleteOrg(org)}
               onRoleChange={handleRoleChange}
               onTeamAction={handleTeamAction}
               meId={me?.id || ''}
@@ -177,13 +201,14 @@ export default function SuperAdmin() {
 }
 
 // ── OrgCard ──────────────────────────────────────────────────────
-function OrgCard({ org, members, expanded, onToggle, onInviteAdmin, onToggleActive, onRoleChange, onTeamAction, meId }: {
+function OrgCard({ org, members, expanded, onToggle, onInviteAdmin, onToggleActive, onDeleteOrg, onRoleChange, onTeamAction, meId }: {
   org: OrgRow
   members: MemberRow[]
   expanded: boolean
   onToggle: () => void
   onInviteAdmin: () => void
   onToggleActive: () => void
+  onDeleteOrg: () => void
   onRoleChange: (userId: string, newRole: Role) => void
   onTeamAction: (userId: string, action: string) => void
   meId: string
@@ -220,8 +245,12 @@ function OrgCard({ org, members, expanded, onToggle, onInviteAdmin, onToggleActi
               + Inviter un admin
             </button>
             <button onClick={onToggleActive}
-              className={`px-3 py-1.5 rounded-lg text-[12px] font-medium border ${org.is_active ? 'border-red-200 text-red-600 hover:bg-red-50' : 'border-emerald-200 text-emerald-600 hover:bg-emerald-50'}`}>
+              className={`px-3 py-1.5 rounded-lg text-[12px] font-medium border ${org.is_active ? 'border-amber-200 text-amber-600 hover:bg-amber-50' : 'border-emerald-200 text-emerald-600 hover:bg-emerald-50'}`}>
               {org.is_active ? 'Désactiver l\'organisation' : 'Réactiver l\'organisation'}
+            </button>
+            <button onClick={onDeleteOrg}
+              className="px-3 py-1.5 rounded-lg text-[12px] font-medium border border-red-200 text-red-600 hover:bg-red-50">
+              Supprimer l'organisation
             </button>
           </div>
 
@@ -404,6 +433,7 @@ function InviteAdminModal({ org, onClose, onInvited, onError }: {
   onError: (msg: string) => void
 }) {
   const [email, setEmail] = useState('')
+  const [expiresInHours, setExpiresInHours] = useState(72)
   const [inviting, setInviting] = useState(false)
 
   const submit = async () => {
@@ -412,12 +442,6 @@ function InviteAdminModal({ org, onClose, onInvited, onError }: {
     try {
       const { data: { session } } = await supabase.auth.getSession()
       if (!session) { onError('Session expirée'); return }
-      // Le Super Admin invite avec role=admin dans l'org cible.
-      // invite-member lit callerProfile.organisation_id pour choisir l'org → on doit donc
-      // contourner : utiliser directement auth.admin.generateLink côté Edge.
-      // Pour simplicité : on crée l'user via RPC dédié ou on appelle invite-member avec
-      // un header custom. Ici on fait un INSERT profile skeleton + envoi mail via
-      // invite-member classique en forçant l'org via un paramètre spécial target_org_id.
       const res = await fetch(`${SUPABASE_URL}/functions/v1/invite-member`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
@@ -429,7 +453,7 @@ function InviteAdminModal({ org, onClose, onInvited, onError }: {
           work_hours_start: '09:00',
           work_hours_end: '18:00',
           max_calls_per_day: 0,
-          expires_in_hours: 72,
+          expires_in_hours: expiresInHours,
           target_organisation_id: org.id,
         }),
       })
@@ -449,11 +473,28 @@ function InviteAdminModal({ org, onClose, onInvited, onError }: {
           </div>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl">×</button>
         </div>
-        <div className="space-y-3">
-          <input type="email" value={email} onChange={e => setEmail(e.target.value)}
-            placeholder="admin@exemple.fr" autoFocus
-            className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm" />
-          <p className="text-[11px] text-gray-400">Le lien sera valide 3 jours. L'admin pourra ensuite inviter sa propre équipe.</p>
+        <div className="space-y-4">
+          <div>
+            <label className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-1">Email</label>
+            <input type="email" value={email} onChange={e => setEmail(e.target.value)}
+              placeholder="admin@exemple.fr" autoFocus
+              className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm" />
+          </div>
+          <div>
+            <label className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-1">Validité du lien</label>
+            <select value={expiresInHours} onChange={e => setExpiresInHours(parseInt(e.target.value))}
+              className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm">
+              <option value={1}>1 heure (urgence)</option>
+              <option value={6}>6 heures</option>
+              <option value={12}>12 heures</option>
+              <option value={24}>24 heures</option>
+              <option value={72}>3 jours (par défaut)</option>
+              <option value={168}>1 semaine</option>
+              <option value={720}>1 mois</option>
+              <option value={0}>Pas de délai (illimité)</option>
+            </select>
+          </div>
+          <p className="text-[11px] text-gray-400">L'admin pourra ensuite inviter sa propre équipe une fois connecté.</p>
         </div>
         <div className="flex items-center justify-end gap-2 mt-5">
           <button onClick={onClose} disabled={inviting} className="px-4 py-2 rounded-lg text-sm text-gray-600 hover:bg-gray-100">Annuler</button>
