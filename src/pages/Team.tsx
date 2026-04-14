@@ -395,9 +395,10 @@ function MemberRow({ m, isMe, canManage, twilioNumbers, confirmed, meRole, onRes
         {canManage ? (
           <select value={m.call_license} onChange={e => onPatch({ call_license: e.target.value as CallLicense })}
             className="px-2 py-1 rounded-md text-[11px] font-semibold cursor-pointer border bg-white"
-            style={{ color: licColor, borderColor: licColor + '40' }}>
-            <option value="parallel">Parallel dialer</option>
-            <option value="power">Power dialer</option>
+            style={{ color: licColor, borderColor: licColor + '40' }}
+            title="Parallel inclut Power (le SDR bascule à volonté). Power = mono-line uniquement.">
+            <option value="parallel">Parallel (+ Power)</option>
+            <option value="power">Power seul</option>
             <option value="none">Aucune</option>
           </select>
         ) : (
@@ -642,10 +643,11 @@ function InviteModal({ twilioNumbers, meRole, onClose, onInvited, onError }: {
             <Field label="Licence d'appel">
               <select value={license} onChange={e => setLicense(e.target.value as CallLicense)}
                 className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm">
-                <option value="power">Power dialer</option>
-                <option value="parallel">Parallel dialer</option>
+                <option value="parallel">Parallel (+ Power)</option>
+                <option value="power">Power seul</option>
                 <option value="none">Aucune</option>
               </select>
+              <p className="mt-1 text-[11px] text-gray-400">Parallel inclut Power : le SDR bascule entre les deux selon son intensité.</p>
             </Field>
           </div>
 

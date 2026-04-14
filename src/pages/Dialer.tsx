@@ -360,12 +360,14 @@ function CallSettingsDropdown({ open, onToggle, parallel, setParallel, callLicen
           {/* Parallel calls — verrouillé à 1 si licence ≠ parallel */}
           <div className="flex items-center justify-between">
             <div className="flex flex-col">
-              <span className="text-[13px] text-gray-700">Appels parallèles</span>
-              {callLicense !== 'parallel' && (
-                <span className="text-[10px] text-gray-400 mt-0.5">
-                  {callLicense === 'none' ? 'Aucune licence d’appel' : 'Mode Power Dialer — 1 appel à la fois'}
-                </span>
-              )}
+              <span className="text-[13px] text-gray-700">Mode d'appel</span>
+              <span className="text-[10px] text-gray-400 mt-0.5">
+                {callLicense === 'none'
+                  ? 'Aucune licence d’appel — contactez votre admin'
+                  : callLicense === 'power'
+                    ? 'Mode Power — 1 appel à la fois (qualité)'
+                    : '1 = Power (qualité) · 2–5 = Parallel (volume)'}
+              </span>
             </div>
             <div className="flex items-center border border-gray-200 rounded-md overflow-hidden">
               {[1, 2, 3, 4, 5].map(n => {
