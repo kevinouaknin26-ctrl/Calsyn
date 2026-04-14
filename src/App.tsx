@@ -11,14 +11,15 @@ import Dashboard from '@/pages/Dashboard'
 import Team from '@/pages/Team'
 import Settings from '@/pages/Settings'
 import Calendar from '@/pages/Calendar'
+import SuperAdmin from '@/pages/SuperAdmin'
 import type { ReactNode } from 'react'
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { staleTime: 30_000, retry: 2 } },
 })
 
-function Protected({ children, admin }: { children: ReactNode; admin?: boolean }) {
-  const { user, loading, isAdmin } = useAuth()
+function Protected({ children, admin, superAdmin, blockSuperAdmin }: { children: ReactNode; admin?: boolean; superAdmin?: boolean; blockSuperAdmin?: boolean }) {
+  const { user, loading, isAdmin, isSuperAdmin } = useAuth()
 
   if (loading) return (
     <div className="min-h-screen bg-[#1a1a2e] flex items-center justify-center">
@@ -27,6 +28,9 @@ function Protected({ children, admin }: { children: ReactNode; admin?: boolean }
   )
 
   if (!user) return <Navigate to="/login" replace />
+  if (superAdmin && !isSuperAdmin) return <Navigate to="/app/dialer" replace />
+  // Super Admin n'a pas d'organisation → les pages métier redirigent vers /app/super-admin
+  if (blockSuperAdmin && isSuperAdmin) return <Navigate to="/app/super-admin" replace />
   if (admin && !isAdmin) return <Navigate to="/app/dialer" replace />
   return <>{children}</>
 }
@@ -36,12 +40,13 @@ function AppRoutes() {
     <Routes>
       <Route path="/login" element={<Login />} />
       <Route path="/accept-invite" element={<AcceptInvite />} />
-      <Route path="/app/dialer" element={<Protected><Layout><Dialer /></Layout></Protected>} />
-      <Route path="/app/contacts" element={<Protected><Layout><CRMGlobal /></Layout></Protected>} />
-      <Route path="/app/history" element={<Protected><Layout><History /></Layout></Protected>} />
-      <Route path="/app/dashboard" element={<Protected admin><Layout><Dashboard /></Layout></Protected>} />
-      <Route path="/app/team" element={<Protected admin><Layout><Team /></Layout></Protected>} />
-      <Route path="/app/calendar" element={<Protected><Layout><Calendar /></Layout></Protected>} />
+      <Route path="/app/super-admin" element={<Protected superAdmin><Layout><SuperAdmin /></Layout></Protected>} />
+      <Route path="/app/dialer" element={<Protected blockSuperAdmin><Layout><Dialer /></Layout></Protected>} />
+      <Route path="/app/contacts" element={<Protected blockSuperAdmin><Layout><CRMGlobal /></Layout></Protected>} />
+      <Route path="/app/history" element={<Protected blockSuperAdmin><Layout><History /></Layout></Protected>} />
+      <Route path="/app/dashboard" element={<Protected admin blockSuperAdmin><Layout><Dashboard /></Layout></Protected>} />
+      <Route path="/app/team" element={<Protected admin blockSuperAdmin><Layout><Team /></Layout></Protected>} />
+      <Route path="/app/calendar" element={<Protected blockSuperAdmin><Layout><Calendar /></Layout></Protected>} />
       <Route path="/app/settings" element={<Protected><Layout><Settings /></Layout></Protected>} />
       <Route path="*" element={<Navigate to="/app/dialer" replace />} />
     </Routes>

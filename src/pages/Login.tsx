@@ -10,14 +10,16 @@ export default function Login() {
   const navigate = useNavigate()
 
   // Si user arrive ici via magic link invite (anciens liens pointaient vers /login),
-  // ou s'il est déjà connecté mais n'a jamais complété son onboarding → redirect /accept-invite
+  // ou s'il est déjà connecté mais n'a jamais complété son onboarding → redirect /accept-invite.
+  // Super Admin (hors org) → /app/super-admin (pas /app/dialer qui a besoin d'une org).
   useEffect(() => {
     (async () => {
       await new Promise(r => setTimeout(r, 300))
       const { data: { session } } = await supabase.auth.getSession()
       if (!session?.user) return
-      const { data: p } = await supabase.from('profiles').select('last_seen_at').eq('id', session.user.id).single()
+      const { data: p } = await supabase.from('profiles').select('last_seen_at, role').eq('id', session.user.id).single()
       if (!p?.last_seen_at) navigate('/accept-invite')
+      else if (p?.role === 'super_admin') navigate('/app/super-admin')
       else navigate('/app/dialer')
     })()
   }, [navigate])
@@ -26,9 +28,11 @@ export default function Login() {
     e.preventDefault()
     setError(null)
     setLoading(true)
-    const { error: err } = await supabase.auth.signInWithPassword({ email, password })
+    const { data, error: err } = await supabase.auth.signInWithPassword({ email, password })
     if (err) { setError('Email ou mot de passe incorrect'); setLoading(false); return }
-    navigate('/app/dialer')
+    // Redirect selon rôle : super_admin → super-admin, autres → dialer
+    const { data: p } = await supabase.from('profiles').select('role').eq('id', data.user!.id).single()
+    navigate(p?.role === 'super_admin' ? '/app/super-admin' : '/app/dialer')
   }
 
   return (
