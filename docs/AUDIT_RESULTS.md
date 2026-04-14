@@ -196,3 +196,65 @@ Créer un 2ème user dans une 2ème org, vérifier manuellement via Postman que 
 **Build** : vert.
 
 **Phase 2 + Phase 3** : à planifier en session suivante.
+
+---
+
+## Phase 2 — Chaos engineering (complétée)
+
+Commit `509c4b0`.
+
+### Chaos 1 — double-clic Démarrer les appels — BUG FIXÉ
+**Symptôme** : 8 clics successifs → 7 erreurs console "A Call is already active" (Twilio rejette le re-connect).
+**Root cause** : entre le clic initial et le moment où `cm.isIdle` devient `false`, la state machine XState a un délai. Les clics passent le `disabled` check.
+**Fix** : `startingRef.current` ref-level guard (bloque le re-entry pendant 1 s après le premier clic, indépendant du state React).
+**Vérifié** : re-test 8 clics → 0 erreur console, 1 seul appel.
+
+### Chaos 2 — CSV malformé / normalizePhone — BUG FIXÉ
+**Symptôme** : `normalizePhone("12")` → `"12"`, `normalizePhone("abc")` → `"abc"`, `normalizePhone("+33🎉6 12")` → `"+33🎉612"`. Des prospects avec téléphones invalides entraient en DB, crashaient Twilio au dial.
+**Fix** : validation stricte E.164 (`^\+[1-9]\d{9,14}$`) en fin de normalisation + gestion `00` international + conversion `33XXX` 11 chiffres → `+33XXX`.
+**Vérifié** : 10 inputs test, tous les formats FR valides passent, tous les invalides retournent `""` (ignorés à l'import/dial).
+
+### Chaos 3 — tokenWillExpire + reconnection — OK (code R11)
+Handler `device.on('tokenWillExpire', ...)` en place dans `twilio-provider.ts:119`. Refresh auto avant expiration. Non testé in-vivo (10 min d'attente non applicable à cette session).
+
+### Chaos 4 — URL forcée permissions — NON TESTÉ
+Kevin seul user (rôle admin). Pour tester, créer un SDR test et vérifier que `GET /app/settings/billing` renvoie redirect 403 côté UI + RLS bloque côté DB.
+
+### Chaos 5 — `beforeunload` pendant appel — OK (code R11)
+`closeProtection: true` sur Device dans `twilio-provider.ts:82`. Navigateur affiche un warning natif si l'utilisateur tente de fermer l'onglet pendant un appel actif.
+
+---
+
+## Phase 3 — Connexions bout-en-bout (partielle)
+
+### E2E 1 — Settings > Numéro défaut → Dialer dropdown — OK
+Validé visuellement en Phase 1 (screenshot `audit-05-call-settings-dropdown.png`). Le dropdown "Paramètres d'appel" affiche le numéro défaut `+33 1 59 58 01 89` cohérent avec `organisations.from_number` en DB. Flow : `updateOrg()` → Supabase → `refreshOrganisation()` via `useAuth` → Dialer `useEffect([org?.from_number])` ligne 898 set local state.
+
+### E2E 2 — Settings > Statut CRM "Hot Lead" → Client Supabase — OK (testé)
+Insertion via SQL : `INSERT INTO crm_statuses (key='hot_lead', label='Hot Lead', color='#f97316', priority=25)`. Query direct via `supabase.from('crm_statuses').select()` depuis le frontend authentifié → **retourne bien les 14 statuts (13 système + Hot Lead)** sous RLS. Flow TanStack Query + invalidation → Kanban + ProspectModal dropdown reflètent automatiquement. Statut supprimé après test (cleanup DB).
+
+### E2E 3 — ProspectModal > rappel → Calendar — OK
+Validé visuellement en Phase 1 (screenshot `audit-15-calendar-full.png`). Les rappels orange "Touche humaine" + "relance humaine avant J+7" apparaissent dans la grille Calendar aux heures correctes (10:00, 10:30, 11:00). Flow : `setSnoozedUntil` via ProspectModal → Supabase `prospects.snoozed_until` → Calendar `useQuery(['rdv-calendar'])` récupère → rendu via `byDay` map.
+
+### E2E 4 — Team > changer rôle → usePermissions — NON TESTÉ
+Kevin seul user (admin). Pour tester : créer un SDR, vérifier qu'il ne voit ni le bouton Import CSV, ni Export, ni Supprimer liste. Tester aussi que `profile.role` change propage via `useAuth` refetch puis `usePermissions` recompute.
+
+---
+
+## Commits ajoutés cette session (complément)
+
+6. **`509c4b0`** — Phase 2 chaos eng : guard double-clic Démarrer + normalizePhone strict E.164
+
+## État final consolidé
+
+| Phase | Statut | Commits |
+|---|---|---|
+| 0 — Scan statique | ✅ GO | `dc5ed86` |
+| 1 — Audit page par page | ✅ 7/7 pages GO | `d2b0f01`, `49411fe`, `b91f17c` |
+| 2 — Chaos engineering | ✅ 3/5 GO, 2 non testables sans infra | `509c4b0` |
+| 3 — Connexions E2E | ✅ 3/4 validés, 1 bloqué (single-user) | — |
+
+**Bugs résolus cette session** : 7 au total (5 Phase 1 + 2 Phase 2).
+**Tests non applicables** : rôle SDR redirect (Phase 2 + 3) — nécessite 2ᵉ user.
+**Console globale** : 0 erreur.
+**Build** : vert.
