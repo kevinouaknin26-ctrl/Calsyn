@@ -8,7 +8,7 @@
  * 5. Import en 1 clic
  */
 
-import { useState, useRef, type ChangeEvent } from 'react'
+import { useState, useRef, useEffect, type ChangeEvent } from 'react'
 import { useImportProspects } from '@/hooks/useProspects'
 
 interface Props {
@@ -228,16 +228,16 @@ export default function CSVImport({ listId, onClose, onSuccess }: Props) {
                         <svg className="w-4 h-4 text-gray-300 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
                         </svg>
-                        <select value={detected} onChange={e => {
-                          const newMapping = [...mapping]
-                          newMapping[i] = e.target.value as FieldKey
-                          setMapping(newMapping)
-                          setError(null)
-                        }} className={`text-[12px] px-2 py-1.5 rounded-lg border outline-none ${
-                          detected === 'ignore' ? 'border-gray-200 text-gray-400' : 'border-indigo-200 text-indigo-700 bg-indigo-50'
-                        }`}>
-                          {FIELD_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-                        </select>
+                        <MappingDropdown
+                          value={detected}
+                          usedValues={new Set(mapping.filter((m, idx) => m !== 'ignore' && idx !== i))}
+                          onChange={(val) => {
+                            const newMapping = [...mapping]
+                            newMapping[i] = val as FieldKey
+                            setMapping(newMapping)
+                            setError(null)
+                          }}
+                        />
                       </div>
                     )
                   })}
@@ -292,6 +292,78 @@ export default function CSVImport({ listId, onClose, onSuccess }: Props) {
           </div>
         )}
       </div>
+    </div>
+  )
+}
+
+// ── MappingDropdown : dropdown searchable custom pour mapper une colonne CSV ──
+function MappingDropdown({ value, usedValues, onChange }: {
+  value: FieldKey
+  usedValues: Set<string>
+  onChange: (val: FieldKey) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const [search, setSearch] = useState('')
+  const ref = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  const selectedLabel = FIELD_OPTIONS.find(o => o.value === value)?.label || '—'
+  const isActive = value !== 'ignore'
+
+  const q = search.toLowerCase()
+  const filtered = FIELD_OPTIONS.filter(o => !q || o.label.toLowerCase().includes(q))
+
+  useEffect(() => {
+    if (!open) return
+    const h = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false) }
+    document.addEventListener('mousedown', h)
+    return () => document.removeEventListener('mousedown', h)
+  }, [open])
+
+  useEffect(() => { if (open) setTimeout(() => inputRef.current?.focus(), 50) }, [open])
+
+  return (
+    <div className="relative flex-shrink-0 min-w-[180px]" ref={ref}>
+      <button onClick={() => setOpen(!open)}
+        className={`w-full text-left text-[12px] px-2.5 py-1.5 rounded-lg border outline-none truncate flex items-center justify-between ${
+          isActive ? 'border-indigo-300 text-indigo-700 bg-indigo-50 font-medium' : 'border-gray-200 text-gray-400 bg-white'
+        }`}>
+        <span className="truncate">{selectedLabel}</span>
+        <svg className="w-3 h-3 flex-shrink-0 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7"/></svg>
+      </button>
+      {open && (
+        <div className="absolute top-9 left-0 w-[220px] bg-white rounded-xl shadow-xl border border-gray-200 z-[60]">
+          <div className="p-2 border-b border-gray-100">
+            <input ref={inputRef} value={search} onChange={e => setSearch(e.target.value)}
+              placeholder="Rechercher..."
+              onKeyDown={e => { if (e.key === 'Escape') { setOpen(false); setSearch('') } }}
+              className="w-full text-[12px] px-2.5 py-1.5 rounded-lg border border-gray-200 outline-none focus:border-indigo-300 focus:ring-1 focus:ring-indigo-200" />
+          </div>
+          <div className="max-h-[220px] overflow-y-auto py-1">
+            {filtered.map(o => {
+              const taken = o.value !== 'ignore' && usedValues.has(o.value)
+              const selected = value === o.value
+              return (
+                <button key={o.value}
+                  onClick={() => { if (!taken) { onChange(o.value); setOpen(false); setSearch('') } }}
+                  disabled={taken}
+                  className={`w-full text-left px-3 py-1.5 text-[12px] flex items-center justify-between transition-colors ${
+                    taken ? 'text-gray-300 cursor-not-allowed' :
+                    selected ? 'text-indigo-600 font-medium bg-indigo-50' :
+                    o.value === 'ignore' ? 'text-gray-400 hover:bg-gray-50' :
+                    'text-gray-700 hover:bg-gray-50'
+                  }`}>
+                  {o.label}
+                  {taken && <span className="text-[9px] text-gray-300">déjà pris</span>}
+                </button>
+              )
+            })}
+            {filtered.length === 0 && (
+              <p className="px-3 py-2 text-[11px] text-gray-400 text-center">Aucun champ</p>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

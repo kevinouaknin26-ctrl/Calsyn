@@ -16,9 +16,6 @@ export interface InviteEmailParams {
 export function renderInviteEmail(p: InviteEmailParams): { subject: string; html: string; text: string } {
   const subject = `Invitation à rejoindre ${p.organisationName} sur Callio`
 
-  // Logo pur CSS (universellement supporté Gmail/Outlook/Apple Mail).
-  // Gmail strippe <filter>/<mask> dans les SVG externes → on ne prend aucun risque :
-  // gradient CSS background + caractère éclair Unicode en blanc centré.
   const html = `<!DOCTYPE html>
 <html lang="fr"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>${escapeHtml(subject)}</title></head>
 <body style="margin:0;padding:0;background-color:#f6f5f9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
@@ -27,12 +24,8 @@ export function renderInviteEmail(p: InviteEmailParams): { subject: string; html
     <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="max-width:560px;background-color:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 2px 20px rgba(134,59,255,0.08);">
 
       <tr><td align="center" style="padding:40px 40px 8px 40px;">
-        <table role="presentation" cellspacing="0" cellpadding="0" border="0"><tr>
-          <td align="center" style="width:64px;height:64px;background:linear-gradient(135deg,#A66BFF 0%,#863bff 55%,#4f1dc4 100%);background-color:#863bff;border-radius:14px;">
-            <div style="font-size:34px;font-weight:900;color:#ffffff;line-height:64px;text-align:center;font-family:Arial,Helvetica,sans-serif;">⚡</div>
-          </td>
-        </tr></table>
-        <div style="font-size:22px;font-weight:800;color:#0f172a;letter-spacing:-0.02em;margin-top:14px;">Callio</div>
+        <img src="${p.logoUrl}" width="64" height="61" alt="Callio" style="display:block;margin:0 auto 14px auto;border:0;">
+        <div style="font-size:22px;font-weight:800;color:#0f172a;letter-spacing:-0.02em;">Callio</div>
       </td></tr>
 
       <tr><td align="center" style="padding:24px 40px 0 40px;">
