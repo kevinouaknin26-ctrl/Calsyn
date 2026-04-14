@@ -1,9 +1,13 @@
 import 'jsr:@supabase/functions-js/edge-runtime.d.ts'
 import { createClient } from 'npm:@supabase/supabase-js@2'
+import { renderInviteEmail } from './email-template.ts'
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
 const SERVICE_ROLE = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 const ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY')!
+const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY')
+const EMAIL_FROM = Deno.env.get('EMAIL_FROM') || 'Callio <onboarding@resend.dev>'
+const APP_URL = Deno.env.get('APP_URL') || 'http://localhost:5173'
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -13,6 +17,13 @@ const CORS = {
 
 const ALLOWED_ROLES = ['admin', 'manager', 'sdr'] as const
 const ALLOWED_LICENSES = ['parallel', 'power', 'none'] as const
+
+const ROLE_LABELS: Record<string, string> = {
+  super_admin: 'Super Admin', admin: 'Admin', manager: 'Manager', sdr: 'SDR',
+}
+const LICENSE_LABELS: Record<string, string> = {
+  parallel: 'Parallel dialer', power: 'Power dialer', none: 'Aucune',
+}
 
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS })
@@ -30,12 +41,15 @@ Deno.serve(async (req: Request) => {
 
     const admin = createClient(SUPABASE_URL, SERVICE_ROLE)
     const { data: callerProfile, error: profErr } = await admin.from('profiles')
-      .select('role, organisation_id').eq('id', user.id).single()
+      .select('role, organisation_id, full_name, email').eq('id', user.id).single()
     if (profErr || !callerProfile) return json({ error: 'Profile not found' }, 404)
     if (!['super_admin', 'admin', 'manager'].includes(callerProfile.role)) {
       return json({ error: 'Seuls les admins peuvent inviter' }, 403)
     }
-    if (!callerProfile.organisation_id) return json({ error: 'Pas d’organisation' }, 400)
+    if (!callerProfile.organisation_id) return json({ error: "Pas d'organisation" }, 400)
+
+    const { data: org } = await admin.from('organisations').select('name').eq('id', callerProfile.organisation_id).single()
+    const organisationName = org?.name || 'Callio'
 
     const body = await req.json().catch(() => null)
     const email = String(body?.email || '').trim().toLowerCase()
@@ -51,21 +65,75 @@ Deno.serve(async (req: Request) => {
     if (body?.role === 'super_admin' && callerProfile.role !== 'super_admin') role = 'admin'
     if (!ALLOWED_LICENSES.includes(license as typeof ALLOWED_LICENSES[number])) license = 'power'
 
+    const metadata = {
+      organisation_id: callerProfile.organisation_id,
+      role,
+      call_license: license,
+      assigned_phones: phones,
+      work_hours_start: workStart,
+      work_hours_end: workEnd,
+      max_calls_per_day: maxCalls,
+      invited_by: user.id,
+    }
+
+    // ── Pattern Resend (prioritaire si clé disponible) ──
+    if (RESEND_API_KEY) {
+      const { data: linkData, error: linkErr } = await admin.auth.admin.generateLink({
+        type: 'invite',
+        email,
+        options: {
+          data: metadata,
+          redirectTo: `${APP_URL}/login`,
+        },
+      })
+      if (linkErr) return json({ error: linkErr.message }, 400)
+      const actionUrl = linkData.properties?.action_link || `${APP_URL}/login`
+
+      const inviterName = callerProfile.full_name || callerProfile.email.split('@')[0]
+      const { subject, html, text } = renderInviteEmail({
+        email,
+        inviterName,
+        organisationName,
+        roleLabel: ROLE_LABELS[role] || role,
+        licenseLabel: LICENSE_LABELS[license] || license,
+        workHoursStart: workStart,
+        workHoursEnd: workEnd,
+        maxCallsPerDay: maxCalls,
+        actionUrl,
+        phonesCount: phones.length,
+      })
+
+      const resendRes = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${RESEND_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          from: EMAIL_FROM,
+          to: [email],
+          subject,
+          html,
+          text,
+          reply_to: callerProfile.email,
+        }),
+      })
+
+      if (!resendRes.ok) {
+        const errText = await resendRes.text()
+        return json({ error: `Envoi email échoué : ${errText}` }, 502)
+      }
+
+      return json({ ok: true, userId: linkData.user?.id, email, role, call_license: license, provider: 'resend' })
+    }
+
+    // ── Fallback : Supabase natif (template Dashboard) ──
     const { data, error } = await admin.auth.admin.inviteUserByEmail(email, {
-      data: {
-        organisation_id: callerProfile.organisation_id,
-        role,
-        call_license: license,
-        assigned_phones: phones,
-        work_hours_start: workStart,
-        work_hours_end: workEnd,
-        max_calls_per_day: maxCalls,
-        invited_by: user.id,
-      },
-      redirectTo: `${Deno.env.get('APP_URL') || 'http://localhost:5173'}/login`,
+      data: metadata,
+      redirectTo: `${APP_URL}/login`,
     })
     if (error) return json({ error: error.message }, 400)
-    return json({ ok: true, userId: data.user?.id, email, role, call_license: license })
+    return json({ ok: true, userId: data.user?.id, email, role, call_license: license, provider: 'supabase' })
   } catch (e) {
     return json({ error: (e as Error).message }, 500)
   }
