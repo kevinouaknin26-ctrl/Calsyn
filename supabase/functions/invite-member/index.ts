@@ -86,6 +86,19 @@ Deno.serve(async (req: Request) => {
     if (body?.role === 'super_admin' && callerProfile.role !== 'super_admin') role = 'admin'
     if (!ALLOWED_LICENSES.includes(license as typeof ALLOWED_LICENSES[number])) license = 'power'
 
+    // Garde-fou : refuser l'invitation si un user existe déjà avec cet email.
+    // Évite les doublons auth.users et les conflits de session.
+    const { data: existing } = await admin.from('profiles').select('id, email, organisation_id, deactivated_at, last_seen_at').ilike('email', email).maybeSingle()
+    if (existing) {
+      if (existing.last_seen_at) {
+        return json({ error: `${email} a déjà un compte actif. Utilisez « Renvoyer l'invitation » pour les users en attente.` }, 409)
+      }
+      if (existing.organisation_id && existing.organisation_id !== callerProfile.organisation_id) {
+        return json({ error: `${email} appartient déjà à une autre organisation.` }, 409)
+      }
+      return json({ error: `${email} a déjà une invitation en cours. Utilisez « Renvoyer l'invitation » depuis la page Équipe.` }, 409)
+    }
+
     const metadata = {
       organisation_id: callerProfile.organisation_id,
       role,
