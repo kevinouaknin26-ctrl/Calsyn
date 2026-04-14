@@ -10,6 +10,7 @@ import { supabase } from '@/config/supabase'
 
 interface Props {
   prospectId: string
+  compact?: boolean
 }
 
 interface Social {
@@ -147,7 +148,7 @@ function PlatformIcon({ platform, size = 'sm' }: { platform: string; size?: 'sm'
 
 export { PlatformIcon, detectPlatform }
 
-export default function SocialLinks({ prospectId }: Props) {
+export default function SocialLinks({ prospectId, compact = false }: Props) {
   const queryClient = useQueryClient()
   const [adding, setAdding] = useState(false)
   const [newUrl, setNewUrl] = useState('')
@@ -186,6 +187,21 @@ export default function SocialLinks({ prospectId }: Props) {
     await supabase.from('prospect_socials').delete().eq('id', id)
     await supabase.from('activity_logs').insert({ prospect_id: prospectId, action: 'social_removed', details: `${PLATFORMS[platform]?.label || platform} supprimé` })
     queryClient.invalidateQueries({ queryKey: ['prospect-socials', prospectId] })
+  }
+
+  if (compact) {
+    return (
+      <div className="flex items-center gap-1">
+        {socials?.slice(0, 4).map(s => (
+          <a key={s.id} href={s.url.startsWith('http') ? s.url : `https://${s.url}`} target="_blank" rel="noopener noreferrer"
+            onClick={e => e.stopPropagation()} title={s.url}>
+            <PlatformIcon platform={s.platform} />
+          </a>
+        ))}
+        {(socials?.length || 0) > 4 && <span className="text-[10px] text-gray-400">+{(socials?.length || 0) - 4}</span>}
+        {(!socials || socials.length === 0) && <span className="text-[11px] text-gray-300">—</span>}
+      </div>
+    )
   }
 
   return (

@@ -470,9 +470,11 @@ export default function CRMGlobal() {
     }
 
     if (col.fieldType === 'date' && value && value !== '—') {
-      try {
-        return <span className="text-[12px] text-gray-600">{new Date(value).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: '2-digit' })}</span>
-      } catch { /* fallthrough */ }
+      const d = new Date(value)
+      if (!isNaN(d.getTime())) {
+        return <span className="text-[12px] text-gray-600">{d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: '2-digit' })}</span>
+      }
+      return <span className="text-[12px] text-gray-300">—</span>
     }
 
     return <span className="text-[12px] text-gray-600 truncate block max-w-[160px]">{value}</span>
@@ -659,11 +661,11 @@ export default function CRMGlobal() {
           </div>
         ) : (
           <div className="flex-1 min-h-0 overflow-auto">
-            <table className="min-w-full border-collapse">
+            <table className="border-collapse" style={{ tableLayout: 'fixed', width: '100%' }}>
               <thead className="sticky top-0 z-20">
                 <tr className="border-b border-gray-100 bg-gray-50/95 backdrop-blur-sm">
                   {/* Checkbox */}
-                  <th className="py-2.5 px-3 w-10">
+                  <th className="py-2.5 px-3" style={{ width: 40 }}>
                     <input type="checkbox" checked={selectedIds.size === filtered.length && filtered.length > 0}
                       onChange={selectAll} className="w-3.5 h-3.5 rounded border-gray-300 accent-indigo-600" />
                   </th>
