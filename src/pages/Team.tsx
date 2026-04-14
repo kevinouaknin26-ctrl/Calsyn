@@ -156,6 +156,18 @@ export default function Team() {
       queryClient.invalidateQueries({ queryKey: ['team-members'] })
     }
   }
+  const handleRevokeLink = async (u: Profile) => {
+    if (!confirm(`Révoquer le lien d'invitation de ${u.email} ? Le lien déjà envoyé ne fonctionnera plus. Vous pourrez toujours renvoyer une nouvelle invitation ensuite.`)) return
+    // On expire immédiatement le lien en mettant invite_expires_at dans le passé
+    const { error } = await supabase.from('profiles')
+      .update({ invite_expires_at: new Date(Date.now() - 1000).toISOString() })
+      .eq('id', u.id)
+    if (error) pushFeedback({ type: 'err', msg: error.message })
+    else {
+      pushFeedback({ type: 'ok', msg: `Lien révoqué pour ${u.email}` })
+      queryClient.invalidateQueries({ queryKey: ['team-members'] })
+    }
+  }
   const handleDelete = async (u: Profile) => {
     if (!confirm(`Supprimer définitivement ${u.email} ? Cette action est irréversible.`)) return
     const r = await callTeamAction('delete_user', u.id)
@@ -245,6 +257,7 @@ export default function Team() {
                   meRole={me?.role || 'sdr'}
                   onResend={() => handleResend(m)}
                   onCancelInvite={() => handleCancelInvite(m)}
+                  onRevokeLink={() => handleRevokeLink(m)}
                   onToggleStatus={() => handleToggleStatus(m)}
                   onDelete={() => handleDelete(m)}
                   onPatch={(patch) => updateProfile(m.id, patch)}
@@ -302,7 +315,7 @@ function LicenseCounter({ label, used, max, color }: { label: string; used: numb
   )
 }
 
-function MemberRow({ m, isMe, canManage, twilioNumbers, confirmed, meRole, onResend, onCancelInvite, onToggleStatus, onDelete, onPatch }: {
+function MemberRow({ m, isMe, canManage, twilioNumbers, confirmed, meRole, onResend, onCancelInvite, onRevokeLink, onToggleStatus, onDelete, onPatch }: {
   m: Profile
   isMe: boolean
   canManage: boolean
@@ -311,6 +324,7 @@ function MemberRow({ m, isMe, canManage, twilioNumbers, confirmed, meRole, onRes
   meRole: Role
   onResend: () => void
   onCancelInvite: () => void
+  onRevokeLink: () => void
   onToggleStatus: () => void
   onDelete: () => void
   onPatch: (patch: Partial<Profile>) => Promise<boolean>
@@ -488,6 +502,7 @@ function MemberRow({ m, isMe, canManage, twilioNumbers, confirmed, meRole, onRes
                   {status === 'pending' && (
                     <>
                       <MenuItem onClick={() => { setMenuOpen(false); onResend() }}>Renvoyer l'invitation</MenuItem>
+                      <MenuItem onClick={() => { setMenuOpen(false); onRevokeLink() }}>Révoquer le lien</MenuItem>
                       <MenuItem danger onClick={() => { setMenuOpen(false); onCancelInvite() }}>Annuler l'invitation</MenuItem>
                     </>
                   )}
@@ -677,8 +692,12 @@ function InviteModal({ twilioNumbers, meRole, onClose, onInvited, onError }: {
               <option value={6}>6 heures</option>
               <option value={12}>12 heures</option>
               <option value={24}>24 heures (par défaut)</option>
+              <option value={72}>3 jours</option>
+              <option value={168}>1 semaine</option>
+              <option value={720}>1 mois</option>
+              <option value={0}>Pas de délai (illimité)</option>
             </select>
-            <p className="mt-1 text-[11px] text-gray-400">Au-delà, utilisez « Renvoyer l'invitation » depuis le menu actions.</p>
+            <p className="mt-1 text-[11px] text-gray-400">Le lien du mail est techniquement valide 24h ; au-delà l'utilisateur reçoit un nouveau lien automatiquement tant que le délai ci-dessus n'est pas dépassé.</p>
           </Field>
         </div>
 

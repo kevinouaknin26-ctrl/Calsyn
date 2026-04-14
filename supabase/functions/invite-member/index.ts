@@ -26,9 +26,13 @@ const LICENSE_LABELS: Record<string, string> = {
 }
 
 function formatDuration(hours: number): string {
-  if (hours < 1) return 'moins d’une heure'
+  if (hours <= 0) return 'une durée illimitée'
+  if (hours < 1) return 'moins d\u2019une heure'
   if (hours < 24) return hours === 1 ? '1 heure' : `${hours} heures`
+  if (hours === 24) return '24 heures'
   const days = Math.round(hours / 24)
+  if (days === 7) return '1 semaine'
+  if (days === 30) return '1 mois'
   return days === 1 ? '1 jour' : `${days} jours`
 }
 
@@ -67,11 +71,15 @@ Deno.serve(async (req: Request) => {
     const workEnd = typeof body?.work_hours_end === 'string' ? body.work_hours_end : '18:00'
     const maxCalls = Number.isInteger(body?.max_calls_per_day) ? body.max_calls_per_day : 0
 
-    // Durée d'expiration : 1 à 24h (limite plateforme Supabase), défaut 24h
-    let expiresInHours = Number.isFinite(body?.expires_in_hours) ? Math.round(body.expires_in_hours) : 24
-    if (expiresInHours < 1) expiresInHours = 1
-    if (expiresInHours > 24) expiresInHours = 24
-    const expiresAt = new Date(Date.now() + expiresInHours * 3600_000).toISOString()
+    // Durée d'expiration : 1h / 6h / 12h / 24h / 72h / 168h (7j) / 720h (30j) / 0 (illimité)
+    // Note plateforme : le magic link Supabase natif expire à 24h max. Pour délais > 24h,
+    // notre /accept-invite régénère un nouveau lien à la volée si invite_expires_at encore valide.
+    const requested = Number(body?.expires_in_hours)
+    let expiresInHours = Number.isFinite(requested) ? Math.round(requested) : 24
+    if (expiresInHours < 0) expiresInHours = 0 // -1/autre < 0 → illimité
+    const expiresAt = expiresInHours === 0
+      ? null // illimité
+      : new Date(Date.now() + expiresInHours * 3600_000).toISOString()
 
     if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return json({ error: 'Email invalide' }, 400)
     if (!ALLOWED_ROLES.includes(role as typeof ALLOWED_ROLES[number])) role = 'sdr'
@@ -86,7 +94,7 @@ Deno.serve(async (req: Request) => {
       work_hours_start: workStart,
       work_hours_end: workEnd,
       max_calls_per_day: maxCalls,
-      invite_expires_at: expiresAt,
+      invite_expires_at: expiresAt ?? '',
       invited_by: user.id,
     }
 
@@ -106,6 +114,7 @@ Deno.serve(async (req: Request) => {
       const actionUrl = linkData.properties?.action_link || `${APP_URL}/login`
 
       const inviterName = callerProfile.full_name || callerProfile.email.split('@')[0]
+      const logoUrl = `${SUPABASE_URL}/functions/v1/logo`
       const { subject, html, text } = renderInviteEmail({
         email,
         inviterName,
@@ -118,6 +127,7 @@ Deno.serve(async (req: Request) => {
         actionUrl,
         phonesCount: phones.length,
         durationLabel,
+        logoUrl,
       })
 
       const resendRes = await fetch('https://api.resend.com/emails', {
