@@ -37,6 +37,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     if (!p) { setLoading(false); return }
     setProfile(p as Profile)
+    // Met à jour last_seen_at (fire-and-forget, utile pour la page Équipe)
+    supabase.rpc('touch_last_seen').then(() => {})
 
     if (p.organisation_id) {
       const { data: org } = await supabase
