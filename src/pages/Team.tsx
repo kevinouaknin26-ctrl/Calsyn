@@ -248,21 +248,30 @@ export default function Team() {
               </tr>
             </thead>
             <tbody>
-              {filteredMembers.map(m => (
-                <MemberRow key={m.id} m={m}
-                  isMe={m.id === me?.id}
-                  canManage={canManage(m)}
-                  twilioNumbers={twilioNumbers || []}
-                  confirmed={authStatuses?.[m.id] ?? true}
-                  meRole={me?.role || 'sdr'}
-                  onResend={() => handleResend(m)}
-                  onCancelInvite={() => handleCancelInvite(m)}
-                  onRevokeLink={() => handleRevokeLink(m)}
-                  onToggleStatus={() => handleToggleStatus(m)}
-                  onDelete={() => handleDelete(m)}
-                  onPatch={(patch) => updateProfile(m.id, patch)}
-                />
-              ))}
+              {filteredMembers.map(m => {
+                // Numéros pris par les AUTRES users de l'org → exclus du dropdown "+ Numéro" de ce user
+                const phonesUsedByOthers = new Set(
+                  (members || [])
+                    .filter(other => other.id !== m.id)
+                    .flatMap(other => other.assigned_phones || [])
+                )
+                return (
+                  <MemberRow key={m.id} m={m}
+                    isMe={m.id === me?.id}
+                    canManage={canManage(m)}
+                    twilioNumbers={twilioNumbers || []}
+                    phonesUsedByOthers={phonesUsedByOthers}
+                    confirmed={authStatuses?.[m.id] ?? true}
+                    meRole={me?.role || 'sdr'}
+                    onResend={() => handleResend(m)}
+                    onCancelInvite={() => handleCancelInvite(m)}
+                    onRevokeLink={() => handleRevokeLink(m)}
+                    onToggleStatus={() => handleToggleStatus(m)}
+                    onDelete={() => handleDelete(m)}
+                    onPatch={(patch) => updateProfile(m.id, patch)}
+                  />
+                )
+              })}
             </tbody>
           </table>
         </div>
@@ -275,6 +284,7 @@ export default function Team() {
       {showInvite && (
         <InviteModal
           twilioNumbers={twilioNumbers || []}
+          phonesUsedByOthers={new Set((members || []).flatMap(m => m.assigned_phones || []))}
           meRole={me?.role || 'sdr'}
           onClose={() => setShowInvite(false)}
           onInvited={(email, role) => {
@@ -315,11 +325,12 @@ function LicenseCounter({ label, used, max, color }: { label: string; used: numb
   )
 }
 
-function MemberRow({ m, isMe, canManage, twilioNumbers, confirmed, meRole, onResend, onCancelInvite, onRevokeLink, onToggleStatus, onDelete, onPatch }: {
+function MemberRow({ m, isMe, canManage, twilioNumbers, phonesUsedByOthers, confirmed, meRole, onResend, onCancelInvite, onRevokeLink, onToggleStatus, onDelete, onPatch }: {
   m: Profile
   isMe: boolean
   canManage: boolean
   twilioNumbers: TwilioNumber[]
+  phonesUsedByOthers: Set<string>
   confirmed: boolean
   meRole: Role
   onResend: () => void
@@ -334,7 +345,11 @@ function MemberRow({ m, isMe, canManage, twilioNumbers, confirmed, meRole, onRes
 
   const status: 'active' | 'pending' | 'suspended' = m.deactivated_at ? 'suspended' : (confirmed ? 'active' : 'pending')
 
-  const availablePhones = twilioNumbers.filter(tn => !(m.assigned_phones || []).includes(tn.phone))
+  // Exclut les numéros déjà sur CE user + ceux pris par d'autres users de l'org
+  const availablePhones = twilioNumbers.filter(tn =>
+    !(m.assigned_phones || []).includes(tn.phone) &&
+    !phonesUsedByOthers.has(tn.phone)
+  )
 
   const handleAssignPhone = async (phone: string) => {
     const newPhones = [...(m.assigned_phones || []), phone]
@@ -568,8 +583,9 @@ function formatRelativeTime(iso: string): string {
 }
 
 // ── InviteModal ──
-function InviteModal({ twilioNumbers, meRole, onClose, onInvited, onError }: {
+function InviteModal({ twilioNumbers, phonesUsedByOthers, meRole, onClose, onInvited, onError }: {
   twilioNumbers: TwilioNumber[]
+  phonesUsedByOthers: Set<string>
   meRole: Role
   onClose: () => void
   onInvited: (email: string, role: Role) => void
@@ -655,19 +671,28 @@ function InviteModal({ twilioNumbers, meRole, onClose, onInvited, onError }: {
             {twilioNumbers.length === 0 ? (
               <p className="text-[12px] text-gray-400">Aucun numéro Twilio dispo. Ajoute d'abord des numéros dans Paramètres.</p>
             ) : (
-              <div className="flex items-center gap-1 flex-wrap">
-                {twilioNumbers.map(tn => {
-                  const selected = phones.includes(tn.phone)
-                  return (
-                    <button key={tn.sid} type="button" onClick={() => togglePhone(tn.phone)}
-                      className={`px-2 py-1 rounded-full text-[11px] font-medium border transition-colors ${
-                        selected ? 'bg-indigo-50 text-indigo-700 border-indigo-300' : 'bg-gray-50 text-gray-500 border-gray-200 hover:border-indigo-200'
-                      }`}>
-                      {tn.phone}
-                    </button>
-                  )
-                })}
-              </div>
+              <>
+                <div className="flex items-center gap-1 flex-wrap">
+                  {twilioNumbers.map(tn => {
+                    const selected = phones.includes(tn.phone)
+                    const takenByOther = phonesUsedByOthers.has(tn.phone)
+                    return (
+                      <button key={tn.sid} type="button"
+                        onClick={() => { if (!takenByOther) togglePhone(tn.phone) }}
+                        disabled={takenByOther}
+                        title={takenByOther ? 'Déjà attribué à un autre membre' : ''}
+                        className={`px-2 py-1 rounded-full text-[11px] font-medium border transition-colors ${
+                          takenByOther ? 'bg-gray-100 text-gray-300 border-gray-200 line-through cursor-not-allowed' :
+                          selected ? 'bg-indigo-50 text-indigo-700 border-indigo-300' :
+                          'bg-gray-50 text-gray-500 border-gray-200 hover:border-indigo-200'
+                        }`}>
+                        {tn.phone}
+                      </button>
+                    )
+                  })}
+                </div>
+                <p className="mt-1 text-[11px] text-gray-400">1 numéro = 1 personne. Les numéros barrés sont déjà attribués.</p>
+              </>
             )}
           </Field>
 
