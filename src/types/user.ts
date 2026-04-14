@@ -1,4 +1,31 @@
 export type Role = 'super_admin' | 'admin' | 'manager' | 'sdr'
+export type CallLicense = 'parallel' | 'power' | 'none'
+
+export const ROLE_LABELS: Record<Role, string> = {
+  super_admin: 'Super Admin',
+  admin: 'Admin',
+  manager: 'Manager',
+  sdr: 'SDR',
+}
+
+export const ROLE_COLORS: Record<Role, string> = {
+  super_admin: '#ef4444',
+  admin: '#0ea5e9',
+  manager: '#8b5cf6',
+  sdr: '#059669',
+}
+
+export const LICENSE_LABELS: Record<CallLicense, string> = {
+  parallel: 'Parallel dialer',
+  power: 'Power dialer',
+  none: 'Aucune',
+}
+
+export const LICENSE_COLORS: Record<CallLicense, string> = {
+  parallel: '#8b5cf6',
+  power: '#0ea5e9',
+  none: '#9ca3af',
+}
 
 export interface Organisation {
   id: string
@@ -12,6 +39,8 @@ export interface Organisation {
   credit_balance: number
   credit_reserved: number
   recording_compliance: boolean
+  max_parallel_seats: number
+  max_power_seats: number
 }
 
 export interface Profile {
@@ -21,5 +50,26 @@ export interface Profile {
   full_name: string | null
   role: Role
   is_active: boolean
+  /** Deprecated — use assigned_phones[]. Kept for backward-compat reads. */
   assigned_phone: string | null
+  /** Pool de numéros Twilio attribués à ce user (rotation anti-spam intra-user). */
+  assigned_phones: string[]
+  /** Mode dialer autorisé : un seul à la fois par user. */
+  call_license: CallLicense
+  /** Soft delete / suspend. null = actif. */
+  deactivated_at: string | null
+  /** HH:MM:SS format Postgres time. */
+  work_hours_start: string
+  work_hours_end: string
+  /** 0 = illimité. */
+  max_calls_per_day: number
+  last_seen_at: string | null
+  created_at: string
+}
+
+/** Statut dérivé pour l'UI. */
+export function getUserStatus(p: Profile, authEmailConfirmed: boolean | null): 'active' | 'pending' | 'suspended' {
+  if (p.deactivated_at) return 'suspended'
+  if (authEmailConfirmed === false) return 'pending'
+  return 'active'
 }

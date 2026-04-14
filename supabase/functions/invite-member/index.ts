@@ -12,6 +12,7 @@ const CORS = {
 }
 
 const ALLOWED_ROLES = ['admin', 'manager', 'sdr'] as const
+const ALLOWED_LICENSES = ['parallel', 'power', 'none'] as const
 
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS })
@@ -38,25 +39,33 @@ Deno.serve(async (req: Request) => {
 
     const body = await req.json().catch(() => null)
     const email = String(body?.email || '').trim().toLowerCase()
-    const requestedRole = String(body?.role || 'sdr').trim()
+    let role = String(body?.role || 'sdr').trim()
+    let license = String(body?.call_license || 'power').trim()
+    const phones = Array.isArray(body?.assigned_phones) ? body.assigned_phones.filter((p: unknown) => typeof p === 'string' && p) : []
+    const workStart = typeof body?.work_hours_start === 'string' ? body.work_hours_start : '09:00'
+    const workEnd = typeof body?.work_hours_end === 'string' ? body.work_hours_end : '18:00'
+    const maxCalls = Number.isInteger(body?.max_calls_per_day) ? body.max_calls_per_day : 0
 
-    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      return json({ error: 'Email invalide' }, 400)
-    }
-    let role = requestedRole
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return json({ error: 'Email invalide' }, 400)
     if (!ALLOWED_ROLES.includes(role as typeof ALLOWED_ROLES[number])) role = 'sdr'
-    if (requestedRole === 'super_admin' && callerProfile.role !== 'super_admin') role = 'admin'
+    if (body?.role === 'super_admin' && callerProfile.role !== 'super_admin') role = 'admin'
+    if (!ALLOWED_LICENSES.includes(license as typeof ALLOWED_LICENSES[number])) license = 'power'
 
     const { data, error } = await admin.auth.admin.inviteUserByEmail(email, {
       data: {
         organisation_id: callerProfile.organisation_id,
         role,
+        call_license: license,
+        assigned_phones: phones,
+        work_hours_start: workStart,
+        work_hours_end: workEnd,
+        max_calls_per_day: maxCalls,
         invited_by: user.id,
       },
       redirectTo: `${Deno.env.get('APP_URL') || 'http://localhost:5173'}/login`,
     })
     if (error) return json({ error: error.message }, 400)
-    return json({ ok: true, userId: data.user?.id, email, role })
+    return json({ ok: true, userId: data.user?.id, email, role, call_license: license })
   } catch (e) {
     return json({ error: (e as Error).message }, 500)
   }

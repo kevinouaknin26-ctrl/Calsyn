@@ -250,6 +250,7 @@ function useCallSetting<T>(key: string, defaultValue: T): [T, (v: T) => void] {
 interface CallSettingsProps {
   open: boolean; onToggle: () => void
   parallel: number; setParallel: (v: number) => void
+  callLicense: 'parallel' | 'power' | 'none'
   autoRotate: boolean; setAutoRotate: (v: boolean) => void
   voicemail: boolean; setVoicemail: (v: boolean) => void
   completeTask: boolean; setCompleteTask: (v: boolean) => void
@@ -259,7 +260,7 @@ interface CallSettingsProps {
   selectedFromNumber: string; setSelectedFromNumber: (v: string) => void
 }
 
-function CallSettingsDropdown({ open, onToggle, parallel, setParallel, autoRotate, setAutoRotate, voicemail, setVoicemail, completeTask, setCompleteTask, maxAttempts, setMaxAttempts, attemptPeriod, setAttemptPeriod, phoneField, setPhoneField, selectedFromNumber, setSelectedFromNumber }: CallSettingsProps) {
+function CallSettingsDropdown({ open, onToggle, parallel, setParallel, callLicense, autoRotate, setAutoRotate, voicemail, setVoicemail, completeTask, setCompleteTask, maxAttempts, setMaxAttempts, attemptPeriod, setAttemptPeriod, phoneField, setPhoneField, selectedFromNumber, setSelectedFromNumber }: CallSettingsProps) {
   // From phone numbers (multi-numéros avec compteur)
   const [fromNumbers] = useState([
     { number: '+33 1 59 58 01 89', calls: 0 },
@@ -356,18 +357,30 @@ function CallSettingsDropdown({ open, onToggle, parallel, setParallel, autoRotat
 
           <div className="h-px bg-gray-100" />
 
-          {/* Parallel calls (Minari exact — sélecteur avec checkmark) */}
+          {/* Parallel calls — verrouillé à 1 si licence ≠ parallel */}
           <div className="flex items-center justify-between">
-            <span className="text-[13px] text-gray-700">Appels parallèles</span>
+            <div className="flex flex-col">
+              <span className="text-[13px] text-gray-700">Appels parallèles</span>
+              {callLicense !== 'parallel' && (
+                <span className="text-[10px] text-gray-400 mt-0.5">
+                  {callLicense === 'none' ? 'Aucune licence d’appel' : 'Mode Power Dialer — 1 appel à la fois'}
+                </span>
+              )}
+            </div>
             <div className="flex items-center border border-gray-200 rounded-md overflow-hidden">
-              {[1, 2, 3, 4, 5].map(n => (
-                <button key={n} onClick={() => setParallel(n)}
-                  className={`w-7 h-6 text-[11px] font-medium border-r border-gray-200 last:border-r-0 flex items-center justify-center ${
-                    parallel === n ? 'bg-indigo-50 text-indigo-700 font-semibold' : 'text-gray-500 hover:bg-gray-50'
-                  }`}>
-                  {n}{parallel === n ? ' ✓' : ''}
-                </button>
-              ))}
+              {[1, 2, 3, 4, 5].map(n => {
+                const disabled = callLicense !== 'parallel' && n > 1
+                return (
+                  <button key={n} onClick={() => { if (!disabled) setParallel(n) }}
+                    disabled={disabled}
+                    title={disabled ? 'Nécessite la licence Parallel dialer' : ''}
+                    className={`w-7 h-6 text-[11px] font-medium border-r border-gray-200 last:border-r-0 flex items-center justify-center ${
+                      parallel === n ? 'bg-indigo-50 text-indigo-700 font-semibold' : disabled ? 'text-gray-300 cursor-not-allowed bg-gray-50' : 'text-gray-500 hover:bg-gray-50'
+                    }`}>
+                    {n}{parallel === n ? ' ✓' : ''}
+                  </button>
+                )
+              })}
             </div>
           </div>
 
@@ -866,8 +879,9 @@ const ProspectRow = memo(function ProspectRow({ prospect, isActive, liveStatus, 
 
 // ── Page ────────────────────────────────────────────────────────────
 export default function Dialer() {
-  const { isAdmin, isManager, organisation } = useAuth()
+  const { isAdmin, isManager, organisation, profile } = useAuth()
   const perms = usePermissions()
+  const callLicense: 'parallel' | 'power' | 'none' = (profile?.call_license as 'parallel' | 'power' | 'none') || 'power'
   const cm = useCallMachine()
   const { data: lists } = useProspectLists()
 
@@ -882,8 +896,10 @@ export default function Dialer() {
     qc.invalidateQueries({ queryKey: ['organisation'] })
   }, [org?.id, qc])
 
-  const parallel = org?.parallel_calls || 1
-  const setParallel = (v: number) => updateOrg({ parallel_calls: v })
+  // Parallel dialer = licence obligatoire. Si power ou none → forcé à 1 (isolation stricte).
+  const rawParallel = org?.parallel_calls || 1
+  const parallel = callLicense === 'parallel' ? rawParallel : 1
+  const setParallel = (v: number) => { if (callLicense === 'parallel') updateOrg({ parallel_calls: v }) }
   const autoRotate = org?.auto_rotate_numbers ?? true
   const setAutoRotate = (v: boolean) => updateOrg({ auto_rotate_numbers: v })
   const voicemail = org?.voicemail_drop ?? false
@@ -1420,7 +1436,8 @@ export default function Dialer() {
                 setTimeout(() => { startingRef.current = false }, 1000)
               }
             }}
-              disabled={!cm.providerReady || !(cm.isIdle || cm.isDisconnected)}
+              disabled={!cm.providerReady || !(cm.isIdle || cm.isDisconnected) || callLicense === 'none'}
+              title={callLicense === 'none' ? 'Aucune licence d’appel — contactez votre admin' : ''}
               className="px-4 py-2 rounded-full text-[13px] font-semibold bg-violet-500 text-white hover:bg-violet-600 disabled:opacity-40 transition-colors flex items-center gap-1.5">
               <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" /></svg>
               {cm.providerReady ? (dialSession.isActive ? `Reprendre (${dialSession.currentIndex + 1}/${dialSession.totalProspects})` : 'Démarrer les appels') : 'Connexion...'}
@@ -1568,6 +1585,7 @@ export default function Dialer() {
           {/* Call settings dropdown (Minari exact position) */}
           <CallSettingsDropdown open={showCallSettings} onToggle={() => setShowCallSettings(!showCallSettings)}
             parallel={parallel} setParallel={setParallel}
+            callLicense={callLicense}
             autoRotate={autoRotate} setAutoRotate={setAutoRotate}
             voicemail={voicemail} setVoicemail={setVoicemail}
             completeTask={completeTask} setCompleteTask={setCompleteTask}
