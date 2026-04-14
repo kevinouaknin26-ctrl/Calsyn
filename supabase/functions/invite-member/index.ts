@@ -57,12 +57,20 @@ Deno.serve(async (req: Request) => {
     if (!['super_admin', 'admin', 'manager'].includes(callerProfile.role)) {
       return json({ error: 'Seuls les admins peuvent inviter' }, 403)
     }
-    if (!callerProfile.organisation_id) return json({ error: "Pas d'organisation" }, 400)
 
-    const { data: org } = await admin.from('organisations').select('name').eq('id', callerProfile.organisation_id).single()
+    // Super Admin peut invite DANS une org cible (target_organisation_id).
+    // Admin/Manager invite forcément dans leur propre org.
+    const rawBody = await req.json().catch(() => null)
+    const targetOrgId = callerProfile.role === 'super_admin' && typeof rawBody?.target_organisation_id === 'string'
+      ? rawBody.target_organisation_id
+      : callerProfile.organisation_id
+    if (!targetOrgId) return json({ error: "Pas d'organisation cible — le Super Admin doit préciser target_organisation_id" }, 400)
+
+    const { data: org } = await admin.from('organisations').select('name').eq('id', targetOrgId).single()
+    if (!org) return json({ error: 'Organisation cible introuvable' }, 404)
     const organisationName = org?.name || 'Callio'
 
-    const body = await req.json().catch(() => null)
+    const body = rawBody
     const email = String(body?.email || '').trim().toLowerCase()
     let role = String(body?.role || 'sdr').trim()
     let license = String(body?.call_license || 'power').trim()
@@ -93,14 +101,14 @@ Deno.serve(async (req: Request) => {
       if (existing.last_seen_at) {
         return json({ error: `${email} a déjà un compte actif. Utilisez « Renvoyer l'invitation » pour les users en attente.` }, 409)
       }
-      if (existing.organisation_id && existing.organisation_id !== callerProfile.organisation_id) {
+      if (existing.organisation_id && existing.organisation_id !== targetOrgId) {
         return json({ error: `${email} appartient déjà à une autre organisation.` }, 409)
       }
       return json({ error: `${email} a déjà une invitation en cours. Utilisez « Renvoyer l'invitation » depuis la page Équipe.` }, 409)
     }
 
     const metadata = {
-      organisation_id: callerProfile.organisation_id,
+      organisation_id: targetOrgId,
       role,
       call_license: license,
       assigned_phones: phones,
