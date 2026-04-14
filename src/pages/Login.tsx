@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react'
+import { useState, useEffect, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '@/config/supabase'
 
@@ -8,6 +8,19 @@ export default function Login() {
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const navigate = useNavigate()
+
+  // Si user arrive ici via magic link invite (anciens liens pointaient vers /login),
+  // ou s'il est déjà connecté mais n'a jamais complété son onboarding → redirect /accept-invite
+  useEffect(() => {
+    (async () => {
+      await new Promise(r => setTimeout(r, 300))
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session?.user) return
+      const { data: p } = await supabase.from('profiles').select('last_seen_at').eq('id', session.user.id).single()
+      if (!p?.last_seen_at) navigate('/accept-invite')
+      else navigate('/app/dialer')
+    })()
+  }, [navigate])
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()

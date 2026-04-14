@@ -25,6 +25,13 @@ const LICENSE_LABELS: Record<string, string> = {
   parallel: 'Parallel dialer', power: 'Power dialer', none: 'Aucune',
 }
 
+function formatDuration(hours: number): string {
+  if (hours < 1) return 'moins d’une heure'
+  if (hours < 24) return hours === 1 ? '1 heure' : `${hours} heures`
+  const days = Math.round(hours / 24)
+  return days === 1 ? '1 jour' : `${days} jours`
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS })
   if (req.method !== 'POST') return new Response('Method not allowed', { status: 405, headers: CORS })
@@ -60,6 +67,12 @@ Deno.serve(async (req: Request) => {
     const workEnd = typeof body?.work_hours_end === 'string' ? body.work_hours_end : '18:00'
     const maxCalls = Number.isInteger(body?.max_calls_per_day) ? body.max_calls_per_day : 0
 
+    // Durée d'expiration : 1 à 24h (limite plateforme Supabase), défaut 24h
+    let expiresInHours = Number.isFinite(body?.expires_in_hours) ? Math.round(body.expires_in_hours) : 24
+    if (expiresInHours < 1) expiresInHours = 1
+    if (expiresInHours > 24) expiresInHours = 24
+    const expiresAt = new Date(Date.now() + expiresInHours * 3600_000).toISOString()
+
     if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return json({ error: 'Email invalide' }, 400)
     if (!ALLOWED_ROLES.includes(role as typeof ALLOWED_ROLES[number])) role = 'sdr'
     if (body?.role === 'super_admin' && callerProfile.role !== 'super_admin') role = 'admin'
@@ -73,8 +86,11 @@ Deno.serve(async (req: Request) => {
       work_hours_start: workStart,
       work_hours_end: workEnd,
       max_calls_per_day: maxCalls,
+      invite_expires_at: expiresAt,
       invited_by: user.id,
     }
+
+    const durationLabel = formatDuration(expiresInHours)
 
     // ── Pattern Resend (prioritaire si clé disponible) ──
     if (RESEND_API_KEY) {
@@ -83,7 +99,7 @@ Deno.serve(async (req: Request) => {
         email,
         options: {
           data: metadata,
-          redirectTo: `${APP_URL}/login`,
+          redirectTo: `${APP_URL}/accept-invite`,
         },
       })
       if (linkErr) return json({ error: linkErr.message }, 400)
@@ -101,6 +117,7 @@ Deno.serve(async (req: Request) => {
         maxCallsPerDay: maxCalls,
         actionUrl,
         phonesCount: phones.length,
+        durationLabel,
       })
 
       const resendRes = await fetch('https://api.resend.com/emails', {
@@ -124,16 +141,16 @@ Deno.serve(async (req: Request) => {
         return json({ error: `Envoi email échoué : ${errText}` }, 502)
       }
 
-      return json({ ok: true, userId: linkData.user?.id, email, role, call_license: license, provider: 'resend' })
+      return json({ ok: true, userId: linkData.user?.id, email, role, call_license: license, invite_expires_at: expiresAt, provider: 'resend' })
     }
 
     // ── Fallback : Supabase natif (template Dashboard) ──
     const { data, error } = await admin.auth.admin.inviteUserByEmail(email, {
       data: metadata,
-      redirectTo: `${APP_URL}/login`,
+      redirectTo: `${APP_URL}/accept-invite`,
     })
     if (error) return json({ error: error.message }, 400)
-    return json({ ok: true, userId: data.user?.id, email, role, call_license: license, provider: 'supabase' })
+    return json({ ok: true, userId: data.user?.id, email, role, call_license: license, invite_expires_at: expiresAt, provider: 'supabase' })
   } catch (e) {
     return json({ error: (e as Error).message }, 500)
   }

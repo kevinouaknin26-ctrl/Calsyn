@@ -15,6 +15,7 @@ export interface InviteEmailParams {
   maxCallsPerDay: number
   actionUrl: string
   phonesCount: number
+  durationLabel: string
 }
 
 export function renderInviteEmail(p: InviteEmailParams): { subject: string; html: string; text: string } {
@@ -127,7 +128,7 @@ export function renderInviteEmail(p: InviteEmailParams): { subject: string; html
           <tr>
             <td style="padding:32px 40px 0 40px;">
               <p style="margin:0;font-size:12px;line-height:1.6;color:#94a3b8;border-top:1px solid #e2e8f0;padding-top:20px;">
-                Ce lien est valide pendant 24 heures. Si vous n'avez pas été prévenu de cette invitation, vous pouvez ignorer cet email en toute sécurité.
+                Ce lien est valide pendant ${escapeHtml(p.durationLabel)}. Si vous n'avez pas été prévenu de cette invitation, vous pouvez ignorer cet email en toute sécurité.
               </p>
             </td>
           </tr>
@@ -160,7 +161,7 @@ Votre accès :
 Accepter l'invitation :
 ${p.actionUrl}
 
-Ce lien est valide pendant 24 heures.
+Ce lien est valide pendant ${p.durationLabel}.
 
 —
 Callio · Le dialer intelligent pour les équipes commerciales`

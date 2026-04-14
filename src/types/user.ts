@@ -64,6 +64,8 @@ export interface Profile {
   /** 0 = illimité. */
   max_calls_per_day: number
   last_seen_at: string | null
+  /** Expiration du lien d'invitation (null = lien consommé ou jamais envoyé). */
+  invite_expires_at: string | null
   created_at: string
 }
 

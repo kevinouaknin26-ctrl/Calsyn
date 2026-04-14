@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { AuthProvider, useAuth } from '@/hooks/useAuth'
 import Layout from '@/components/layout/Layout'
 import Login from '@/pages/Login'
+import AcceptInvite from '@/pages/AcceptInvite'
 import Dialer from '@/pages/Dialer'
 import History from '@/pages/History'
 import CRMGlobal from '@/pages/CRMGlobal'
@@ -34,6 +35,7 @@ function AppRoutes() {
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
+      <Route path="/accept-invite" element={<AcceptInvite />} />
       <Route path="/app/dialer" element={<Protected><Layout><Dialer /></Layout></Protected>} />
       <Route path="/app/contacts" element={<Protected><Layout><CRMGlobal /></Layout></Protected>} />
       <Route path="/app/history" element={<Protected><Layout><History /></Layout></Protected>} />

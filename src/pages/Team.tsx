@@ -38,7 +38,7 @@ export default function Team() {
     queryFn: async () => {
       if (!organisation?.id) return []
       const { data, error } = await supabase.from('profiles')
-        .select('id, email, full_name, role, is_active, assigned_phone, assigned_phones, call_license, deactivated_at, work_hours_start, work_hours_end, max_calls_per_day, last_seen_at, created_at, organisation_id')
+        .select('id, email, full_name, role, is_active, assigned_phone, assigned_phones, call_license, deactivated_at, work_hours_start, work_hours_end, max_calls_per_day, last_seen_at, invite_expires_at, created_at, organisation_id')
         .eq('organisation_id', organisation.id).order('created_at', { ascending: true })
       if (error) throw error
       return data as unknown as Profile[]
@@ -462,11 +462,15 @@ function MemberRow({ m, isMe, canManage, twilioNumbers, confirmed, meRole, onRes
         )}
       </td>
 
-      {/* Dernière activité */}
+      {/* Dernière activité OU expiration invitation */}
       <td className="px-3 py-3">
-        <span className="text-[11px] text-gray-400">
-          {m.last_seen_at ? formatRelativeTime(m.last_seen_at) : 'Jamais'}
-        </span>
+        {status === 'pending' && m.invite_expires_at ? (
+          <InviteExpiryBadge iso={m.invite_expires_at} />
+        ) : (
+          <span className="text-[11px] text-gray-400">
+            {m.last_seen_at ? formatRelativeTime(m.last_seen_at) : 'Jamais'}
+          </span>
+        )}
       </td>
 
       {/* Menu actions */}
@@ -525,6 +529,18 @@ function StatusBadge({ status }: { status: 'active' | 'pending' | 'suspended' })
   )
 }
 
+function InviteExpiryBadge({ iso }: { iso: string }) {
+  const msLeft = new Date(iso).getTime() - Date.now()
+  const expired = msLeft <= 0
+  if (expired) {
+    return <span className="inline-flex items-center gap-1 text-[11px] text-red-600 font-medium" title="Lien expiré — cliquer sur Renvoyer l'invitation"><span className="w-1.5 h-1.5 rounded-full bg-red-500" />Lien expiré</span>
+  }
+  const hours = Math.floor(msLeft / 3600_000)
+  const mins = Math.floor((msLeft % 3600_000) / 60_000)
+  const label = hours >= 1 ? `Expire dans ${hours}h${mins > 0 ? `${String(mins).padStart(2, '0')}` : ''}` : `Expire dans ${mins} min`
+  return <span className="inline-flex items-center gap-1 text-[11px] text-amber-600 font-medium"><span className="w-1.5 h-1.5 rounded-full bg-amber-500" />{label}</span>
+}
+
 function formatRelativeTime(iso: string): string {
   const diff = Date.now() - new Date(iso).getTime()
   const sec = Math.floor(diff / 1000)
@@ -550,6 +566,7 @@ function InviteModal({ twilioNumbers, meRole, onClose, onInvited, onError }: {
   const [workStart, setWorkStart] = useState('09:00')
   const [workEnd, setWorkEnd] = useState('18:00')
   const [maxCalls, setMaxCalls] = useState(0)
+  const [expiresInHours, setExpiresInHours] = useState(24)
   const [inviting, setInviting] = useState(false)
 
   const togglePhone = (p: string) => setPhones(prev => prev.includes(p) ? prev.filter(x => x !== p) : [...prev, p])
@@ -571,6 +588,7 @@ function InviteModal({ twilioNumbers, meRole, onClose, onInvited, onError }: {
           work_hours_start: workStart,
           work_hours_end: workEnd,
           max_calls_per_day: maxCalls,
+          expires_in_hours: expiresInHours,
         }),
       })
       const body = await res.json().catch(() => null)
@@ -651,6 +669,17 @@ function InviteModal({ twilioNumbers, meRole, onClose, onInvited, onError }: {
                 className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm" />
             </Field>
           </div>
+
+          <Field label="Validité du lien d'invitation">
+            <select value={expiresInHours} onChange={e => setExpiresInHours(parseInt(e.target.value))}
+              className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm">
+              <option value={1}>1 heure (urgence)</option>
+              <option value={6}>6 heures</option>
+              <option value={12}>12 heures</option>
+              <option value={24}>24 heures (par défaut)</option>
+            </select>
+            <p className="mt-1 text-[11px] text-gray-400">Au-delà, utilisez « Renvoyer l'invitation » depuis le menu actions.</p>
+          </Field>
         </div>
 
         <div className="flex items-center justify-end gap-2 mt-6">
