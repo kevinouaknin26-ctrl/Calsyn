@@ -2,6 +2,7 @@
  * Sidebar — Copie Minari exact avec sous-navigation Settings.
  */
 
+import { useState } from 'react'
 import { NavLink, useNavigate, useLocation } from 'react-router-dom'
 import { supabase } from '@/config/supabase'
 import { useAuth } from '@/hooks/useAuth'
