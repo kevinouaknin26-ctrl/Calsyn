@@ -74,7 +74,8 @@ export function useDeleteCrmStatus() {
 
   return useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from('crm_statuses').delete().eq('id', id).eq('is_system', false)
+      // Soft-delete (archive) : trigger DB refuse hard DELETE
+      const { error } = await supabase.from('crm_statuses').update({ deleted_at: new Date().toISOString() }).eq('id', id).eq('is_system', false)
       if (error) throw error
     },
     onSuccess: () => {

@@ -184,8 +184,9 @@ export default function SocialLinks({ prospectId, compact = false }: Props) {
   }
 
   async function deleteSocial(id: string, platform: string) {
-    await supabase.from('prospect_socials').delete().eq('id', id)
-    await supabase.from('activity_logs').insert({ prospect_id: prospectId, action: 'social_removed', details: `${PLATFORMS[platform]?.label || platform} supprimé` })
+    // Soft-delete (archive) : le trigger DB refuse les hard DELETE
+    await supabase.from('prospect_socials').update({ deleted_at: new Date().toISOString() }).eq('id', id)
+    await supabase.from('activity_logs').insert({ prospect_id: prospectId, action: 'social_removed', details: `${PLATFORMS[platform]?.label || platform} archivé` })
     queryClient.invalidateQueries({ queryKey: ['prospect-socials', prospectId] })
   }
 

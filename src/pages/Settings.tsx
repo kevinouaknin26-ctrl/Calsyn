@@ -521,7 +521,9 @@ function ContactFields({ orgId }: { orgId: string }) {
   }
 
   const handleDelete = async (id: string) => {
-    await supabase.from('prospect_fields').delete().eq('id', id)
+    // Soft-delete (archive) : trigger DB refuse hard DELETE. Les field_values existants
+    // restent en base mais ne sont plus lus (filtre deleted_at IS NULL côté front).
+    await supabase.from('prospect_fields').update({ deleted_at: new Date().toISOString() }).eq('id', id)
     queryClient.invalidateQueries({ queryKey: ['prospect-fields-settings'] })
     queryClient.invalidateQueries({ queryKey: ['prospect-fields'] })
   }

@@ -455,10 +455,10 @@ export default function CRMGlobal() {
     if (!perms.canDeleteContacts) return
     const ids = Array.from(selectedIds)
     if (ids.length === 0) return
-    const msg = `Supprimer définitivement ${ids.length} contact${ids.length > 1 ? 's' : ''} ? Cette action est irréversible.`
+    const msg = `Archiver ${ids.length} contact${ids.length > 1 ? 's' : ''} ? Les données restent récupérables.`
     if (!confirm(msg)) return
-    const { error } = await supabase.from('prospects').delete().in('id', ids)
-    if (error) { alert(`Erreur suppression : ${error.message}`); return }
+    const { error } = await supabase.rpc('archive_prospects', { p_ids: ids })
+    if (error) { alert(`Erreur archivage : ${error.message}`); return }
     queryClient.invalidateQueries({ queryKey: ['all-prospects'] })
     setSelectedIds(new Set())
   }

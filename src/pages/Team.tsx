@@ -176,7 +176,7 @@ export default function Team() {
     }
   }
   const handleDelete = async (u: Profile) => {
-    if (!confirm(`Supprimer définitivement ${u.email} ? Cette action est irréversible.`)) return
+    if (!confirm(`Archiver ${u.email} ? L'accès est révoqué, les données sont conservées (récupérables par un admin).`)) return
     const r = await callTeamAction('delete_user', u.id)
     if (r.error) pushFeedback({ type: 'err', msg: r.error })
     else {
@@ -534,7 +534,7 @@ function MemberRow({ m, isMe, canManage, twilioNumbers, phonesUsedByOthers, conf
                       {m.deactivated_at ? 'Réactiver' : 'Suspendre'}
                     </MenuItem>
                   )}
-                  <MenuItem danger onClick={() => { setMenuOpen(false); onDelete() }}>Supprimer définitivement</MenuItem>
+                  <MenuItem danger onClick={() => { setMenuOpen(false); onDelete() }}>Archiver</MenuItem>
                 </div>
               </>
             )}

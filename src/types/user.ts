@@ -41,6 +41,19 @@ export interface Organisation {
   recording_compliance: boolean
   max_parallel_seats: number
   max_power_seats: number
+  // Paramètres dialer avancés (colonnes existantes en DB)
+  dialer_mode?: 'parallel' | 'power' | null
+  ai_coaching_enabled?: boolean
+  ai_custom_prompt?: string | null
+  conversation_threshold?: number
+  max_call_attempts?: number | string | null
+  attempt_period?: string | null
+  parallel_calls?: number
+  auto_rotate_numbers?: boolean
+  voicemail_drop?: boolean
+  callback_mode?: string | null
+  callback_redirect_number?: string | null
+  deleted_at?: string | null
 }
 
 export interface Profile {

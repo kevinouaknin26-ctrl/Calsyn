@@ -390,9 +390,9 @@ function DeleteOrgModal({ org, isOwnOrg, onClose, onDeleted, onError }: {
             <svg className="w-5 h-5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
             </svg>
-            <h2 className="text-base font-bold text-red-700">Suppression d'organisation</h2>
+            <h2 className="text-base font-bold text-amber-700">Archiver l'organisation</h2>
           </div>
-          <p className="text-[12px] text-red-600/80 mt-1">Action irréversible depuis l'UI. Un soft-delete est appliqué en base (récupération possible par un dev).</p>
+          <p className="text-[12px] text-amber-700/90 mt-1">L'organisation disparaît de l'UI. Les données restent en base (récupération possible à tout moment par un admin technique).</p>
         </div>
 
         <div className="px-6 py-5 space-y-4">
@@ -403,7 +403,7 @@ function DeleteOrgModal({ org, isOwnOrg, onClose, onDeleted, onError }: {
           )}
 
           <div className="text-[13px] text-gray-700">
-            <p>Vous allez supprimer <strong className="font-semibold">{org.name}</strong>.</p>
+            <p>Vous allez archiver <strong className="font-semibold">{org.name}</strong>.</p>
             {counts ? (
               <ul className="mt-2 space-y-1 text-[12px] text-gray-600">
                 <li>→ <strong>{counts.users}</strong> utilisateur{counts.users > 1 ? 's' : ''}</li>
@@ -439,7 +439,7 @@ function DeleteOrgModal({ org, isOwnOrg, onClose, onDeleted, onError }: {
             className={`px-4 py-2 rounded-lg text-[13px] font-semibold text-white transition-colors ${
               canSubmit ? 'bg-red-600 hover:bg-red-700' : 'bg-gray-300 cursor-not-allowed'
             }`}>
-            {submitting ? 'Suppression…' : 'Supprimer définitivement'}
+            {submitting ? 'Archivage…' : 'Archiver l\'organisation'}
           </button>
         </div>
       </div>
@@ -496,8 +496,8 @@ function OrgCard({ org, members, expanded, onToggle, onInviteAdmin, onToggleActi
               {org.is_active ? 'Désactiver l\'organisation' : 'Réactiver l\'organisation'}
             </button>
             <button onClick={onDeleteOrg}
-              className="px-3 py-1.5 rounded-lg text-[12px] font-medium border border-red-200 text-red-600 hover:bg-red-50">
-              Supprimer l'organisation
+              className="px-3 py-1.5 rounded-lg text-[12px] font-medium border border-amber-200 text-amber-700 hover:bg-amber-50">
+              Archiver l'organisation
             </button>
           </div>
 

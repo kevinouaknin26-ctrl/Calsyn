@@ -2147,7 +2147,8 @@ export default function Dialer() {
         variant="danger"
         onCancel={() => setConfirmDeleteProspects(false)}
         onConfirm={async () => {
-          await supabase.from('prospects').delete().in('id', Array.from(selectedIds))
+          // Soft-delete (archive) : plus de hard DELETE, trigger DB bloque de toute façon
+          await supabase.rpc('archive_prospects', { p_ids: Array.from(selectedIds) })
           setSelectedIds(new Set())
           setConfirmDeleteProspects(false)
           queryClient.invalidateQueries({ queryKey: ['prospects', activeListId] })

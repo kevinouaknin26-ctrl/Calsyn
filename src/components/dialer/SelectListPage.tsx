@@ -1149,15 +1149,16 @@ export default function SelectListPage({ onSelect, onClose }: Props) {
       <ConfirmModal
         open={!!confirmDelete}
         title="Supprimer la liste"
-        message={confirmDelete ? `Supprimer "${confirmDelete.name}" et tous ses contacts ? Cette action est irréversible.` : ''}
-        confirmLabel="Supprimer"
+        message={confirmDelete ? `Archiver "${confirmDelete.name}" et tous ses contacts ? Les données restent récupérables par l'équipe technique.` : ''}
+        confirmLabel="Archiver"
         cancelLabel="Annuler"
         variant="danger"
         onCancel={() => setConfirmDelete(null)}
         onConfirm={async () => {
           if (!confirmDelete) return
-          await supabase.from('prospects').delete().eq('list_id', confirmDelete.id)
-          await supabase.from('prospect_lists').delete().eq('id', confirmDelete.id)
+          // Soft-delete via RPC qui archive la liste + tous ses prospects en une transaction serveur
+          const { error } = await supabase.rpc('archive_prospect_list', { p_list_id: confirmDelete.id })
+          if (error) { alert(`Erreur archivage : ${error.message}`); return }
           queryClient.invalidateQueries({ queryKey: ['prospect-lists'] })
           queryClient.invalidateQueries({ queryKey: ['prospects'] })
           setConfirmDelete(null)
