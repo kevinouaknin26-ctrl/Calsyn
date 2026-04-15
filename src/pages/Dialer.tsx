@@ -1307,7 +1307,26 @@ export default function Dialer() {
         if (col) {
           const va = getPropertyValue(a, allCustomValues?.[a.id], col)
           const vb = getPropertyValue(b, allCustomValues?.[b.id], col)
-          cmp = va.localeCompare(vb)
+          // Tri spécifique selon le type pour ne pas faire du localeCompare sur des dates/nombres
+          if (col.fieldType === 'date') {
+            // Vide en fin de liste, sinon parse en timestamp pour ordre chronologique réel
+            const da = va ? Date.parse(va) : NaN
+            const db = vb ? Date.parse(vb) : NaN
+            const naA = Number.isNaN(da), naB = Number.isNaN(db)
+            if (naA && naB) cmp = 0
+            else if (naA) cmp = 1
+            else if (naB) cmp = -1
+            else cmp = da - db
+          } else if (col.fieldType === 'number') {
+            const na = parseFloat(va), nb = parseFloat(vb)
+            const naA = Number.isNaN(na), naB = Number.isNaN(nb)
+            if (naA && naB) cmp = 0
+            else if (naA) cmp = 1
+            else if (naB) cmp = -1
+            else cmp = na - nb
+          } else {
+            cmp = va.localeCompare(vb)
+          }
         }
       }
       return sortDir === 'desc' ? -cmp : cmp
