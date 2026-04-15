@@ -626,12 +626,12 @@ function Dispositions() {
 // SECTION 6 : APPELS ENTRANTS
 // ══════════════════════════════════════════════════════════════════
 function IncomingCalls({ org, save }: { org: any; save: (u: Record<string, unknown>) => void }) {
-  const [mode, setMode] = useState(org?.callback_mode || 'callio_only')
+  const [mode, setMode] = useState(org?.callback_mode || 'calsyn_only')
   const [redirectNumber, setRedirectNumber] = useState(org?.callback_redirect_number || '')
 
   const modes = [
-    { value: 'callio_only', label: 'Callback dans Callio uniquement', desc: 'Les appels sonnent si l\'onglet est ouvert' },
-    { value: 'callio_redirect', label: 'Callback + Redirection', desc: 'Si Callio est fermé, redirige vers un numéro externe' },
+    { value: 'calsyn_only', label: 'Callback dans Calsyn uniquement', desc: 'Les appels sonnent si l\'onglet est ouvert' },
+    { value: 'calsyn_redirect', label: 'Callback + Redirection', desc: 'Si Calsyn est fermé, redirige vers un numéro externe' },
     { value: 'redirect_only', label: 'Redirection forcée', desc: 'Tous les callbacks redirigés vers un numéro externe' },
   ]
 
@@ -657,7 +657,7 @@ function IncomingCalls({ org, save }: { org: any; save: (u: Record<string, unkno
         ))}
       </div>
 
-      {mode !== 'callio_only' && (
+      {mode !== 'calsyn_only' && (
         <div>
           <label className="text-xs font-semibold text-gray-600 block mb-1.5">Numéro de redirection</label>
           <input value={redirectNumber} onChange={e => setRedirectNumber(e.target.value)}
@@ -973,32 +973,32 @@ function PhoneFieldsSection({ org, save }: { org: any; save: (u: Record<string, 
 // ══════════════════════════════════════════════════════════════════
 function FieldMappingSection() {
   const mappings = [
-    { callio: 'name', crm: 'firstname + lastname', synced: true },
-    { callio: 'email', crm: 'email', synced: true },
-    { callio: 'phone', crm: 'phone', synced: true },
-    { callio: 'company', crm: 'company', synced: true },
-    { callio: 'title', crm: 'jobtitle', synced: true },
-    { callio: 'crm_status', crm: 'lifecyclestage', synced: false },
-    { callio: 'meeting_booked', crm: 'callio_meeting_booked', synced: false },
-    { callio: 'last_call_outcome', crm: 'callio_last_outcome', synced: false },
-    { callio: 'snoozed_until', crm: 'callio_snooze_until', synced: false },
-    { callio: 'do_not_call', crm: 'callio_do_not_call', synced: false },
+    { calsyn: 'name', crm: 'firstname + lastname', synced: true },
+    { calsyn: 'email', crm: 'email', synced: true },
+    { calsyn: 'phone', crm: 'phone', synced: true },
+    { calsyn: 'company', crm: 'company', synced: true },
+    { calsyn: 'title', crm: 'jobtitle', synced: true },
+    { calsyn: 'crm_status', crm: 'lifecyclestage', synced: false },
+    { calsyn: 'meeting_booked', crm: 'calsyn_meeting_booked', synced: false },
+    { calsyn: 'last_call_outcome', crm: 'calsyn_last_outcome', synced: false },
+    { calsyn: 'snoozed_until', crm: 'calsyn_snooze_until', synced: false },
+    { calsyn: 'do_not_call', crm: 'calsyn_do_not_call', synced: false },
   ]
 
   return (
     <div className="space-y-4">
       <h2 className="text-[15px] font-bold text-gray-800">Mapping des champs</h2>
-      <p className="text-[11px] text-gray-400">Correspondance entre les champs Callio et votre CRM externe. La sync bidirectionnelle met à jour les deux côtés en temps réel.</p>
+      <p className="text-[11px] text-gray-400">Correspondance entre les champs Calsyn et votre CRM externe. La sync bidirectionnelle met à jour les deux côtés en temps réel.</p>
 
       <div className="rounded-lg border border-gray-200 overflow-hidden">
         <div className="grid grid-cols-3 gap-0 bg-gray-50 border-b border-gray-200 px-3 py-2">
-          <span className="text-[10px] font-bold text-gray-400 uppercase">Champ Callio</span>
+          <span className="text-[10px] font-bold text-gray-400 uppercase">Champ Calsyn</span>
           <span className="text-[10px] font-bold text-gray-400 uppercase">Champ CRM</span>
           <span className="text-[10px] font-bold text-gray-400 uppercase text-right">Sync</span>
         </div>
         {mappings.map(m => (
-          <div key={m.callio} className="grid grid-cols-3 gap-0 px-3 py-2.5 border-b border-gray-50 hover:bg-gray-50">
-            <span className="text-[12px] font-mono text-violet-600">{m.callio}</span>
+          <div key={m.calsyn} className="grid grid-cols-3 gap-0 px-3 py-2.5 border-b border-gray-50 hover:bg-gray-50">
+            <span className="text-[12px] font-mono text-violet-600">{m.calsyn}</span>
             <span className="text-[12px] font-mono text-gray-600">{m.crm}</span>
             <div className="text-right">
               {m.synced ? (
@@ -1144,7 +1144,7 @@ function PermissionsSection() {
   return (
     <div className="space-y-4">
       <h2 className="text-[15px] font-bold text-gray-800">Permissions par rôle</h2>
-      <p className="text-[11px] text-gray-400">Définissez ce que chaque rôle peut faire dans Callio. Les Super Admins ont tous les droits.</p>
+      <p className="text-[11px] text-gray-400">Définissez ce que chaque rôle peut faire dans Calsyn. Les Super Admins ont tous les droits.</p>
 
       <div className="rounded-lg border border-gray-200 overflow-hidden">
         {/* Header */}

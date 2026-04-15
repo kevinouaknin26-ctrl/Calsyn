@@ -818,7 +818,7 @@ export default function SelectListPage({ onSelect, onClose }: Props) {
       for (const must of ['system:socials', 'system:phone', 'system:crm_status']) {
         if (!mappedColumnIds.includes(must)) mappedColumnIds.push(must)
       }
-      localStorage.setItem(`callio_cs_visible_columns_${list.id}`, JSON.stringify(mappedColumnIds))
+      localStorage.setItem(`calsyn_cs_visible_columns_${list.id}`, JSON.stringify(mappedColumnIds))
 
       setCsvHeaders([]); setCsvRows([]); setCsvMapping([]); setCsvFileName('')
       setImporting(false)

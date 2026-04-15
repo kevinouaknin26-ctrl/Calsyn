@@ -36,8 +36,8 @@ export default function Login() {
     <div className="min-h-screen bg-[#1a1a2e] flex items-center justify-center">
       <div className="w-96 px-10">
         <div className="text-center mb-10">
-          <img src="/favicon.svg" alt="Callio" className="w-16 h-16 mx-auto mb-4" />
-          <h1 className="text-3xl font-extrabold tracking-tight text-white">Callio</h1>
+          <img src="/favicon.svg" alt="Calsyn" className="w-16 h-16 mx-auto mb-4" />
+          <h1 className="text-3xl font-extrabold tracking-tight text-white">Calsyn</h1>
           <p className="text-sm text-white/40 mt-2">Connectez-vous pour continuer</p>
         </div>
 

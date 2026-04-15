@@ -23,7 +23,7 @@ function Protected({ children, admin, superAdmin }: { children: ReactNode; admin
 
   if (loading) return (
     <div className="min-h-screen bg-[#1a1a2e] flex items-center justify-center">
-      <img src="/favicon.svg" alt="Callio" className="w-12 h-12" />
+      <img src="/favicon.svg" alt="Calsyn" className="w-12 h-12" />
     </div>
   )
 

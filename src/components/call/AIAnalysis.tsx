@@ -41,7 +41,7 @@ export default function AIAnalysis({ call }: { call: Call | null }) {
   return (
     <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-5">
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-bold text-gray-800">Analyse Callio IA</h3>
+        <h3 className="text-sm font-bold text-gray-800">Analyse Calsyn IA</h3>
         {call.ai_score_global && (
           <div className="px-3 py-1 rounded-full bg-purple-50 text-purple-600 text-xs font-bold">Score {call.ai_score_global}/100</div>
         )}

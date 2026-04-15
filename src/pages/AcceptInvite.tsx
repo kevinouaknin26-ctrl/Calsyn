@@ -84,7 +84,7 @@ export default function AcceptInvite() {
   if (loading) {
     return (
       <div className="min-h-screen bg-[#1a1a2e] flex items-center justify-center">
-        <img src="/favicon.svg" alt="Callio" className="w-12 h-12 animate-pulse" />
+        <img src="/favicon.svg" alt="Calsyn" className="w-12 h-12 animate-pulse" />
       </div>
     )
   }
@@ -93,7 +93,7 @@ export default function AcceptInvite() {
     return (
       <div className="min-h-screen bg-[#1a1a2e] flex items-center justify-center">
         <div className="w-96 px-10 text-center">
-          <img src="/favicon.svg" alt="Callio" className="w-16 h-16 mx-auto mb-4" />
+          <img src="/favicon.svg" alt="Calsyn" className="w-16 h-16 mx-auto mb-4" />
           <h1 className="text-xl font-extrabold text-white mb-3">Lien invalide ou expiré</h1>
           <p className="text-sm text-white/60 mb-6">{error || "Ce lien d'invitation n'est plus valide."}</p>
           <button onClick={() => navigate('/login')} className="text-sm text-violet-400 hover:text-violet-300">
@@ -108,7 +108,7 @@ export default function AcceptInvite() {
     return (
       <div className="min-h-screen bg-[#1a1a2e] flex items-center justify-center">
         <div className="w-96 px-10 text-center">
-          <img src="/favicon.svg" alt="Callio" className="w-16 h-16 mx-auto mb-4" />
+          <img src="/favicon.svg" alt="Calsyn" className="w-16 h-16 mx-auto mb-4" />
           <h1 className="text-xl font-extrabold text-white mb-3">Invitation expirée</h1>
           <p className="text-sm text-white/60 mb-6">
             Le délai accordé pour accepter cette invitation est dépassé. Contactez l'admin qui vous a invité pour en demander une nouvelle.
@@ -125,7 +125,7 @@ export default function AcceptInvite() {
     <div className="min-h-screen bg-[#1a1a2e] flex items-center justify-center">
       <div className="w-[420px] px-10">
         <div className="text-center mb-8">
-          <img src="/favicon.svg" alt="Callio" className="w-16 h-16 mx-auto mb-4" />
+          <img src="/favicon.svg" alt="Calsyn" className="w-16 h-16 mx-auto mb-4" />
           <h1 className="text-2xl font-extrabold tracking-tight text-white">Bienvenue</h1>
           <p className="text-sm text-white/50 mt-2">Finalisez votre compte pour rejoindre l'équipe</p>
         </div>
@@ -157,12 +157,12 @@ export default function AcceptInvite() {
 
           <button type="submit" disabled={saving}
             className="mt-3 w-full py-3.5 text-sm font-bold bg-gradient-to-br from-[#863bff] to-[#4f1dc4] text-white rounded-xl hover:opacity-90 transition-opacity disabled:opacity-50">
-            {saving ? 'Création du compte...' : 'Accéder à Callio →'}
+            {saving ? 'Création du compte...' : 'Accéder à Calsyn →'}
           </button>
         </form>
 
         <p className="mt-6 text-center text-[11px] text-white/30">
-          En continuant, vous acceptez les CGU de Callio.
+          En continuant, vous acceptez les CGU de Calsyn.
         </p>
       </div>
     </div>

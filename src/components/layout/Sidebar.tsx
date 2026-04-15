@@ -61,14 +61,14 @@ export default function Sidebar() {
             </svg>
           </button>
           {expanded && (
-            <img src="/favicon.svg" alt="Callio" className="w-7 h-7" />
+            <img src="/favicon.svg" alt="Calsyn" className="w-7 h-7" />
           )}
         </div>
 
-        {/* Nav — Super Admin voit tous les onglets + "Clients Callio" en plus */}
+        {/* Nav — Super Admin voit tous les onglets + "Clients Calsyn" en plus */}
         <nav className={`flex-1 flex flex-col ${expanded ? 'items-stretch px-2' : 'items-center'} gap-0.5`}>
           {isSuperAdmin && (
-            <NavItem to="/app/super-admin" label="Clients Callio" green icon={<svg className="w-[18px] h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 21h18M5 21V7l7-4 7 4v14M9 9h1m-1 4h1m-1 4h1m4-8h1m-1 4h1m-1 4h1" /></svg>} />
+            <NavItem to="/app/super-admin" label="Clients Calsyn" green icon={<svg className="w-[18px] h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 21h18M5 21V7l7-4 7 4v14M9 9h1m-1 4h1m-1 4h1m4-8h1m-1 4h1m-1 4h1" /></svg>} />
           )}
           <NavItem to="/app/contacts" label="Contacts" icon={<svg className="w-[18px] h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>} />
           <NavItem to="/app/dialer" label="Dialer" green={!isSuperAdmin} icon={<svg className="w-[18px] h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" /></svg>} />
@@ -177,7 +177,7 @@ function AccountMenu({ expanded }: { expanded: boolean }) {
               </p>
             </div>
             <AccountMenuItem onClick={() => { setOpen(false); navigate(isSuperAdmin ? '/app/super-admin' : '/app/dialer') }} icon="home">
-              {isSuperAdmin ? 'Clients Callio' : 'Tableau de bord'}
+              {isSuperAdmin ? 'Clients Calsyn' : 'Tableau de bord'}
             </AccountMenuItem>
             {!isSuperAdmin && (
               <AccountMenuItem onClick={() => { setOpen(false); navigate('/app/settings') }} icon="settings">
