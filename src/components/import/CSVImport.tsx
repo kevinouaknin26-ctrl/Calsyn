@@ -147,12 +147,22 @@ export default function CSVImport({ listId, onClose, onSuccess }: Props) {
 
   // ── Auto-mapping au upload du CSV ──────────────────────────────
   function autoMap(csvHeaders: string[], csvRows: string[][]): ColumnMap[] {
+    // Pass 1 : détection native brute
+    const native1 = csvHeaders.map((h, i) => {
+      const samples = csvRows.slice(0, 20).map(r => r[i] || '')
+      return detectNative(h, samples)
+    })
+    // Correction contextuelle : si un header est mappé à `first_name` ET un autre à `name`,
+    // le "name" est en réalité un "last_name" (ex : CSV avec colonnes "Prénom" + "Nom").
+    // Sinon le concat name final perd le prénom et n'affiche que le last_name.
+    const hasFirstName = native1.includes('first_name')
+    const nativeFinal = native1.map(f => (hasFirstName && f === 'name') ? 'last_name' : f)
+
     return csvHeaders.map((h, i) => {
       const samples = csvRows.slice(0, 20).map(r => r[i] || '')
-      // 1. Field natif ?
-      const native = detectNative(h, samples)
+      const native = nativeFinal[i]
       if (native) return { kind: 'native' as const, field: native }
-      // 2. Custom existant matché par similarité ?
+      // Custom existant matché par similarité ?
       const customs = (existingFields || []).filter(f => !f.is_system)
       let bestMatch = null as null | { id: string; name: string; score: number }
       for (const f of customs) {
@@ -162,7 +172,7 @@ export default function CSVImport({ listId, onClose, onSuccess }: Props) {
         }
       }
       if (bestMatch) return { kind: 'existing_custom' as const, fieldId: bestMatch.id, fieldName: bestMatch.name }
-      // 3. Nouveau custom field (auto-créé à l'import)
+      // Nouveau custom field (auto-créé à l'import)
       return { kind: 'new_custom' as const, name: h, type: detectType(samples) }
     })
   }
@@ -213,8 +223,15 @@ export default function CSVImport({ listId, onClose, onSuccess }: Props) {
         if (obj[m.field]) obj[m.field] += ' ' + v
         else obj[m.field] = v
       })
-      let name = obj.name || ''
-      if (!name && (obj.first_name || obj.last_name)) name = [obj.first_name, obj.last_name].filter(Boolean).join(' ')
+      // Construction du nom : si on a un first_name OU last_name explicites, on concat.
+      // Sinon on fallback sur un champ "name" (full name) déjà en une seule colonne.
+      // Priorité aux colonnes séparées pour ne pas perdre le prénom quand
+      // le CSV a "Prénom" + "Nom" séparés.
+      let name = ''
+      if (obj.first_name || obj.last_name) {
+        name = [obj.first_name, obj.last_name].filter(Boolean).join(' ')
+      }
+      if (!name) name = obj.name || ''
       if (!name) name = 'Sans nom'
       const phone = cleanPhone(obj.phone || '')
       if (!phone || phone.length < 8) return
