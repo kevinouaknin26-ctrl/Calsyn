@@ -1,10 +1,10 @@
 /**
- * Super Admin — vue hiérarchique "arbre généalogique" des clients Callio.
+ * Super Admin — vue hiérarchique "arbre généalogique" des clients Calsyn.
  * Chaque card organisation déroule (expand) ses membres groupés par rôle :
  * Admins → Managers → SDRs. Le Super Admin peut inviter le premier admin
  * d'une nouvelle org, et gérer les rôles/statuts sans voir son propre compte.
  */
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useAuth } from '@/hooks/useAuth'
 import { supabase } from '@/config/supabase'
@@ -34,11 +34,14 @@ export default function SuperAdmin() {
   const pushFeedback = (f: typeof feedback) => { setFeedback(f); setTimeout(() => setFeedback(null), 5000) }
   const [inviteAdminFor, setInviteAdminFor] = useState<OrgRow | null>(null)
 
+  const [deleteOrgTarget, setDeleteOrgTarget] = useState<OrgRow | null>(null)
+
   const { data: orgs, isLoading } = useQuery({
     queryKey: ['super-admin-orgs'],
     queryFn: async () => {
       const { data, error } = await supabase.from('organisations')
         .select('id, name, slug, plan, is_active, from_number, max_parallel_seats, max_power_seats, created_at')
+        .is('deleted_at', null)
         .order('created_at', { ascending: false })
       if (error) throw error
       return (data || []) as OrgRow[]
@@ -109,28 +112,7 @@ export default function SuperAdmin() {
     }
   }
 
-  const handleDeleteOrg = async (org: OrgRow) => {
-    const memberCount = (membersByOrg[org.id] || []).length
-    const msg = memberCount > 0
-      ? `Supprimer définitivement "${org.name}" ? ${memberCount} membre${memberCount > 1 ? 's' : ''} seront aussi supprimés. Cette action est irréversible.`
-      : `Supprimer définitivement "${org.name}" ? Cette action est irréversible.`
-    if (!confirm(msg)) return
-
-    // 1. Supprimer tous les auth.users de l'org via team-manage
-    const members = membersByOrg[org.id] || []
-    for (const m of members) {
-      await handleTeamAction(m.id, 'delete_user')
-    }
-    // 2. Supprimer l'org elle-même
-    const { error } = await supabase.from('organisations').delete().eq('id', org.id)
-    if (error) {
-      pushFeedback({ type: 'err', msg: `Erreur suppression org : ${error.message}` })
-      return
-    }
-    pushFeedback({ type: 'ok', msg: `Organisation "${org.name}" supprimée.` })
-    queryClient.invalidateQueries({ queryKey: ['super-admin-orgs'] })
-    queryClient.invalidateQueries({ queryKey: ['super-admin-all-members'] })
-  }
+  const handleDeleteOrg = (org: OrgRow) => setDeleteOrgTarget(org)
 
   if (!isSuperAdmin) {
     return <div className="min-h-screen flex items-center justify-center text-gray-400 text-sm">Accès réservé au Super Admin.</div>
@@ -140,7 +122,7 @@ export default function SuperAdmin() {
     <div className="min-h-screen bg-[#f8f9fa] dark:bg-[#e8e0f0] p-6">
       <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
         <div>
-          <h1 className="text-xl font-bold text-gray-800">Super Admin — Clients Callio</h1>
+          <h1 className="text-xl font-bold text-gray-800">Super Admin — Clients Calsyn</h1>
           <p className="text-[12px] text-gray-400 mt-0.5">
             {orgs?.length || 0} organisation{(orgs?.length || 0) > 1 ? 's' : ''} · {(allMembers || []).length} membres totaux
           </p>
@@ -179,6 +161,9 @@ export default function SuperAdmin() {
         </div>
       )}
 
+      {/* Pool global des numéros Twilio Calsyn + allocation par org */}
+      <PhoneInventoryPanel orgs={orgs || []} onChange={msg => pushFeedback({ type: 'ok', msg })} onError={msg => pushFeedback({ type: 'err', msg })} />
+
       {showCreate && <CreateOrgModal onClose={() => setShowCreate(false)} onCreated={() => {
         queryClient.invalidateQueries({ queryKey: ['super-admin-orgs'] })
         setShowCreate(false)
@@ -196,6 +181,268 @@ export default function SuperAdmin() {
           onError={msg => pushFeedback({ type: 'err', msg })}
         />
       )}
+
+      {deleteOrgTarget && (
+        <DeleteOrgModal org={deleteOrgTarget}
+          isOwnOrg={me?.organisation_id === deleteOrgTarget.id}
+          onClose={() => setDeleteOrgTarget(null)}
+          onDeleted={() => {
+            pushFeedback({ type: 'ok', msg: `Organisation "${deleteOrgTarget.name}" supprimée (soft-delete, récupérable).` })
+            setDeleteOrgTarget(null)
+            queryClient.invalidateQueries({ queryKey: ['super-admin-orgs'] })
+            queryClient.invalidateQueries({ queryKey: ['super-admin-all-members'] })
+          }}
+          onError={msg => pushFeedback({ type: 'err', msg })}
+        />
+      )}
+    </div>
+  )
+}
+
+// ── PhoneInventoryPanel ──────────────────────────────────────────────
+// Niveau 1 de la hiérarchie téléphone : le super_admin voit/gère l'inventaire
+// global des numéros Twilio Calsyn, et alloue chaque numéro à une org cliente
+// (ou le retire du pool). L'admin de l'org distribue ensuite aux SDR depuis
+// son pool via Team page.
+interface PhoneRow {
+  phone_number: string
+  label: string | null
+  organisation_id: string | null
+  allocated_at: string | null
+  monthly_cost_cents: number
+}
+
+function PhoneInventoryPanel({ orgs, onChange, onError }: {
+  orgs: OrgRow[]
+  onChange: (msg: string) => void
+  onError: (msg: string) => void
+}) {
+  const queryClient = useQueryClient()
+  const [expanded, setExpanded] = useState(false)
+  const [adding, setAdding] = useState(false)
+  const [newPhone, setNewPhone] = useState('')
+  const [newLabel, setNewLabel] = useState('')
+
+  const { data: phones } = useQuery({
+    queryKey: ['phone-inventory'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('phone_inventory')
+        .select('phone_number, label, organisation_id, allocated_at, monthly_cost_cents')
+        .is('deleted_at', null)
+        .order('phone_number')
+      if (error) throw error
+      return (data || []) as PhoneRow[]
+    },
+  })
+
+  const addPhone = async () => {
+    if (!newPhone.trim()) return
+    setAdding(true)
+    const { error } = await supabase.rpc('phone_inventory_add', {
+      p_phone: newPhone.trim(),
+      p_label: newLabel.trim() || null,
+    })
+    setAdding(false)
+    if (error) { onError(error.message); return }
+    setNewPhone(''); setNewLabel('')
+    onChange(`Numéro ${newPhone.trim()} ajouté au pool.`)
+    queryClient.invalidateQueries({ queryKey: ['phone-inventory'] })
+  }
+
+  const allocate = async (phone: string, orgId: string | null) => {
+    const { error } = await supabase.rpc('phone_allocate', { p_phone: phone, p_org_id: orgId })
+    if (error) { onError(error.message); return }
+    onChange(orgId ? `Numéro ${phone} alloué.` : `Numéro ${phone} remis dans le pool global.`)
+    queryClient.invalidateQueries({ queryKey: ['phone-inventory'] })
+  }
+
+  const unallocated = (phones || []).filter(p => !p.organisation_id).length
+  const allocated = (phones || []).filter(p => p.organisation_id).length
+
+  return (
+    <div className="mt-6 bg-white rounded-xl border border-gray-200 overflow-hidden">
+      <button onClick={() => setExpanded(v => !v)}
+        className="w-full px-5 py-4 flex items-center gap-4 hover:bg-gray-50 text-left">
+        <svg className={`w-4 h-4 text-gray-400 transition-transform ${expanded ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+        </svg>
+        <div className="flex-1">
+          <h2 className="text-base font-bold text-gray-800">Inventaire des numéros Twilio</h2>
+          <p className="text-[11px] text-gray-400 mt-0.5">
+            {phones?.length || 0} numéro{(phones?.length || 0) > 1 ? 's' : ''} · {allocated} alloué{allocated > 1 ? 's' : ''} · {unallocated} libre{unallocated > 1 ? 's' : ''}
+          </p>
+        </div>
+      </button>
+
+      {expanded && (
+        <div className="border-t border-gray-100 p-5 space-y-4">
+          {/* Ajout */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <input value={newPhone} onChange={e => setNewPhone(e.target.value)}
+              placeholder="+33159580189" autoComplete="off"
+              className="flex-1 min-w-[180px] px-3 py-2 rounded-lg border border-gray-200 text-sm" />
+            <input value={newLabel} onChange={e => setNewLabel(e.target.value)}
+              placeholder="Label (ex : Paris 15)" autoComplete="off"
+              className="flex-1 min-w-[180px] px-3 py-2 rounded-lg border border-gray-200 text-sm" />
+            <button onClick={addPhone} disabled={adding || !newPhone.trim()}
+              className="px-4 py-2 rounded-lg text-[13px] font-semibold bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-40">
+              {adding ? '…' : '+ Ajouter'}
+            </button>
+          </div>
+
+          {/* Liste */}
+          {phones && phones.length > 0 ? (
+            <div className="border border-gray-100 rounded-lg overflow-hidden">
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50 text-[11px] uppercase tracking-wider text-gray-400">
+                  <tr>
+                    <th className="px-3 py-2 text-left font-semibold">Numéro</th>
+                    <th className="px-3 py-2 text-left font-semibold">Label</th>
+                    <th className="px-3 py-2 text-left font-semibold">Organisation allouée</th>
+                    <th className="px-3 py-2 text-right font-semibold">Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {phones.map(p => (
+                    <tr key={p.phone_number} className="border-t border-gray-100">
+                      <td className="px-3 py-2 font-mono text-[13px] text-gray-700">{p.phone_number}</td>
+                      <td className="px-3 py-2 text-[12px] text-gray-500">{p.label || '—'}</td>
+                      <td className="px-3 py-2">
+                        <select value={p.organisation_id || ''} onChange={e => allocate(p.phone_number, e.target.value || null)}
+                          className="px-2 py-1 rounded border border-gray-200 text-[12px] bg-white">
+                          <option value="">— Pool global (libre)</option>
+                          {orgs.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
+                        </select>
+                      </td>
+                      <td className="px-3 py-2 text-right">
+                        {p.organisation_id && (
+                          <button onClick={() => allocate(p.phone_number, null)} className="text-[11px] text-gray-400 hover:text-red-500">
+                            Désallouer
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <p className="text-[12px] text-gray-400 text-center py-6">
+              Aucun numéro dans l'inventaire. Ajoutez vos numéros Twilio pour commencer à les allouer aux orgs clientes.
+            </p>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── DeleteOrgModal ───────────────────────────────────────────────────
+// Protocole de sécurité maximum contre les suppressions accidentelles :
+// 1. Pré-check via RPC count_org_resources (users/prospects/lists/calls)
+// 2. Saisie obligatoire du nom EXACT de l'organisation
+// 3. Blocage si c'est la propre org du super_admin
+// 4. Appel RPC soft_delete_organisation (jamais de DELETE hard)
+function DeleteOrgModal({ org, isOwnOrg, onClose, onDeleted, onError }: {
+  org: OrgRow
+  isOwnOrg: boolean
+  onClose: () => void
+  onDeleted: () => void
+  onError: (msg: string) => void
+}) {
+  const [confirmName, setConfirmName] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+  const [counts, setCounts] = useState<{ users: number; prospects: number; lists: number; calls: number } | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    supabase.rpc('count_org_resources', { p_org_id: org.id }).then(({ data, error }) => {
+      if (cancelled) return
+      if (error) { onError(error.message); return }
+      const row = Array.isArray(data) ? data[0] : data
+      if (row) setCounts({
+        users: Number(row.users_count) || 0,
+        prospects: Number(row.prospects_count) || 0,
+        lists: Number(row.lists_count) || 0,
+        calls: Number(row.calls_count) || 0,
+      })
+    })
+    return () => { cancelled = true }
+  }, [org.id, onError])
+
+  const nameMatch = confirmName.trim() === org.name
+  const canSubmit = !isOwnOrg && nameMatch && !submitting
+
+  const submit = async () => {
+    if (!canSubmit) return
+    setSubmitting(true)
+    const { error } = await supabase.rpc('soft_delete_organisation', { p_org_id: org.id, p_confirm_name: confirmName.trim() })
+    setSubmitting(false)
+    if (error) { onError(error.message); return }
+    onDeleted()
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+        <div className="px-6 py-5 border-b border-red-100 bg-red-50/60">
+          <div className="flex items-center gap-2">
+            <svg className="w-5 h-5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+            <h2 className="text-base font-bold text-red-700">Suppression d'organisation</h2>
+          </div>
+          <p className="text-[12px] text-red-600/80 mt-1">Action irréversible depuis l'UI. Un soft-delete est appliqué en base (récupération possible par un dev).</p>
+        </div>
+
+        <div className="px-6 py-5 space-y-4">
+          {isOwnOrg && (
+            <div className="px-3 py-2 rounded-lg bg-amber-50 border border-amber-200 text-[12px] text-amber-700">
+              ⚠️ Vous ne pouvez pas supprimer votre propre organisation. Détachez-vous d'abord (organisation_id = NULL) ou changez-en.
+            </div>
+          )}
+
+          <div className="text-[13px] text-gray-700">
+            <p>Vous allez supprimer <strong className="font-semibold">{org.name}</strong>.</p>
+            {counts ? (
+              <ul className="mt-2 space-y-1 text-[12px] text-gray-600">
+                <li>→ <strong>{counts.users}</strong> utilisateur{counts.users > 1 ? 's' : ''}</li>
+                <li>→ <strong>{counts.prospects}</strong> prospect{counts.prospects > 1 ? 's' : ''}</li>
+                <li>→ <strong>{counts.lists}</strong> liste{counts.lists > 1 ? 's' : ''} de prospects</li>
+                <li>→ <strong>{counts.calls}</strong> appel{counts.calls > 1 ? 's' : ''} enregistré{counts.calls > 1 ? 's' : ''}</li>
+              </ul>
+            ) : (
+              <p className="mt-2 text-[12px] text-gray-400">Chargement des ressources liées…</p>
+            )}
+          </div>
+
+          <div>
+            <label className="block text-[12px] font-semibold text-gray-700 mb-1.5">
+              Pour confirmer, tapez exactement <code className="px-1.5 py-0.5 rounded bg-gray-100 text-gray-800">{org.name}</code>
+            </label>
+            <input type="text" value={confirmName} onChange={e => setConfirmName(e.target.value)}
+              disabled={isOwnOrg}
+              placeholder={org.name}
+              className={`w-full px-3 py-2 rounded-lg border text-sm focus:outline-none focus:ring-2 transition-colors ${
+                nameMatch ? 'border-emerald-300 focus:ring-emerald-200' : 'border-gray-300 focus:ring-indigo-200'
+              } ${isOwnOrg ? 'opacity-50 cursor-not-allowed' : ''}`}
+              autoComplete="off" />
+          </div>
+        </div>
+
+        <div className="px-6 py-4 bg-gray-50 border-t border-gray-100 flex items-center justify-end gap-2">
+          <button onClick={onClose} disabled={submitting}
+            className="px-4 py-2 rounded-lg text-[13px] font-medium text-gray-600 hover:bg-gray-200 disabled:opacity-50">
+            Annuler
+          </button>
+          <button onClick={submit} disabled={!canSubmit}
+            className={`px-4 py-2 rounded-lg text-[13px] font-semibold text-white transition-colors ${
+              canSubmit ? 'bg-red-600 hover:bg-red-700' : 'bg-gray-300 cursor-not-allowed'
+            }`}>
+            {submitting ? 'Suppression…' : 'Supprimer définitivement'}
+          </button>
+        </div>
+      </div>
     </div>
   )
 }
@@ -373,6 +620,7 @@ function StatInline({ label, value, color }: { label: string; value: number; col
 
 // ── CreateOrgModal ───────────────────────────────────────────────
 function CreateOrgModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
+  const { profile: me } = useAuth()
   const [name, setName] = useState('')
   const [plan, setPlan] = useState<'starter' | 'growth' | 'scale'>('growth')
   const [saving, setSaving] = useState(false)
@@ -383,8 +631,17 @@ function CreateOrgModal({ onClose, onCreated }: { onClose: () => void; onCreated
     setSaving(true)
     try {
       const slug = name.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
-      const { error } = await supabase.from('organisations').insert({ name: name.trim(), slug, plan, is_active: true })
+      const { data, error } = await supabase.from('organisations')
+        .insert({ name: name.trim(), slug, plan, is_active: true })
+        .select('id').single()
       if (error) throw new Error(error.message)
+      // Le super_admin est opérationnel dans l'org qu'il crée : il garde son rôle
+      // super_admin et devient aussi utilisateur actif de cette org (peut appeler, créer listes, CRM…).
+      if (me?.id && data?.id && !me.organisation_id) {
+        const { error: attachErr } = await supabase.from('profiles')
+          .update({ organisation_id: data.id }).eq('id', me.id)
+        if (attachErr) throw new Error('Org créée mais activation compte échouée : ' + attachErr.message)
+      }
       onCreated()
     } catch (e) { setErr((e as Error).message) } finally { setSaving(false) }
   }
