@@ -777,6 +777,26 @@ function InlineEditCell({ prospectId, col, value, customValues, enumLabels, dist
 }
 
 // Largeurs fixes pour colonnes sticky (px)
+/** Parser tolérant pour les dates : ISO, DD/MM/YYYY, DD-MM-YYYY, timestamps Postgres.
+ *  Retourne timestamp (ms) ou NaN. Utilisé pour tri/filtrage des champs date custom
+ *  qui peuvent venir d'imports CSV avec format français. */
+function parseAnyDate(raw: string): number {
+  if (!raw) return NaN
+  const s = String(raw).trim()
+  // ISO direct (Date.parse) : "2026-04-15", "2025-05-09T19:18:28+00", etc.
+  const native = Date.parse(s)
+  if (!Number.isNaN(native)) return native
+  // Format FR DD/MM/YYYY ou DD-MM-YYYY (avec heure optionnelle)
+  const m = s.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})(?:[ T](\d{1,2}):(\d{2})(?::(\d{2}))?)?$/)
+  if (m) {
+    let [, d, mo, y, h, mi, se] = m
+    if (y.length === 2) y = (parseInt(y) > 50 ? '19' : '20') + y
+    const date = new Date(parseInt(y), parseInt(mo) - 1, parseInt(d), parseInt(h || '0'), parseInt(mi || '0'), parseInt(se || '0'))
+    return date.getTime()
+  }
+  return NaN
+}
+
 const STICKY_W = { checkbox: 44, status: 140, actions: 64, name: 180 }
 const STICKY_LEFT = {
   checkbox: 0,
@@ -1310,8 +1330,8 @@ export default function Dialer() {
           // Tri spécifique selon le type pour ne pas faire du localeCompare sur des dates/nombres
           if (col.fieldType === 'date') {
             // Vide en fin de liste, sinon parse en timestamp pour ordre chronologique réel
-            const da = va ? Date.parse(va) : NaN
-            const db = vb ? Date.parse(vb) : NaN
+            const da = va ? parseAnyDate(va) : NaN
+            const db = vb ? parseAnyDate(vb) : NaN
             const naA = Number.isNaN(da), naB = Number.isNaN(db)
             if (naA && naB) cmp = 0
             else if (naA) cmp = 1
