@@ -1726,23 +1726,14 @@ export default function Dialer() {
                 <span className="text-[10px] text-amber-500">{opLabel[f.op] || f.op}</span>
                 {!['empty', 'not_empty', 'true', 'false'].includes(f.op) && (
                   (dv || (prop?.fieldType === 'enum' && (prop as PropertyDefinition).options)) ? (
-                    f.op === 'in' ? (
-                      // Multi-select : checkboxes des valeurs distinctes (Excel-style)
-                      <MultiSelectFilter
-                        options={(dv || (prop as PropertyDefinition).options || []) as string[]}
-                        value={f.value}
-                        labelize={(v) => crmLabels[v] || CRM_STATUS_LABELS[v] || v}
-                        onChange={(newVal) => setFilters(prev => prev.map(pf => pf.id === f.id ? { ...pf, value: newVal } : pf))}
-                      />
-                    ) : (
-                      <select value={f.value} onChange={e => setFilters(prev => prev.map(pf => pf.id === f.id ? { ...pf, value: e.target.value } : pf))}
-                        className="text-[11px] bg-transparent border-0 outline-none text-gray-700 font-medium cursor-pointer">
-                        <option value="">tout</option>
-                        {(dv || (prop as PropertyDefinition).options || []).map(v => (
-                          <option key={v} value={v}>{crmLabels[v] || CRM_STATUS_LABELS[v] || v}</option>
-                        ))}
-                      </select>
-                    )
+                    // Dès qu'on a des valeurs distinctes connues → checkboxes multi-select
+                    // (auto-upgrade des anciens filters op='contains'/'eq' vers 'in' au 1er toggle)
+                    <MultiSelectFilter
+                      options={(dv || (prop as PropertyDefinition).options || []) as string[]}
+                      value={f.op === 'in' ? f.value : (f.value ? f.value : '')}
+                      labelize={(v) => crmLabels[v] || CRM_STATUS_LABELS[v] || v}
+                      onChange={(newVal) => setFilters(prev => prev.map(pf => pf.id === f.id ? { ...pf, op: 'in', value: newVal } : pf))}
+                    />
                   ) : (
                     <input value={f.value} onChange={e => setFilters(prev => prev.map(pf => pf.id === f.id ? { ...pf, value: e.target.value } : pf))}
                       placeholder="..." className="text-[11px] bg-transparent border-0 outline-none text-gray-700 font-medium w-20" />
