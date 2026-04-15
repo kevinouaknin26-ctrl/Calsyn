@@ -1327,8 +1327,11 @@ export default function Dialer() {
         if (col) {
           const va = getPropertyValue(a, allCustomValues?.[a.id], col)
           const vb = getPropertyValue(b, allCustomValues?.[b.id], col)
-          // Tri spécifique selon le type pour ne pas faire du localeCompare sur des dates/nombres
-          if (col.fieldType === 'date') {
+          // Tri spécifique selon le type pour ne pas faire du localeCompare sur des dates/nombres.
+          // Fallback : si le nom de la colonne contient "date" mais fieldType était resté 'text'
+          // (imports CSV custom typés text), on force le tri chronologique.
+          const looksLikeDate = col.fieldType === 'date' || /\bdate\b/i.test(col.name || '')
+          if (looksLikeDate) {
             // Vide en fin de liste, sinon parse en timestamp pour ordre chronologique réel
             const da = va ? parseAnyDate(va) : NaN
             const db = vb ? parseAnyDate(vb) : NaN
