@@ -232,7 +232,7 @@ export default function CRMGlobal() {
 
   // Saved views (localStorage)
   const [savedViews, setSavedViews] = useState<SavedView[]>(() => {
-    try { return JSON.parse(localStorage.getItem('callio_crm_views') || '[]') } catch { return [] }
+    try { return JSON.parse(localStorage.getItem('calsyn_crm_views') || '[]') } catch { return [] }
   })
   const [activeViewId, setActiveViewId] = useState<string | null>(null)
   const [savingView, setSavingView] = useState(false)
@@ -241,13 +241,45 @@ export default function CRMGlobal() {
   // Visible columns
   const [visibleColumnIds, setVisibleColumnIds] = useState<string[]>(() => {
     try {
-      const saved = localStorage.getItem('callio_crm_columns')
+      const saved = localStorage.getItem('calsyn_crm_columns')
       return saved ? JSON.parse(saved) : [...DEFAULT_VISIBLE_COLUMNS, 'system:call_count']
     } catch { return [...DEFAULT_VISIBLE_COLUMNS, 'system:call_count'] }
   })
-  useEffect(() => { localStorage.setItem('callio_crm_columns', JSON.stringify(visibleColumnIds)) }, [visibleColumnIds])
+  useEffect(() => { localStorage.setItem('calsyn_crm_columns', JSON.stringify(visibleColumnIds)) }, [visibleColumnIds])
 
-  const persistViews = (views: SavedView[]) => { setSavedViews(views); localStorage.setItem('callio_crm_views', JSON.stringify(views)) }
+  // Auto-scroll horizontal du board Kanban pendant drag près des bords
+  const boardRef = useRef<HTMLDivElement>(null)
+  const scrollRafRef = useRef<number | null>(null)
+  const scrollDirRef = useRef<number>(0)
+  const stopAutoScroll = useCallback(() => {
+    if (scrollRafRef.current !== null) { cancelAnimationFrame(scrollRafRef.current); scrollRafRef.current = null }
+    scrollDirRef.current = 0
+  }, [])
+  const startAutoScroll = useCallback(() => {
+    if (scrollRafRef.current !== null) return
+    const step = () => {
+      const el = boardRef.current
+      if (!el || scrollDirRef.current === 0) { scrollRafRef.current = null; return }
+      el.scrollLeft += scrollDirRef.current * 14
+      scrollRafRef.current = requestAnimationFrame(step)
+    }
+    scrollRafRef.current = requestAnimationFrame(step)
+  }, [])
+  const handleBoardDragOver = useCallback((e: React.DragEvent<HTMLDivElement>) => {
+    const el = boardRef.current
+    if (!el) return
+    const rect = el.getBoundingClientRect()
+    const edge = 100
+    const x = e.clientX
+    if (x < rect.left + edge) scrollDirRef.current = -1
+    else if (x > rect.right - edge) scrollDirRef.current = 1
+    else scrollDirRef.current = 0
+    if (scrollDirRef.current !== 0) startAutoScroll()
+    else stopAutoScroll()
+  }, [startAutoScroll, stopAutoScroll])
+  useEffect(() => () => stopAutoScroll(), [stopAutoScroll])
+
+  const persistViews = (views: SavedView[]) => { setSavedViews(views); localStorage.setItem('calsyn_crm_views', JSON.stringify(views)) }
 
   // Properties
   const { properties: allProperties } = usePropertyDefinitions()
@@ -422,7 +454,11 @@ export default function CRMGlobal() {
   const bulkDelete = async () => {
     if (!perms.canDeleteContacts) return
     const ids = Array.from(selectedIds)
-    await supabase.from('prospects').delete().in('id', ids)
+    if (ids.length === 0) return
+    const msg = `Supprimer définitivement ${ids.length} contact${ids.length > 1 ? 's' : ''} ? Cette action est irréversible.`
+    if (!confirm(msg)) return
+    const { error } = await supabase.from('prospects').delete().in('id', ids)
+    if (error) { alert(`Erreur suppression : ${error.message}`); return }
     queryClient.invalidateQueries({ queryKey: ['all-prospects'] })
     setSelectedIds(new Set())
   }
@@ -589,7 +625,11 @@ export default function CRMGlobal() {
 
         {/* ── Board (Pipeline Kanban) ── */}
         {viewMode === 'board' && !isLoading && (
-          <div className="flex-1 min-h-0 overflow-x-auto p-4">
+          <div ref={boardRef}
+            onDragOver={handleBoardDragOver}
+            onDragLeave={stopAutoScroll}
+            onDrop={stopAutoScroll}
+            className="flex-1 min-h-0 overflow-x-auto p-4">
             <div className="flex gap-3 h-full">
               {(crmStatuses || []).map(stage => {
                 const stageProspects = filtered.filter(p => (p.crm_status || 'new') === stage.key)

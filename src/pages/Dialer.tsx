@@ -241,9 +241,9 @@ function ExportButton({ listId, listName, prospects }: { listId: string | null; 
 
 function useCallSetting<T>(key: string, defaultValue: T): [T, (v: T) => void] {
   const [val, setVal] = useState<T>(() => {
-    try { const s = localStorage.getItem(`callio_cs_${key}`); return s ? JSON.parse(s) : defaultValue } catch { return defaultValue }
+    try { const s = localStorage.getItem(`calsyn_cs_${key}`); return s ? JSON.parse(s) : defaultValue } catch { return defaultValue }
   })
-  const set = (v: T) => { setVal(v); localStorage.setItem(`callio_cs_${key}`, JSON.stringify(v)) }
+  const set = (v: T) => { setVal(v); localStorage.setItem(`calsyn_cs_${key}`, JSON.stringify(v)) }
   return [val, set]
 }
 
@@ -942,13 +942,13 @@ export default function Dialer() {
   crmStatuses?.forEach(s => { crmLabels[s.key] = s.label })
 
   const [activeListId, setActiveListId] = useState<string | null>(() => {
-    try { return localStorage.getItem('callio_active_list') } catch { return null }
+    try { return localStorage.getItem('calsyn_active_list') } catch { return null }
   })
   // Colonnes visibles par liste
   const [visibleColumnIds, setVisibleColumnIds] = useState<string[]>(DEFAULT_VISIBLE_COLUMNS)
   useEffect(() => {
     if (!activeListId) { setVisibleColumnIds(DEFAULT_VISIBLE_COLUMNS); return }
-    const key = `callio_cs_visible_columns_${activeListId}`
+    const key = `calsyn_cs_visible_columns_${activeListId}`
     try {
       const s = localStorage.getItem(key)
       const parsed = s ? JSON.parse(s) : null
@@ -964,11 +964,45 @@ export default function Dialer() {
   const saveVisibleColumns = useCallback((cols: string[]) => {
     setVisibleColumnIds(cols)
     if (activeListId) {
-      localStorage.setItem(`callio_cs_visible_columns_${activeListId}`, JSON.stringify(cols))
+      localStorage.setItem(`calsyn_cs_visible_columns_${activeListId}`, JSON.stringify(cols))
     }
   }, [activeListId])
   const [showColumnPicker, setShowColumnPicker] = useState(false)
   const [dragColId, setDragColId] = useState<string | null>(null)
+  const tableScrollRef = useRef<HTMLDivElement>(null)
+  const scrollRafRef = useRef<number | null>(null)
+  const scrollDirRef = useRef<number>(0)
+  const stopColAutoScroll = useCallback(() => {
+    if (scrollRafRef.current !== null) { cancelAnimationFrame(scrollRafRef.current); scrollRafRef.current = null }
+    scrollDirRef.current = 0
+  }, [])
+  const startColAutoScroll = useCallback(() => {
+    if (scrollRafRef.current !== null) return
+    const step = () => {
+      const el = tableScrollRef.current
+      if (!el || scrollDirRef.current === 0) { scrollRafRef.current = null; return }
+      el.scrollLeft += scrollDirRef.current * 16
+      scrollRafRef.current = requestAnimationFrame(step)
+    }
+    scrollRafRef.current = requestAnimationFrame(step)
+  }, [])
+  const handleTableDragOver = useCallback((e: React.DragEvent<HTMLDivElement>) => {
+    if (!dragColId) return
+    const el = tableScrollRef.current
+    if (!el) return
+    const rect = el.getBoundingClientRect()
+    const edge = 80
+    const x = e.clientX
+    const leftTrigger = rect.left + STICKY_TOTAL + edge
+    const rightTrigger = rect.right - edge
+    if (x < leftTrigger) scrollDirRef.current = -1
+    else if (x > rightTrigger) scrollDirRef.current = 1
+    else scrollDirRef.current = 0
+    if (scrollDirRef.current !== 0) startColAutoScroll()
+    else stopColAutoScroll()
+  }, [dragColId, startColAutoScroll, stopColAutoScroll])
+  useEffect(() => () => stopColAutoScroll(), [stopColAutoScroll])
+  useEffect(() => { if (!dragColId) stopColAutoScroll() }, [dragColId, stopColAutoScroll])
   const [colWidths, setColWidths] = useState<Record<string, number>>({})
   const resizeRef = useRef<{ colId: string; startX: number; startW: number } | null>(null)
   const activeColumns: PropertyDefinition[] = visibleColumnIds
@@ -993,7 +1027,7 @@ export default function Dialer() {
 
   // ── Saved Views (localStorage per list) ──
   type SavedView = { id: string; name: string; columns: string[]; sortBy: string; filters: Filter[] }
-  const viewsKey = activeListId ? `callio_views_${activeListId}` : null
+  const viewsKey = activeListId ? `calsyn_views_${activeListId}` : null
   const [savedViews, setSavedViews] = useState<SavedView[]>([])
 
   useEffect(() => {
@@ -1063,7 +1097,7 @@ export default function Dialer() {
     return undefined
   }
   const [openTabIds, setOpenTabIds] = useState<string[]>(() => {
-    try { return JSON.parse(localStorage.getItem('callio_open_tabs') || '[]') } catch { return [] }
+    try { return JSON.parse(localStorage.getItem('calsyn_open_tabs') || '[]') } catch { return [] }
   })
   const [showCallSettings, setShowCallSettings] = useState(false)
   const { data: prospects } = useProspects(activeListId)
@@ -1096,33 +1130,33 @@ export default function Dialer() {
   useRealtimeProspects()
 
   useEffect(() => {
-    // Première visite : pas de clé callio_open_tabs → ouvrir toutes les listes
-    if (lists?.length && localStorage.getItem('callio_open_tabs') === null) {
+    // Première visite : pas de clé calsyn_open_tabs → ouvrir toutes les listes
+    if (lists?.length && localStorage.getItem('calsyn_open_tabs') === null) {
       const ids = lists.map(l => l.id)
       setOpenTabIds(ids)
       setActiveListId(ids[0])
-      localStorage.setItem('callio_open_tabs', JSON.stringify(ids))
-      localStorage.setItem('callio_active_list', ids[0])
+      localStorage.setItem('calsyn_open_tabs', JSON.stringify(ids))
+      localStorage.setItem('calsyn_active_list', ids[0])
       return
     }
     // Si des tabs sont ouverts mais pas d'activeListId → prendre le premier tab
     if (openTabIds.length > 0 && !activeListId) {
       setActiveListId(openTabIds[0])
-      localStorage.setItem('callio_active_list', openTabIds[0])
+      localStorage.setItem('calsyn_active_list', openTabIds[0])
     }
     // Si activeListId pointe sur un tab qui n'est plus ouvert → reset
     if (activeListId && openTabIds.length > 0 && !openTabIds.includes(activeListId)) {
       setActiveListId(openTabIds[0])
-      localStorage.setItem('callio_active_list', openTabIds[0])
+      localStorage.setItem('calsyn_active_list', openTabIds[0])
     }
   }, [lists, activeListId, openTabIds])
 
   // Persister les tabs ouverts + nettoyer activeListId si plus de tabs
   useEffect(() => {
-    localStorage.setItem('callio_open_tabs', JSON.stringify(openTabIds))
+    localStorage.setItem('calsyn_open_tabs', JSON.stringify(openTabIds))
     if (openTabIds.length === 0) {
       setActiveListId(null)
-      localStorage.removeItem('callio_active_list')
+      localStorage.removeItem('calsyn_active_list')
     }
   }, [openTabIds])
 
@@ -1306,8 +1340,8 @@ export default function Dialer() {
         </button>
         {lists?.filter(l => openTabIds.includes(l.id)).map(l => (
           <div key={l.id} role="button" tabIndex={0}
-            onClick={() => { setActiveListId(l.id); localStorage.setItem('callio_active_list', l.id) }}
-            onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setActiveListId(l.id); localStorage.setItem('callio_active_list', l.id) } }}
+            onClick={() => { setActiveListId(l.id); localStorage.setItem('calsyn_active_list', l.id) }}
+            onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setActiveListId(l.id); localStorage.setItem('calsyn_active_list', l.id) } }}
             className={`flex items-center gap-2 px-3 py-2 text-[12px] whitespace-nowrap flex-shrink-0 transition-colors rounded-t-lg cursor-pointer ${
               activeListId === l.id
                 ? 'text-gray-800 font-semibold bg-white shadow-[0_-1px_3px_rgba(0,0,0,0.08)] border border-gray-200 border-b-white -mb-px relative z-10'
@@ -1321,8 +1355,8 @@ export default function Dialer() {
               if (activeListId === l.id) {
                 const next = remaining.length > 0 ? remaining[remaining.length - 1] : null
                 setActiveListId(next)
-                if (next) localStorage.setItem('callio_active_list', next)
-                else localStorage.removeItem('callio_active_list')
+                if (next) localStorage.setItem('calsyn_active_list', next)
+                else localStorage.removeItem('calsyn_active_list')
               }
             }} className="text-gray-300 hover:text-gray-500 ml-0.5" aria-label="Fermer l'onglet">&times;</button>
           </div>
@@ -1745,7 +1779,12 @@ export default function Dialer() {
       )}
 
       {/* ── Table (scroll horizontal contenu dans le cadre blanc) ── */}
-      <div className="flex-1 min-h-0 overflow-auto">
+      <div ref={tableScrollRef}
+        onDragOver={handleTableDragOver}
+        onDragLeave={stopColAutoScroll}
+        onDrop={stopColAutoScroll}
+        onDragEnd={stopColAutoScroll}
+        className="flex-1 min-h-0 overflow-auto">
           <table className="min-w-full border-collapse" style={{ width: 'max-content' }}>
             <thead className="sticky top-0 z-20">
               <tr className="border-b border-gray-100 bg-gray-50/80">
