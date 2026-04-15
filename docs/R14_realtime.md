@@ -1,6 +1,6 @@
 # R14 — Supabase Realtime
 
-## Quand on l'utilise dans Callio
+## Quand on l'utilise dans Calsyn
 1. **Pendant l'appel** : quand le webhook status-callback INSERT/UPDATE un call, le frontend recoit la notification en temps reel (callSid, status, recording_url)
 2. **Analyse IA** : quand le worker complete l'analyse, le frontend recoit les scores sans polling
 3. **Liste prospects** : quand un autre agent modifie un prospect, la liste se met a jour

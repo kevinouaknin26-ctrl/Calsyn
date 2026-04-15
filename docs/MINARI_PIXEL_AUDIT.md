@@ -1,4 +1,4 @@
-# AUDIT PIXEL PAR PIXEL — Minari vs Callio V2
+# AUDIT PIXEL PAR PIXEL — Minari vs Calsyn V2
 # Source : 12 photos WhatsApp + 61 frames video + recherche web
 # Date : 2026-04-11
 

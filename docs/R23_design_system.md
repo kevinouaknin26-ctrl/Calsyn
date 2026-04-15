@@ -34,7 +34,7 @@
 - Disposition rapide post-call
 - Historique inline dans la fiche contact
 
-### Callio V2 — Notre approche
+### Calsyn V2 — Notre approche
 - **Dark mode par défaut** (Kevin préfère, cohérent avec l'esthétique pro/tech)
 - **3 colonnes** : Sidebar nav / Liste prospects / Panel appel+détail
 - **Font Syne** (moderne, géométrique, parfait pour un SaaS tech)

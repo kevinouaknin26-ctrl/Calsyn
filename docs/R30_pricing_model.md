@@ -18,7 +18,7 @@
 2. **Per minute** (rare, surtout pour l'IA) : $0.05-0.50/min pour voice AI
 3. **Hybrid** : seat + minutes téléphonie + minutes IA
 
-## Notre positionnement Callio
+## Notre positionnement Calsyn
 
 ### Cible
 - PME françaises / EU avec 1-15 SDR

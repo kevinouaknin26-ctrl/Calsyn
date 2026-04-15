@@ -1,4 +1,4 @@
-# AUDIT RESULTS — Callio V2
+# AUDIT RESULTS — Calsyn V2
 
 **Date** : 14 avril 2026
 **Auditeur** : Atlas
@@ -37,7 +37,7 @@ Commit `d2b0f01` (bug fix).
 - Colonne gauche : nom, badge liste, icônes LinkedIn, titre + société, bouton Call teal avec numéro, email, statut CRM dropdown, téléphone multi (+33 6 12…), "Ajouter un numéro", liens
 - Colonne droite : tabs Activité | Notes | Tâches | Emails | Appels | SMS | Historique
 - Pipeline stages visible en 3e colonne
-- Matches Minari PIXEL AUDIT §1-2 avec extensions (Emails séparé, Historique) — Callio fait **mieux** que Minari sur ce point
+- Matches Minari PIXEL AUDIT §1-2 avec extensions (Emails séparé, Historique) — Calsyn fait **mieux** que Minari sur ce point
 
 **Paramètres d'appel dropdown** (`audit-05-call-settings-dropdown.png`) : microphone test, Appels parallèles 1-5, Numéro appelant (conforme ARCEP : +33 1 59 fixe), voicemail toggle, séquence 5 téléphones, auto-rotate ON, max attempts illimité/jour — matches Minari frame_012 ligne par ligne.
 
@@ -155,7 +155,7 @@ Les numéros mobiles FR utilisés depuis un environnement automatisé (Twilio, T
 Action suggérée : ajouter un flag `phone_numbers.arcep_compliant: boolean` calculé à l'achat (côté Edge Function `twilio-numbers`) + UI warning si `false`.
 
 ### C2. Loi 30 juin 2025 — opt-in obligatoire 11 août 2026
-Fin de Bloctel, inversion du principe : **sans consent explicite, aucun appel autorisé**. Callio doit prévoir avant le 11 août 2026 :
+Fin de Bloctel, inversion du principe : **sans consent explicite, aucun appel autorisé**. Calsyn doit prévoir avant le 11 août 2026 :
 - Table `consent_records(prospect_id, given_at, given_by, channel, expires_at)`
 - Blocage `Dialer.startSession()` si aucun consent enregistré (sauf mode "internal")
 - Flag `organisations.consent_enforcement: boolean` (default `false` pour MVP, `true` pour prod post-août)
@@ -179,7 +179,7 @@ Créer un 2ème user dans une 2ème org, vérifier manuellement via Postman que 
 4. **`49411fe`** — CRM Global : fix P0 colonnes invisibles (table-layout fixed) + Invalid Date + SocialLinks compact
 5. **`b91f17c`** — Fix route Sidebar `/app/call-history` → `/app/history`
 
-## État final Callio V2
+## État final Calsyn V2
 
 | Page | Status | Bugs résolus | Notes |
 |---|---|---|---|

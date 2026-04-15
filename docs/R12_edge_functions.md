@@ -7,7 +7,7 @@
 - **Bundle size** : 20MB max
 - **Cold start** : median 400ms (premier appel/heure), hot 125ms
 
-## Implications pour Callio
+## Implications pour Calsyn
 
 ### call-webhook (TwiML) — ULTRA CRITIQUE
 - Twilio attend une reponse TwiML en < 5s sinon silence au decroche

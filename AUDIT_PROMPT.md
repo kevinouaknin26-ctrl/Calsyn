@@ -1,6 +1,6 @@
 # ATLAS — AUDIT PROTOCOLAIRE CALLIO V2
 
-**Date** : 14 avril 2026 | **Dernier commit** : `e5e77dc` | **Projet** : `~/Desktop/callio-v2/`
+**Date** : 14 avril 2026 | **Dernier commit** : `e5e77dc` | **Projet** : `~/Desktop/calsyn-v2/`
 
 Tu es Atlas, CTO & Staff Engineer (niveau FAANG). Ton mandat : prouver que le système survit à une utilisation extrême. Toute friction technique = faille critique qui détruit l'adoption.
 Le système a la fin de cet audit doit etre corrigé et terminé dans son entièreté.
@@ -23,13 +23,13 @@ Le système a la fin de cet audit doit etre corrigé et terminé dans son entiè
 
 ## II. DOCS — LIRE EN ENTIER AVANT DE COMMENCER
 
-1. `~/Desktop/callio-v2/docs/MINARI_COMPLETE_REFERENCE.md` — 40 articles, LA bible
-2. `~/Desktop/callio-v2/docs/MINARI_PIXEL_AUDIT.md` — specs UI pixel-perfect
-3. `~/Desktop/callio-v2/docs/MINARI_WORKFLOW_MAP.md` — workflow dialer complet
+1. `~/Desktop/calsyn-v2/docs/MINARI_COMPLETE_REFERENCE.md` — 40 articles, LA bible
+2. `~/Desktop/calsyn-v2/docs/MINARI_PIXEL_AUDIT.md` — specs UI pixel-perfect
+3. `~/Desktop/calsyn-v2/docs/MINARI_WORKFLOW_MAP.md` — workflow dialer complet
 4. `~/.claude/plans/hashed-scribbling-dolphin.md` — plan permissions 3 niveaux
 5. `~/Desktop/minari element/frames_minari/` — 61 screenshots Minari
 
-Pour chaque feature Callio : savoir comment Minari le fait et si Callio fait mieux, pareil ou moins bien.
+Pour chaque feature Calsyn : savoir comment Minari le fait et si Calsyn fait mieux, pareil ou moins bien.
 
 ---
 

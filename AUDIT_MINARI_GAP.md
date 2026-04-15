@@ -1,4 +1,4 @@
-# Ecart Callio V2 vs Minari — A combler ce weekend
+# Ecart Calsyn V2 vs Minari — A combler ce weekend
 
 ## CRITIQUE (UX cassée sans ça)
 - [ ] Call history dans le modal prospect (voir les appels précédents depuis Supabase)

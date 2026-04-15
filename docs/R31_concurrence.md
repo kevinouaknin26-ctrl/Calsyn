@@ -46,7 +46,7 @@
 3. **CRM intégration native** (Orum) : Salesforce, HubSpot en 1 clic
 4. **Salesfloor** (Nooks) : virtual office pour équipes remote
 
-## Notre positionnement Callio
+## Notre positionnement Calsyn
 
 ### Ce qu'on fait MIEUX
 - **Prix** : 49-99€ vs 250-500€ chez les leaders

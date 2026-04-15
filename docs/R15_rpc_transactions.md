@@ -4,7 +4,7 @@
 PostgREST wrappe chaque appel `rpc()` dans une transaction automatiquement.
 Si une etape echoue, tout est rollback. Pas de donnees corrompues.
 
-## Use cases Callio
+## Use cases Calsyn
 
 ### 1. check_and_lock_credit (avant chaque dial)
 ```sql

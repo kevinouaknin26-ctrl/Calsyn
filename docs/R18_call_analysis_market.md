@@ -42,7 +42,7 @@ vs Gong : ~$5-7 par appel (basé sur $1400/user/an, ~20 calls/jour)
 | **OpenClaw** | Orchestrateur open source pour build un Gong-like |
 | **Whisper + LLM local** | 100% self-hosted, zero coût API |
 
-## Analyse pour Callio
+## Analyse pour Calsyn
 
 ### Ce dont on a besoin
 1. **Scoring** : accroche, objection, closing (0-100)

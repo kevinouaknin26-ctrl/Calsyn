@@ -1,14 +1,14 @@
-# AUDIT RESEARCH BRIEF — Callio V2
+# AUDIT RESEARCH BRIEF — Calsyn V2
 
 **Date** : 14 avril 2026
 **Auteur** : Atlas (CTO)
-**Portée** : Ce document consolide la connaissance nécessaire pour auditer Callio V2 page par page contre l'état de l'art des parallel dialers, power dialers et CRM B2B en 2026. Il est la référence opposable pendant l'audit — tout jugement "OK / KO" sur une page doit s'y rattacher.
+**Portée** : Ce document consolide la connaissance nécessaire pour auditer Calsyn V2 page par page contre l'état de l'art des parallel dialers, power dialers et CRM B2B en 2026. Il est la référence opposable pendant l'audit — tout jugement "OK / KO" sur une page doit s'y rattacher.
 
 **Périmètre produit** : parallel dialer B2B SaaS (clone Minari) + CRM HubSpot-like fusionné, multi-tenant Supabase, Twilio Voice SDK 2.18 (Telnyx codé, pas activé), marché FR.
 
 ---
 
-## 1. Ce que Callio DOIT faire (critères produit opposables)
+## 1. Ce que Calsyn DOIT faire (critères produit opposables)
 
 ### 1.1 Dialer (cœur métier)
 Un SDR doit pouvoir :
@@ -80,18 +80,18 @@ Un admin modifie un paramètre → effet **immédiat** dans le Dialer (reactive,
 | Orum | $417 | 7 | Oui | Enterprise SDR |
 | Minari | ~300€ | Oui | Basique | SDR FR |
 | Aircall | $70+ | Non | Addon $9 | PME |
-| Callio (cible) | 49-199€ | 1-5 | Intégrée | PME FR |
+| Calsyn (cible) | 49-199€ | 1-5 | Intégrée | PME FR |
 
-**Positionnement défendable** : "Le Minari accessible" (parallel + IA native < 100€). Callio doit matcher Minari feature-parity sur le MVP — sinon aucun différenciant autre que le prix, ce qui ne tient pas à moyen terme.
+**Positionnement défendable** : "Le Minari accessible" (parallel + IA native < 100€). Calsyn doit matcher Minari feature-parity sur le MVP — sinon aucun différenciant autre que le prix, ce qui ne tient pas à moyen terme.
 
-### 2.3 HubSpot data model — ce que Callio doit maîtriser
+### 2.3 HubSpot data model — ce que Calsyn doit maîtriser
 - **4 objets standards** : Contacts, Companies, Deals, Tickets.
 - **Contact** = personne (email unique ID). **Company** = organisation (domaine unique ID). **Deal** = opportunité business avec amount + closedate + pipeline stage.
 - **Associations** : Contact ↔ Company (many-to-one), Deal ↔ Contacts + Company, Deal ↔ Activities (calls, emails, meetings).
 - **Pipeline** : stages avec probabilité % → forecasted revenue.
 - **Timeline** : chaque record logue toute modif, association, activité.
 
-**Décision Callio** : on FUSIONNE Contact + Company dans `prospects` (une table, champs `company`/`title` inline). Pas de Deal séparé pour le MVP — le `crm_status` du prospect joue le rôle de stage. **Conséquence à documenter** : on ne peut pas tracker plusieurs deals pour le même contact. Trade-off assumé pour la simplicité MVP, mais revient en V2 (table `deals` séparée).
+**Décision Calsyn** : on FUSIONNE Contact + Company dans `prospects` (une table, champs `company`/`title` inline). Pas de Deal séparé pour le MVP — le `crm_status` du prospect joue le rôle de stage. **Conséquence à documenter** : on ne peut pas tracker plusieurs deals pour le même contact. Trade-off assumé pour la simplicité MVP, mais revient en V2 (table `deals` séparée).
 
 ### 2.4 Attio / Close benchmarks
 - Filtrage **millions de records en ms** (Attio testé à 50k sans ralentissement).
@@ -104,14 +104,14 @@ Un admin modifie un paramètre → effet **immédiat** dans le Dialer (reactive,
 
 ### 3.1 Compliance FR — CRITIQUE
 - **ARCEP** : un 06/07 mobile FR **ne peut pas** être utilisé depuis un environnement fixe/automatisé (VoIP, CRM, centre d'appel) pour prospection commerciale. Seuls les fixes (01-05, 09) ou les numéros mobiles rattachés à un terminal physique sont conformes.
-- **Conséquence Callio** : le dropdown "From phone number" doit **filtrer les numéros achetés** — aucun mobile FR ne devrait être proposé pour outbound commercial. OU afficher un warning compliance.
+- **Conséquence Calsyn** : le dropdown "From phone number" doit **filtrer les numéros achetés** — aucun mobile FR ne devrait être proposé pour outbound commercial. OU afficher un warning compliance.
 - **Loi 30 juin 2025** → **11 août 2026** : opt-in explicite obligatoire, fin de Bloctel. Architecture à préparer :
   - Table `consent_records(prospect_id, given_at, given_by, channel, expires_at)` 
   - Blocage dial si pas de consent enregistré post-août 2026
   - Flag `organisations.consent_enforcement: boolean` (default false pour MVP, true pour prod post-août 2026)
 
 ### 3.2 Twilio Voice SDK 2.18 — patterns production
-- **Event `tokenWillExpire`** : émis par défaut **10 s avant expiration** (configurable via `tokenRefreshMs`). Callio a mis refresh à 55 min → le token est refreshé en safety, OK, mais on doit aussi écouter `tokenWillExpire` comme filet de sécurité.
+- **Event `tokenWillExpire`** : émis par défaut **10 s avant expiration** (configurable via `tokenRefreshMs`). Calsyn a mis refresh à 55 min → le token est refreshé en safety, OK, mais on doit aussi écouter `tokenWillExpire` comme filet de sécurité.
 - **Conference-first** : Twilio recommande que **tous** les appels passent par une Conference, pas un Dial direct — sinon impossible d'ajouter coaching/monitor/whisper sans rewrite. Vérifier la TwiML générée par `call-webhook` Edge Function.
 - **`maxCallSignalingTimeoutMs`** : opt-in feature pour signaling reconnection (récupérer la connection sans perdre l'appel). À activer sur le Device.
 - **AsyncAmd** : pour le parallel, indispensable. `asyncAmdStatusCallback` dédié. AMD résultat ~4 s après answer. Tant que parallel pas activé → inutile mais à prévoir pour V2.1.
@@ -120,7 +120,7 @@ Un admin modifie un paramètre → effet **immédiat** dans le Dialer (reactive,
 ### 3.3 Supabase Realtime
 - `postgres_changes` = **single-thread** pour garantir l'ordre → bottleneck à scale (> 1000 users simultanés).
 - **Broadcast from Database** (feature 2025) : SQL trigger → broadcast channel ciblé → plus scalable.
-- **Règle Callio MVP** : postgres_changes OK (< 100 concurrent users). Migration Broadcast prévue pour V2.
+- **Règle Calsyn MVP** : postgres_changes OK (< 100 concurrent users). Migration Broadcast prévue pour V2.
 - **Filtre obligatoire par `organisation_id`** sur chaque channel sinon fuite cross-org.
 
 ### 3.4 Supabase RLS multi-tenant

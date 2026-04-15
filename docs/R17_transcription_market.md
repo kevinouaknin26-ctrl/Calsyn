@@ -38,7 +38,7 @@
 | **Retell AI** | $0.07/min all-in | Voice agent avec telephonie incluse |
 | **Bland AI** | $0.11-0.14/min | Outbound volume, 1M calls simultanés |
 
-## Analyse pour Callio
+## Analyse pour Calsyn
 
 ### Ce dont on a besoin
 1. Transcription post-call (pas realtime pour le MVP)
