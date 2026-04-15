@@ -60,20 +60,27 @@ export default function Team() {
     enabled: !!members?.length,
   })
 
-  // ── Numéros Twilio dispo org ──
+  // ── Pool de numéros alloué à l'org (niveau 2 de la hiérarchie super_admin→org→user) ──
+  // Le super_admin alloue des numéros à chaque org via phone_inventory. Ici on lit
+  // uniquement le pool de notre propre org : c'est ce que l'admin peut distribuer aux SDR.
   const { data: twilioNumbers } = useQuery({
-    queryKey: ['team-twilio-numbers'],
+    queryKey: ['team-org-phone-pool', me?.organisation_id],
     queryFn: async () => {
-      const { data: { session } } = await supabase.auth.getSession()
-      if (!session) return []
-      const res = await fetch(`${SUPABASE_URL}/functions/v1/twilio-numbers?action=list`, {
-        headers: { Authorization: `Bearer ${session.access_token}` },
-      })
-      if (!res.ok) return []
-      const data = await res.json()
-      return (data.numbers || []) as TwilioNumber[]
+      if (!me?.organisation_id) return []
+      const { data, error } = await supabase.from('phone_inventory')
+        .select('phone_number, label')
+        .eq('organisation_id', me.organisation_id)
+        .is('deleted_at', null)
+        .order('phone_number')
+      if (error) return []
+      return (data || []).map(row => ({
+        sid: row.phone_number,
+        phone: row.phone_number,
+        friendlyName: row.label || row.phone_number,
+      })) as TwilioNumber[]
     },
-    staleTime: 300_000,
+    enabled: !!me?.organisation_id,
+    staleTime: 60_000,
   })
 
   // ── Droits ──
