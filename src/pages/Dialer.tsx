@@ -4,7 +4,7 @@
  * Call Settings dropdown, badges pill, icones LinkedIn/copier dans rows.
  */
 
-import { useState, useEffect, useCallback, memo, useRef } from 'react'
+import { useState, useEffect, useCallback, useMemo, memo, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { useQueryClient, useQuery } from '@tanstack/react-query'
 import { useCallMachine } from '@/hooks/useCallMachine'
