@@ -4,7 +4,8 @@
  * Inspiré Minari Users page : compteurs licences, search, filter, table riche, actions.
  */
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useAuth } from '@/hooks/useAuth'
 import { supabase } from '@/config/supabase'
@@ -348,6 +349,14 @@ function MemberRow({ m, isMe, canManage, twilioNumbers, phonesUsedByOthers, conf
   onPatch: (patch: Partial<Profile>) => Promise<boolean>
 }) {
   const [menuOpen, setMenuOpen] = useState(false)
+  const menuBtnRef = useRef<HTMLButtonElement>(null)
+  const [menuCoords, setMenuCoords] = useState<{ top: number; right: number } | null>(null)
+  const openMenu = () => {
+    // Calcul des coordonnées écran du bouton pour positionner le menu en fixed (portal)
+    const r = menuBtnRef.current?.getBoundingClientRect()
+    if (r) setMenuCoords({ top: r.bottom + 4, right: window.innerWidth - r.right })
+    setMenuOpen(v => !v)
+  }
   const [addPhoneOpen, setAddPhoneOpen] = useState(false)
 
   const status: 'active' | 'pending' | 'suspended' = m.deactivated_at ? 'suspended' : (confirmed ? 'active' : 'pending')
@@ -510,18 +519,19 @@ function MemberRow({ m, isMe, canManage, twilioNumbers, phonesUsedByOthers, conf
         )}
       </td>
 
-      {/* Menu actions */}
+      {/* Menu actions — rendu via portal pour échapper au overflow du <td>/<tr> */}
       <td className="px-3 py-3 text-right">
         {canManage && (
-          <div className="relative">
-            <button onClick={() => setMenuOpen(v => !v)}
+          <>
+            <button ref={menuBtnRef} onClick={openMenu}
               className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100">
               <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M10 6a2 2 0 110-4 2 2 0 010 4zm0 6a2 2 0 110-4 2 2 0 010 4zm0 6a2 2 0 110-4 2 2 0 010 4z" /></svg>
             </button>
-            {menuOpen && (
+            {menuOpen && menuCoords && createPortal(
               <>
-                <div className="fixed inset-0 z-40" onClick={() => setMenuOpen(false)} />
-                <div className="absolute right-0 top-full mt-1 z-50 bg-white rounded-lg border border-gray-200 shadow-lg py-1 min-w-[200px]">
+                <div className="fixed inset-0 z-[1000]" onClick={() => setMenuOpen(false)} />
+                <div className="fixed z-[1001] bg-white rounded-lg border border-gray-200 shadow-lg py-1 min-w-[200px]"
+                  style={{ top: menuCoords.top, right: menuCoords.right }}>
                   {status === 'pending' && (
                     <>
                       <MenuItem onClick={() => { setMenuOpen(false); onResend() }}>Renvoyer l'invitation</MenuItem>
@@ -536,9 +546,10 @@ function MemberRow({ m, isMe, canManage, twilioNumbers, phonesUsedByOthers, conf
                   )}
                   <MenuItem danger onClick={() => { setMenuOpen(false); onDelete() }}>Archiver</MenuItem>
                 </div>
-              </>
+              </>,
+              document.body
             )}
-          </div>
+          </>
         )}
       </td>
     </tr>
