@@ -1,7 +1,7 @@
 /**
- * Historique — Liste des appels à gauche, fiche détaillée en side-panel droit (style ProspectModal).
- * La fiche contient des sections accordéon : Notes SDR, Audio, Scores, Résumé, Coaching,
- * Transcription. Bouton "Télécharger ZIP" en tête pour exporter la fiche + l'audio + JSON brut.
+ * Historique — Liste d'appels, chaque row est une card accordéon qui se déplie
+ * sur place pour montrer la fiche complète (style ProspectModal inline) :
+ * Notes, Audio, Scores, Résumé, Coaching, Transcription. Bouton "Télécharger ZIP".
  */
 
 import { useMemo, useState } from 'react'
@@ -59,21 +59,16 @@ function slugify(s: string): string {
 function buildFicheMarkdown(call: Call): string {
   const lines: string[] = []
   const nom = call.prospect_name || 'Inconnu'
-  lines.push(`# Fiche d'appel — ${nom}`)
-  lines.push('')
+  lines.push(`# Fiche d'appel — ${nom}`, '')
   lines.push(`- **Téléphone** : ${call.prospect_phone || '—'}`)
   lines.push(`- **Date** : ${new Date(call.created_at).toLocaleString('fr-FR', { dateStyle: 'full', timeStyle: 'short' })}`)
   lines.push(`- **Durée** : ${call.call_duration ? `${Math.floor(call.call_duration / 60)} min ${call.call_duration % 60} s` : '—'}`)
   lines.push(`- **Issue** : ${call.call_outcome || '—'}`)
   lines.push(`- **RDV pris** : ${call.meeting_booked ? 'Oui ✓' : 'Non'}`)
-  lines.push(`- **Numéro appelant** : ${call.from_number || '—'}`)
-  lines.push('')
-  if (call.note) {
-    lines.push('## Notes SDR', '', call.note, '')
-  }
+  lines.push(`- **Numéro appelant** : ${call.from_number || '—'}`, '')
+  if (call.note) lines.push('## Notes SDR', '', call.note, '')
   if (call.ai_analysis_status === 'completed') {
-    lines.push('## Scores (analyse Claude)', '')
-    lines.push(`| Critère | Note /10 |`, `|---|---|`)
+    lines.push('## Scores (analyse Claude)', '', `| Critère | Note /10 |`, `|---|---|`)
     lines.push(`| Global | **${call.ai_score_global ?? '—'}** |`)
     lines.push(`| Accroche | ${call.ai_score_accroche ?? '—'} |`)
     lines.push(`| Objection | ${call.ai_score_objection ?? '—'} |`)
@@ -84,8 +79,6 @@ function buildFicheMarkdown(call: Call): string {
     if (call.ai_points_forts?.length) { lines.push('## Points forts', ''); call.ai_points_forts.forEach(s => lines.push(`- ✓ ${s}`)); lines.push('') }
     if (call.ai_points_amelioration?.length) { lines.push('## Coaching — à améliorer', ''); call.ai_points_amelioration.forEach(s => lines.push(`- ⚠ ${s}`)); lines.push('') }
     if (call.ai_transcript) lines.push('## Transcription intégrale', '', call.ai_transcript, '')
-  } else {
-    lines.push('## Analyse Claude', '', `Statut : ${call.ai_analysis_status || 'non démarrée'}`, '')
   }
   lines.push('---', `*Export Calsyn · ${new Date().toISOString()}*`)
   return lines.join('\n')
@@ -104,10 +97,10 @@ async function downloadCallZip(call: Call, supabaseUrl: string) {
         const ext = blob.type.includes('wav') ? 'wav' : 'mp3'
         zip.file(`${slug}/audio.${ext}`, blob)
       } else {
-        zip.file(`${slug}/_AUDIO_ERREUR.txt`, `Impossible de télécharger l'audio. HTTP ${res.status}\nURL source : ${call.recording_url}`)
+        zip.file(`${slug}/_AUDIO_ERREUR.txt`, `HTTP ${res.status}\n${call.recording_url}`)
       }
     } catch (e) {
-      zip.file(`${slug}/_AUDIO_ERREUR.txt`, `Erreur fetch audio : ${(e as Error).message}`)
+      zip.file(`${slug}/_AUDIO_ERREUR.txt`, (e as Error).message)
     }
   }
   zip.file(`${slug}/raw.json`, JSON.stringify(call, null, 2))
@@ -115,18 +108,14 @@ async function downloadCallZip(call: Call, supabaseUrl: string) {
   saveAs(blob, `${slug}.zip`)
 }
 
-// ── Section accordéon dans la fiche droite ─────────────────────────
-function AccordionSection({ title, defaultOpen = true, badge, children }: {
-  title: string
-  defaultOpen?: boolean
-  badge?: string | number | null
-  children: React.ReactNode
+function Section({ title, defaultOpen = true, badge, children }: {
+  title: string; defaultOpen?: boolean; badge?: string | number | null; children: React.ReactNode
 }) {
   const [open, setOpen] = useState(defaultOpen)
   return (
     <div className="border-b border-gray-100 last:border-b-0">
       <button onClick={() => setOpen(v => !v)}
-        className="w-full flex items-center gap-2 px-4 py-3 text-left hover:bg-gray-50 transition-colors">
+        className="w-full flex items-center gap-2 px-4 py-2.5 text-left hover:bg-gray-50 transition-colors">
         <svg className={`w-3 h-3 text-gray-400 transition-transform ${open ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
         </svg>
@@ -138,7 +127,7 @@ function AccordionSection({ title, defaultOpen = true, badge, children }: {
   )
 }
 
-function Score({ label, value, big = false }: { label: string; value: number | null; big?: boolean }) {
+function ScoreChip({ label, value, big = false }: { label: string; value: number | null; big?: boolean }) {
   if (value == null) return null
   const color = value >= 7 ? '#059669' : value >= 4 ? '#f59e0b' : '#ef4444'
   return (
@@ -151,14 +140,15 @@ function Score({ label, value, big = false }: { label: string; value: number | n
   )
 }
 
-// ── Side panel : fiche d'appel complète style ProspectModal ─────────
-function CallDetailPanel({ call, onClose }: { call: Call; onClose: () => void }) {
-  const navigate = useNavigate()
+function CallRow({ call }: { call: Call }) {
+  const [expanded, setExpanded] = useState(false)
   const [downloading, setDownloading] = useState(false)
+  const navigate = useNavigate()
   const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
   const color = OUTCOME_COLORS[call.call_outcome || ''] || '#9ca3af'
   const label = OUTCOME_LABELS[call.call_outcome || ''] || call.call_outcome || '—'
   const hasAI = call.ai_analysis_status === 'completed' && call.ai_score_global != null
+  const initial = (call.prospect_name || '?')[0].toUpperCase()
 
   const handleDownload = async () => {
     if (downloading) return
@@ -168,157 +158,171 @@ function CallDetailPanel({ call, onClose }: { call: Call; onClose: () => void })
   }
 
   return (
-    <div className="w-[440px] bg-white border-l border-gray-200 flex flex-col overflow-hidden h-full">
-      {/* Header */}
-      <div className="px-5 py-4 border-b border-gray-100 flex items-start gap-3">
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 flex-wrap">
-            <h2 className="text-base font-bold text-gray-800 truncate">{call.prospect_name || 'Inconnu'}</h2>
-            {call.meeting_booked && <span className="text-[9px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded">📅 RDV</span>}
-            <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold" style={{ background: color + '18', color }}>{label}</span>
-          </div>
-          <div className="text-[12px] text-gray-500 font-mono mt-0.5">{call.prospect_phone}</div>
-          <div className="text-[11px] text-gray-400 mt-0.5">
-            {formatDate(call.created_at)} · {formatDuration(call.call_duration)}
-            {call.from_number && ` · depuis ${call.from_number}`}
-          </div>
+    <div className={`border-b border-gray-100 last:border-b-0 transition-colors ${expanded ? 'bg-white' : 'bg-white hover:bg-gray-50'}`}>
+      {/* Header row — cliquable, style fiche prospect compacte */}
+      <button onClick={() => setExpanded(v => !v)} className="w-full flex items-center gap-3 px-4 py-3 text-left">
+        <svg className={`w-3.5 h-3.5 text-gray-400 flex-shrink-0 transition-transform ${expanded ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+        </svg>
+        {/* Avatar initiale (comme fiche prospect) */}
+        <div className="w-9 h-9 rounded-full bg-gradient-to-br from-indigo-400 to-violet-500 flex items-center justify-center text-white font-bold text-sm flex-shrink-0 shadow-sm">
+          {initial}
         </div>
-        <button onClick={onClose} className="text-gray-400 hover:text-red-500 text-xl leading-none">×</button>
-      </div>
-
-      {/* Actions */}
-      <div className="px-5 py-3 border-b border-gray-100 flex items-center gap-2 flex-wrap bg-gray-50/50">
-        <button onClick={handleDownload} disabled={downloading}
-          className="px-3 py-1.5 rounded-lg text-[11px] font-semibold bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 flex items-center gap-1.5">
-          {downloading ? (
-            <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" strokeDasharray="45 15" /></svg>
-          ) : (
-            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
-          )}
-          {downloading ? 'Export en cours…' : 'Télécharger ZIP'}
-        </button>
-        {call.prospect_id && (
-          <button onClick={() => navigate(`/app/dialer?prospectId=${call.prospect_id}`)}
-            className="px-3 py-1.5 rounded-lg text-[11px] font-semibold bg-white border border-gray-200 text-gray-700 hover:bg-gray-100 flex items-center gap-1">
-            Fiche prospect →
-          </button>
-        )}
-        {call.prospect_phone && (
-          <a href={`tel:${call.prospect_phone}`}
-            className="px-3 py-1.5 rounded-lg text-[11px] font-semibold bg-white border border-gray-200 text-gray-700 hover:bg-gray-100 flex items-center gap-1">
-            📞 Rappeler
-          </a>
-        )}
-      </div>
-
-      {/* Sections accordéon — scrollable */}
-      <div className="flex-1 overflow-y-auto">
-        {/* Notes SDR */}
-        <AccordionSection title="Notes SDR" defaultOpen={!!call.note}>
-          {call.note ? (
-            <p className="whitespace-pre-wrap leading-relaxed">{call.note}</p>
-          ) : (
-            <p className="text-gray-400 italic">Aucune note saisie pendant l'appel.</p>
-          )}
-        </AccordionSection>
-
-        {/* Audio */}
-        {call.recording_url && (
-          <AccordionSection title="Enregistrement audio" defaultOpen>
-            <audio controls preload="none"
-              src={`${supabaseUrl}/functions/v1/recording-proxy?url=${encodeURIComponent(call.recording_url)}`}
-              className="w-full h-9" />
-          </AccordionSection>
-        )}
-
+        {/* Nom + tél */}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <span className="font-semibold text-gray-800 text-sm truncate">{call.prospect_name || 'Inconnu'}</span>
+            {call.meeting_booked && <span className="text-[9px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded">📅 RDV</span>}
+          </div>
+          <div className="text-[11px] text-gray-400 font-mono">{call.prospect_phone}</div>
+        </div>
+        <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold flex-shrink-0" style={{ background: color + '18', color }}>{label}</span>
+        <div className="text-xs text-gray-500 font-mono w-14 text-right flex-shrink-0">{formatDuration(call.call_duration)}</div>
         {hasAI ? (
-          <>
-            {/* Scores */}
-            <AccordionSection title="Scores IA" defaultOpen badge={call.ai_score_global}>
-              <div className="flex items-center gap-2 bg-gradient-to-r from-indigo-50 to-violet-50 rounded-lg py-3 px-2 border border-indigo-100">
-                <Score label="Global" value={call.ai_score_global} big />
-                <div className="h-10 w-px bg-indigo-200" />
-                <Score label="Accroche" value={call.ai_score_accroche} />
-                <Score label="Objection" value={call.ai_score_objection} />
-                <Score label="Closing" value={call.ai_score_closing} />
-              </div>
-            </AccordionSection>
-
-            {/* Résumé */}
-            {call.ai_summary && call.ai_summary.length > 0 && (
-              <AccordionSection title="Résumé" defaultOpen badge={call.ai_summary.length}>
-                <ul className="space-y-1.5">
-                  {call.ai_summary.map((s, i) => (
-                    <li key={i} className="flex gap-2"><span className="text-indigo-400 flex-shrink-0">•</span><span className="leading-relaxed">{s}</span></li>
-                  ))}
-                </ul>
-              </AccordionSection>
-            )}
-
-            {/* Intention + Prochaine étape */}
-            {(call.ai_intention_prospect || call.ai_prochaine_etape) && (
-              <AccordionSection title="Intention & prochaine étape" defaultOpen={false}>
-                {call.ai_intention_prospect && (
-                  <div className="mb-3">
-                    <div className="text-[10px] font-bold text-gray-400 uppercase mb-1 tracking-wider">Intention du prospect</div>
-                    <p className="leading-relaxed">{call.ai_intention_prospect}</p>
-                  </div>
-                )}
-                {call.ai_prochaine_etape && (
-                  <div>
-                    <div className="text-[10px] font-bold text-gray-400 uppercase mb-1 tracking-wider">Prochaine étape</div>
-                    <p className="leading-relaxed">{call.ai_prochaine_etape}</p>
-                  </div>
-                )}
-              </AccordionSection>
-            )}
-
-            {/* Points forts */}
-            {call.ai_points_forts && call.ai_points_forts.length > 0 && (
-              <AccordionSection title="Points forts" badge={call.ai_points_forts.length}>
-                <ul className="space-y-1.5">
-                  {call.ai_points_forts.map((s, i) => (
-                    <li key={i} className="flex gap-2"><span className="text-emerald-500 flex-shrink-0 font-bold">+</span><span className="leading-relaxed">{s}</span></li>
-                  ))}
-                </ul>
-              </AccordionSection>
-            )}
-
-            {/* Coaching */}
-            {call.ai_points_amelioration && call.ai_points_amelioration.length > 0 && (
-              <AccordionSection title="Coaching — à améliorer" badge={call.ai_points_amelioration.length}>
-                <ul className="space-y-1.5">
-                  {call.ai_points_amelioration.map((s, i) => (
-                    <li key={i} className="flex gap-2"><span className="text-amber-500 flex-shrink-0 font-bold">–</span><span className="leading-relaxed">{s}</span></li>
-                  ))}
-                </ul>
-              </AccordionSection>
-            )}
-
-            {/* Transcript */}
-            {call.ai_transcript && (
-              <AccordionSection title="Transcription intégrale" defaultOpen={false}>
-                <div className="bg-gray-50 rounded-lg p-3 max-h-[400px] overflow-y-auto whitespace-pre-wrap text-[12px] leading-relaxed">
-                  {call.ai_transcript}
-                </div>
-              </AccordionSection>
-            )}
-          </>
+          <div className="text-right w-12 flex-shrink-0">
+            <div className="text-sm font-bold" style={{ color: (call.ai_score_global || 0) >= 7 ? '#059669' : (call.ai_score_global || 0) >= 4 ? '#f59e0b' : '#ef4444' }}>
+              {call.ai_score_global}
+            </div>
+            <div className="text-[9px] text-gray-400 uppercase tracking-wider">IA</div>
+          </div>
         ) : call.ai_analysis_status === 'processing' ? (
-          <div className="mx-4 my-4 bg-indigo-50 border border-indigo-200 rounded-lg px-4 py-3 text-[12px] text-indigo-600 flex items-center gap-2">
-            <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" strokeDasharray="45 15" /></svg>
-            Analyse Claude en cours…
-          </div>
-        ) : call.ai_analysis_status === 'error' ? (
-          <div className="mx-4 my-4 bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-[12px] text-red-600">
-            Erreur d'analyse. L'audio n'a peut-être pas pu être transcrit.
-          </div>
+          <div className="text-[10px] text-indigo-400 w-12 flex-shrink-0 text-right animate-pulse">Ana…</div>
         ) : (
-          <div className="mx-4 my-4 bg-gray-50 border border-gray-200 rounded-lg px-4 py-3 text-[12px] text-gray-500">
-            Analyse pas encore démarrée pour cet appel.
-          </div>
+          <div className="w-12 flex-shrink-0" />
         )}
-      </div>
+        <div className="text-[11px] text-gray-400 w-28 text-right flex-shrink-0">{formatDate(call.created_at)}</div>
+      </button>
+
+      {/* Fiche dépliée inline — style pop-up prospect */}
+      {expanded && (
+        <div className="ml-14 mr-4 mb-4 bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden animate-slide-down">
+          {/* Barre actions en haut */}
+          <div className="flex items-center gap-2 flex-wrap px-4 py-2.5 bg-gradient-to-r from-indigo-50 to-violet-50 border-b border-indigo-100">
+            <button onClick={handleDownload} disabled={downloading}
+              className="px-3 py-1.5 rounded-lg text-[11px] font-semibold bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 flex items-center gap-1.5">
+              {downloading ? (
+                <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" strokeDasharray="45 15" /></svg>
+              ) : (
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+              )}
+              {downloading ? 'Export en cours…' : 'Télécharger ZIP'}
+            </button>
+            {call.prospect_id && (
+              <button onClick={() => navigate(`/app/dialer?prospectId=${call.prospect_id}`)}
+                className="px-3 py-1.5 rounded-lg text-[11px] font-semibold bg-white border border-gray-200 text-gray-700 hover:bg-gray-100">
+                Fiche prospect →
+              </button>
+            )}
+            {call.prospect_phone && (
+              <a href={`tel:${call.prospect_phone}`}
+                className="px-3 py-1.5 rounded-lg text-[11px] font-semibold bg-white border border-gray-200 text-gray-700 hover:bg-gray-100">
+                📞 Rappeler
+              </a>
+            )}
+            <div className="flex-1" />
+            {call.from_number && <div className="text-[10px] text-gray-400">Appelé depuis {call.from_number}</div>}
+          </div>
+
+          {/* Sections accordéon */}
+          <Section title="Notes SDR" defaultOpen={!!call.note}>
+            {call.note ? (
+              <p className="whitespace-pre-wrap leading-relaxed">{call.note}</p>
+            ) : (
+              <p className="text-gray-400 italic">Aucune note saisie pendant l'appel.</p>
+            )}
+          </Section>
+
+          {call.recording_url && (
+            <Section title="Enregistrement audio" defaultOpen>
+              <audio controls preload="none"
+                src={`${supabaseUrl}/functions/v1/recording-proxy?url=${encodeURIComponent(call.recording_url)}`}
+                className="w-full h-9" />
+            </Section>
+          )}
+
+          {hasAI ? (
+            <>
+              <Section title="Scores IA" defaultOpen badge={call.ai_score_global}>
+                <div className="flex items-center gap-2 bg-gradient-to-r from-indigo-50 to-violet-50 rounded-lg py-3 px-2 border border-indigo-100">
+                  <ScoreChip label="Global" value={call.ai_score_global} big />
+                  <div className="h-10 w-px bg-indigo-200" />
+                  <ScoreChip label="Accroche" value={call.ai_score_accroche} />
+                  <ScoreChip label="Objection" value={call.ai_score_objection} />
+                  <ScoreChip label="Closing" value={call.ai_score_closing} />
+                </div>
+              </Section>
+
+              {call.ai_summary && call.ai_summary.length > 0 && (
+                <Section title="Résumé" defaultOpen badge={call.ai_summary.length}>
+                  <ul className="space-y-1.5">
+                    {call.ai_summary.map((s, i) => (
+                      <li key={i} className="flex gap-2"><span className="text-indigo-400 flex-shrink-0">•</span><span className="leading-relaxed">{s}</span></li>
+                    ))}
+                  </ul>
+                </Section>
+              )}
+
+              {(call.ai_intention_prospect || call.ai_prochaine_etape) && (
+                <Section title="Intention & prochaine étape" defaultOpen={false}>
+                  {call.ai_intention_prospect && (
+                    <div className="mb-3">
+                      <div className="text-[10px] font-bold text-gray-400 uppercase mb-1 tracking-wider">Intention du prospect</div>
+                      <p className="leading-relaxed">{call.ai_intention_prospect}</p>
+                    </div>
+                  )}
+                  {call.ai_prochaine_etape && (
+                    <div>
+                      <div className="text-[10px] font-bold text-gray-400 uppercase mb-1 tracking-wider">Prochaine étape</div>
+                      <p className="leading-relaxed">{call.ai_prochaine_etape}</p>
+                    </div>
+                  )}
+                </Section>
+              )}
+
+              {call.ai_points_forts && call.ai_points_forts.length > 0 && (
+                <Section title="Points forts" badge={call.ai_points_forts.length}>
+                  <ul className="space-y-1.5">
+                    {call.ai_points_forts.map((s, i) => (
+                      <li key={i} className="flex gap-2"><span className="text-emerald-500 flex-shrink-0 font-bold">+</span><span className="leading-relaxed">{s}</span></li>
+                    ))}
+                  </ul>
+                </Section>
+              )}
+
+              {call.ai_points_amelioration && call.ai_points_amelioration.length > 0 && (
+                <Section title="Coaching — à améliorer" badge={call.ai_points_amelioration.length}>
+                  <ul className="space-y-1.5">
+                    {call.ai_points_amelioration.map((s, i) => (
+                      <li key={i} className="flex gap-2"><span className="text-amber-500 flex-shrink-0 font-bold">–</span><span className="leading-relaxed">{s}</span></li>
+                    ))}
+                  </ul>
+                </Section>
+              )}
+
+              {call.ai_transcript && (
+                <Section title="Transcription intégrale" defaultOpen={false}>
+                  <div className="bg-gray-50 rounded-lg p-3 max-h-[400px] overflow-y-auto whitespace-pre-wrap text-[12px] leading-relaxed">
+                    {call.ai_transcript}
+                  </div>
+                </Section>
+              )}
+            </>
+          ) : call.ai_analysis_status === 'processing' ? (
+            <div className="mx-4 my-4 bg-indigo-50 border border-indigo-200 rounded-lg px-4 py-3 text-[12px] text-indigo-600 flex items-center gap-2">
+              <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" strokeDasharray="45 15" /></svg>
+              Analyse Claude en cours…
+            </div>
+          ) : call.ai_analysis_status === 'error' ? (
+            <div className="mx-4 my-4 bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-[12px] text-red-600">
+              Erreur d'analyse. L'audio n'a peut-être pas pu être transcrit.
+            </div>
+          ) : (
+            <div className="mx-4 my-4 bg-gray-50 border border-gray-200 rounded-lg px-4 py-3 text-[12px] text-gray-500">
+              Analyse pas encore démarrée pour cet appel.
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }
@@ -329,7 +333,6 @@ export default function History() {
   useRealtimeCalls()
   const [filter, setFilter] = useState('all')
   const [search, setSearch] = useState('')
-  const [selectedId, setSelectedId] = useState<string | null>(null)
 
   const filtered = useMemo(() => {
     const s = search.trim().toLowerCase()
@@ -343,8 +346,6 @@ export default function History() {
     })
   }, [calls, filter, search])
 
-  const selected = useMemo(() => filtered.find(c => c.id === selectedId) || null, [filtered, selectedId])
-
   const stats = useMemo(() => {
     const total = filtered.length
     const rdv = filtered.filter(c => c.meeting_booked).length
@@ -354,84 +355,46 @@ export default function History() {
   }, [filtered])
 
   return (
-    <div className="h-screen bg-[#f8f9fa] dark:bg-[#e8e0f0] flex overflow-hidden">
-      {/* Colonne gauche — liste */}
-      <div className="flex-1 flex flex-col overflow-hidden">
-        <div className="p-6 pb-3 flex-shrink-0">
-          <div className="flex items-center justify-between mb-3 flex-wrap gap-3">
-            <div>
-              <h1 className="text-xl font-bold text-gray-800">{isManager ? 'Historique équipe' : 'Mes appels'}</h1>
-              <p className="text-[12px] text-gray-400 mt-0.5">
-                {stats.total} appels · {stats.connected} connectés · {stats.rdv} RDV · {stats.totalMin} min au total
-              </p>
+    <div className="min-h-screen bg-[#f8f9fa] dark:bg-[#e8e0f0]">
+      <div className="max-w-5xl mx-auto p-6">
+        <div className="flex items-center justify-between mb-5 flex-wrap gap-3">
+          <div>
+            <h1 className="text-xl font-bold text-gray-800">{isManager ? 'Historique équipe' : 'Mes appels'}</h1>
+            <p className="text-[12px] text-gray-400 mt-0.5">
+              {stats.total} appels · {stats.connected} connectés · {stats.rdv} RDV · {stats.totalMin} min au total
+            </p>
+          </div>
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-200 bg-white">
+              <svg className="w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+              <input type="text" placeholder="Nom, numéro, note…" value={search} onChange={e => setSearch(e.target.value)}
+                className="text-[12px] bg-transparent outline-none text-gray-700 placeholder:text-gray-400 w-40" />
             </div>
-            <div className="flex items-center gap-1.5 flex-wrap">
-              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-200 bg-white">
-                <svg className="w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
-                <input type="text" placeholder="Nom, numéro, note…" value={search} onChange={e => setSearch(e.target.value)}
-                  className="text-[12px] bg-transparent outline-none text-gray-700 placeholder:text-gray-400 w-40" />
-              </div>
-              {FILTERS.map(f => (
-                <button key={f.key} onClick={() => setFilter(f.key)}
-                  className={`px-3 py-1 rounded-lg text-[11px] font-semibold transition-colors ${
-                    filter === f.key ? 'bg-indigo-50 text-indigo-600 border border-indigo-200' : 'text-gray-400 hover:text-gray-600 border border-transparent'
-                  }`}>{f.label}</button>
-              ))}
-            </div>
+            {FILTERS.map(f => (
+              <button key={f.key} onClick={() => setFilter(f.key)}
+                className={`px-3 py-1 rounded-lg text-[11px] font-semibold transition-colors ${
+                  filter === f.key ? 'bg-indigo-50 text-indigo-600 border border-indigo-200' : 'text-gray-400 hover:text-gray-600 border border-transparent'
+                }`}>{f.label}</button>
+            ))}
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-6 pb-6">
-          {isLoading && <p className="text-sm text-gray-400 text-center py-20">Chargement...</p>}
+        {isLoading && <p className="text-sm text-gray-400 text-center py-20">Chargement...</p>}
 
-          {!isLoading && filtered.length === 0 && (
-            <div className="text-center py-20 bg-white rounded-xl border border-gray-200">
-              <p className="text-4xl mb-4">📭</p>
-              <p className="text-sm font-semibold text-gray-700">Aucun appel</p>
-              <p className="text-[12px] text-gray-400 mt-1">Lancez une session depuis le Dialer</p>
-            </div>
-          )}
+        {!isLoading && filtered.length === 0 && (
+          <div className="text-center py-20 bg-white rounded-xl border border-gray-200">
+            <p className="text-4xl mb-4">📭</p>
+            <p className="text-sm font-semibold text-gray-700">Aucun appel</p>
+            <p className="text-[12px] text-gray-400 mt-1">Lancez une session depuis le Dialer</p>
+          </div>
+        )}
 
-          {filtered.length > 0 && (
-            <div className="bg-white dark:bg-[#f0eaf5] rounded-xl border border-gray-200 dark:border-[#d4cade] overflow-hidden">
-              {filtered.map(c => {
-                const color = OUTCOME_COLORS[c.call_outcome || ''] || '#9ca3af'
-                const label = OUTCOME_LABELS[c.call_outcome || ''] || c.call_outcome || '—'
-                const isSelected = c.id === selectedId
-                const hasAI = c.ai_analysis_status === 'completed' && c.ai_score_global != null
-                return (
-                  <button key={c.id} onClick={() => setSelectedId(isSelected ? null : c.id)}
-                    className={`w-full flex items-center gap-3 px-4 py-3 text-left border-b border-gray-100 last:border-b-0 transition-colors ${
-                      isSelected ? 'bg-indigo-50' : 'hover:bg-gray-50'
-                    }`}>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium text-gray-800 text-sm truncate">{c.prospect_name || 'Inconnu'}</span>
-                        {c.meeting_booked && <span className="text-[9px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded">📅</span>}
-                      </div>
-                      <div className="text-[11px] text-gray-400 font-mono">{c.prospect_phone}</div>
-                    </div>
-                    <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold flex-shrink-0" style={{ background: color + '18', color }}>{label}</span>
-                    <div className="text-xs text-gray-500 font-mono w-14 text-right flex-shrink-0">{formatDuration(c.call_duration)}</div>
-                    {hasAI && (
-                      <div className="text-right w-12 flex-shrink-0">
-                        <div className="text-sm font-bold" style={{ color: (c.ai_score_global || 0) >= 7 ? '#059669' : (c.ai_score_global || 0) >= 4 ? '#f59e0b' : '#ef4444' }}>
-                          {c.ai_score_global}
-                        </div>
-                        <div className="text-[9px] text-gray-400 uppercase tracking-wider">IA</div>
-                      </div>
-                    )}
-                    <div className="text-[11px] text-gray-400 w-28 text-right flex-shrink-0">{formatDate(c.created_at)}</div>
-                  </button>
-                )
-              })}
-            </div>
-          )}
-        </div>
+        {filtered.length > 0 && (
+          <div className="bg-white dark:bg-[#f0eaf5] rounded-xl border border-gray-200 dark:border-[#d4cade] overflow-hidden">
+            {filtered.map(c => <CallRow key={c.id} call={c} />)}
+          </div>
+        )}
       </div>
-
-      {/* Side panel — fiche d'appel */}
-      {selected && <CallDetailPanel call={selected} onClose={() => setSelectedId(null)} />}
     </div>
   )
 }
