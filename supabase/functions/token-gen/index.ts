@@ -56,7 +56,7 @@ serve(async (req) => {
     const AccessToken = twilio.default.jwt.AccessToken
     const VoiceGrant = AccessToken.VoiceGrant
 
-    const identity = `callio_${user.id.substring(0, 8)}`
+    const identity = `calsyn_${user.id.substring(0, 8)}`
 
     const voiceGrant = new VoiceGrant({
       outgoingApplicationSid: twimlAppSid,

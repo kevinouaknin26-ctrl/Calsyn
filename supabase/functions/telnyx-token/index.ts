@@ -58,7 +58,7 @@ serve(async (req) => {
         headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
       })
       const listData = await listRes.json()
-      const existing = listData.data?.find((c: any) => c.name === 'callio-webrtc')
+      const existing = listData.data?.find((c: any) => c.name === 'calsyn-webrtc')
 
       if (existing) {
         credentialId = existing.id
@@ -78,8 +78,8 @@ serve(async (req) => {
             method: 'POST',
             headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              connection_name: 'callio-webrtc',
-              user_name: 'callio',
+              connection_name: 'calsyn-webrtc',
+              user_name: 'calsyn',
               password: crypto.randomUUID().replace(/-/g, '').slice(0, 20),
             }),
           })
@@ -98,7 +98,7 @@ serve(async (req) => {
           method: 'POST',
           headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            name: 'callio-webrtc',
+            name: 'calsyn-webrtc',
             connection_id: connectionId,
           }),
         })

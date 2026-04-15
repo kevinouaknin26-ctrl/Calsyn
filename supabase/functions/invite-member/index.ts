@@ -4,9 +4,10 @@ import { renderInviteEmail } from './email-template.ts'
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
 const SERVICE_ROLE = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-const ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY')!
+// ANON_KEY plus utilisé depuis la migration JWT ES256 ; on valide le token
+// via l'admin client (service_role) qui supporte les deux algos.
 const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY')
-const EMAIL_FROM = Deno.env.get('EMAIL_FROM') || 'Callio <onboarding@resend.dev>'
+const EMAIL_FROM = Deno.env.get('EMAIL_FROM') || 'Calsyn <onboarding@resend.dev>'
 const APP_URL = Deno.env.get('APP_URL') || 'http://localhost:5173'
 
 const CORS = {
@@ -44,13 +45,12 @@ Deno.serve(async (req: Request) => {
     const token = req.headers.get('Authorization')?.replace('Bearer ', '')
     if (!token) return json({ error: 'Unauthorized' }, 401)
 
-    const authClient = createClient(SUPABASE_URL, ANON_KEY, {
-      global: { headers: { Authorization: `Bearer ${token}` } },
-    })
-    const { data: { user }, error: userErr } = await authClient.auth.getUser()
-    if (userErr || !user) return json({ error: 'Invalid session' }, 401)
-
+    // Validation du JWT via le client service_role (supporte ES256 + HS256).
+    // L'ancien pattern anon + auth.getUser() ne valide plus les tokens ES256 depuis
+    // la migration Supabase 2025 vers les JWT asymétriques.
     const admin = createClient(SUPABASE_URL, SERVICE_ROLE)
+    const { data: { user }, error: userErr } = await admin.auth.getUser(token)
+    if (userErr || !user) return json({ error: 'Invalid session', detail: userErr?.message }, 401)
     const { data: callerProfile, error: profErr } = await admin.from('profiles')
       .select('role, organisation_id, full_name, email').eq('id', user.id).single()
     if (profErr || !callerProfile) return json({ error: 'Profile not found' }, 404)
@@ -68,7 +68,7 @@ Deno.serve(async (req: Request) => {
 
     const { data: org } = await admin.from('organisations').select('name').eq('id', targetOrgId).single()
     if (!org) return json({ error: 'Organisation cible introuvable' }, 404)
-    const organisationName = org?.name || 'Callio'
+    const organisationName = org?.name || 'Calsyn'
 
     const body = rawBody
     const email = String(body?.email || '').trim().toLowerCase()

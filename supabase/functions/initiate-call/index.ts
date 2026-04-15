@@ -63,7 +63,7 @@ serve(async (req) => {
     const supabaseUrl = Deno.env.get('SUPABASE_URL') || ''
 
     // Générer un nom de conférence unique si pas fourni
-    const confName = conferenceName || `callio_${user.id}_${Date.now()}`
+    const confName = conferenceName || `calsyn_${user.id}_${Date.now()}`
 
     // Service role pour créer le call en DB
     const supabase = createClient(

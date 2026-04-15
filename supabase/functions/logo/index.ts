@@ -2,7 +2,7 @@ import 'jsr:@supabase/functions-js/edge-runtime.d.ts'
 import { Resvg, initWasm } from 'npm:@resvg/resvg-wasm@2'
 
 /**
- * Logo Callio — rendu PNG du vrai SVG avec ses gradients/filtres/masks.
+ * Logo Calsyn — rendu PNG du vrai SVG avec ses gradients/filtres/masks.
  * Gmail strip les <filter>/<mask> des SVG inline ou servis → obligé de
  * pré-rendre côté serveur en PNG et servir l'image bitmap.
  * Render une fois au démarrage de l'instance, cache en mémoire + Cache-Control 1 an.
