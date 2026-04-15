@@ -17,7 +17,7 @@ export function useCalls(limit = 200) {
 
       let query = supabase
         .from('calls')
-        .select('id, organisation_id, sdr_id, prospect_id, prospect_name, prospect_phone, call_sid, conference_sid, call_outcome, call_duration, note, meeting_booked, recording_url, provider, ai_analysis_status, ai_score_global, ai_summary, created_at')
+        .select('id, organisation_id, sdr_id, prospect_id, prospect_name, prospect_phone, call_sid, conference_sid, call_outcome, call_duration, note, meeting_booked, recording_url, provider, ai_analysis_status, ai_score_global, ai_score_accroche, ai_score_objection, ai_score_closing, ai_summary, ai_transcript, ai_points_forts, ai_points_amelioration, ai_intention_prospect, ai_prochaine_etape, from_number, created_at')
         .order('created_at', { ascending: false })
         .limit(limit)
 
