@@ -8,10 +8,135 @@
 
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import JSZip from 'jszip'
+import { saveAs } from 'file-saver'
 import { useAuth } from '@/hooks/useAuth'
 import { useCalls } from '@/hooks/useCalls'
 import { useRealtimeCalls } from '@/hooks/useRealtime'
 import type { Call } from '@/types/call'
+
+/** Slug un nom de fichier : retire les caractères dangereux pour FAT/exFAT/HFS. */
+function slugify(s: string): string {
+  return (s || 'appel').normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-zA-Z0-9]+/g, '_').replace(/^_|_$/g, '').slice(0, 60)
+}
+
+/** Génère le markdown fiche d'appel — résumé, scores, points, coaching, transcript. */
+function buildFicheMarkdown(call: Call): string {
+  const lines: string[] = []
+  const nom = call.prospect_name || 'Inconnu'
+  lines.push(`# Fiche d'appel — ${nom}`)
+  lines.push('')
+  lines.push(`- **Téléphone** : ${call.prospect_phone || '—'}`)
+  lines.push(`- **Date** : ${new Date(call.created_at).toLocaleString('fr-FR', { dateStyle: 'full', timeStyle: 'short' })}`)
+  lines.push(`- **Durée** : ${call.call_duration ? `${Math.floor(call.call_duration / 60)} min ${call.call_duration % 60} s` : '—'}`)
+  lines.push(`- **Issue** : ${call.call_outcome || '—'}`)
+  lines.push(`- **RDV pris** : ${call.meeting_booked ? 'Oui ✓' : 'Non'}`)
+  lines.push(`- **Numéro appelant** : ${call.from_number || '—'}`)
+  lines.push('')
+
+  if (call.note) {
+    lines.push('## Notes SDR')
+    lines.push('')
+    lines.push(call.note)
+    lines.push('')
+  }
+
+  if (call.ai_analysis_status === 'completed') {
+    lines.push('## Scores (analyse Claude)')
+    lines.push('')
+    lines.push(`| Critère | Note /10 |`)
+    lines.push(`|---|---|`)
+    lines.push(`| Global | **${call.ai_score_global ?? '—'}** |`)
+    lines.push(`| Accroche | ${call.ai_score_accroche ?? '—'} |`)
+    lines.push(`| Objection | ${call.ai_score_objection ?? '—'} |`)
+    lines.push(`| Closing | ${call.ai_score_closing ?? '—'} |`)
+    lines.push('')
+
+    if (call.ai_summary && call.ai_summary.length > 0) {
+      lines.push('## Résumé')
+      lines.push('')
+      call.ai_summary.forEach(s => lines.push(`- ${s}`))
+      lines.push('')
+    }
+
+    if (call.ai_intention_prospect) {
+      lines.push('## Intention du prospect')
+      lines.push('')
+      lines.push(call.ai_intention_prospect)
+      lines.push('')
+    }
+
+    if (call.ai_prochaine_etape) {
+      lines.push('## Prochaine étape')
+      lines.push('')
+      lines.push(call.ai_prochaine_etape)
+      lines.push('')
+    }
+
+    if (call.ai_points_forts && call.ai_points_forts.length > 0) {
+      lines.push('## Points forts')
+      lines.push('')
+      call.ai_points_forts.forEach(s => lines.push(`- ✓ ${s}`))
+      lines.push('')
+    }
+
+    if (call.ai_points_amelioration && call.ai_points_amelioration.length > 0) {
+      lines.push('## Coaching — à améliorer')
+      lines.push('')
+      call.ai_points_amelioration.forEach(s => lines.push(`- ⚠ ${s}`))
+      lines.push('')
+    }
+
+    if (call.ai_transcript) {
+      lines.push('## Transcription intégrale')
+      lines.push('')
+      lines.push(call.ai_transcript)
+      lines.push('')
+    }
+  } else {
+    lines.push('## Analyse Claude')
+    lines.push('')
+    lines.push(`Statut : ${call.ai_analysis_status || 'non démarrée'}`)
+    lines.push('')
+  }
+
+  lines.push('---')
+  lines.push(`*Export Calsyn · ${new Date().toISOString()}*`)
+  return lines.join('\n')
+}
+
+/** Pack ZIP avec fiche markdown + audio (si dispo) et télécharge dans le navigateur. */
+async function downloadCallZip(call: Call, supabaseUrl: string) {
+  const zip = new JSZip()
+  const slug = `${slugify(call.prospect_name || 'inconnu')}_${new Date(call.created_at).toISOString().slice(0, 10)}`
+
+  // 1. Fiche markdown
+  zip.file(`${slug}/fiche.md`, buildFicheMarkdown(call))
+
+  // 2. Audio si dispo (via edge function recording-proxy pour bypass CORS + auth Twilio)
+  if (call.recording_url) {
+    try {
+      const audioUrl = `${supabaseUrl}/functions/v1/recording-proxy?url=${encodeURIComponent(call.recording_url)}`
+      const res = await fetch(audioUrl)
+      if (res.ok) {
+        const blob = await res.blob()
+        const ext = blob.type.includes('wav') ? 'wav' : 'mp3'
+        zip.file(`${slug}/audio.${ext}`, blob)
+      } else {
+        zip.file(`${slug}/_AUDIO_ERREUR.txt`, `Impossible de télécharger l'audio. HTTP ${res.status}\nURL source : ${call.recording_url}`)
+      }
+    } catch (e) {
+      zip.file(`${slug}/_AUDIO_ERREUR.txt`, `Erreur fetch audio : ${(e as Error).message}`)
+    }
+  }
+
+  // 3. JSON brut pour archivage (au cas où)
+  zip.file(`${slug}/raw.json`, JSON.stringify(call, null, 2))
+
+  const blob = await zip.generateAsync({ type: 'blob' })
+  saveAs(blob, `${slug}.zip`)
+}
 
 function formatDuration(s: number) {
   if (!s) return '—'
@@ -65,6 +190,7 @@ function Score({ label, value, big = false }: { label: string; value: number | n
 function CallRow({ call }: { call: Call }) {
   const [expanded, setExpanded] = useState(false)
   const [showTranscript, setShowTranscript] = useState(false)
+  const [downloading, setDownloading] = useState(false)
   const navigate = useNavigate()
   const color = OUTCOME_COLORS[call.call_outcome || ''] || '#9ca3af'
   const label = OUTCOME_LABELS[call.call_outcome || ''] || call.call_outcome || '—'
@@ -122,6 +248,20 @@ function CallRow({ call }: { call: Call }) {
                 Rappeler
               </a>
             )}
+            <button onClick={async () => {
+              if (downloading) return
+              setDownloading(true)
+              try { await downloadCallZip(call, supabaseUrl) } catch (e) { alert('Erreur export : ' + (e as Error).message) }
+              finally { setDownloading(false) }
+            }} disabled={downloading}
+              className="px-3 py-1.5 rounded-lg text-[11px] font-semibold bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 disabled:opacity-50 flex items-center gap-1">
+              {downloading ? (
+                <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" strokeDasharray="45 15" /></svg>
+              ) : (
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+              )}
+              {downloading ? 'Export…' : 'Télécharger ZIP'}
+            </button>
             <div className="flex-1" />
             <div className="text-[10px] text-gray-400">Appelé depuis {call.from_number || '—'}</div>
           </div>
