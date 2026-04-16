@@ -258,13 +258,10 @@ interface CallSettingsProps {
   attemptPeriod: string; setAttemptPeriod: (v: string) => void
   phoneField: string; setPhoneField: (v: string) => void
   selectedFromNumber: string; setSelectedFromNumber: (v: string) => void
+  phoneNumbers: Array<{ sid: string; phone: string; friendlyName: string; capabilities: Record<string, boolean> }>
 }
 
-function CallSettingsDropdown({ open, onToggle, parallel, setParallel, callLicense, autoRotate, setAutoRotate, voicemail, setVoicemail, completeTask, setCompleteTask, maxAttempts, setMaxAttempts, attemptPeriod, setAttemptPeriod, phoneField, setPhoneField, selectedFromNumber, setSelectedFromNumber }: CallSettingsProps) {
-  // From phone numbers (multi-numéros avec compteur)
-  const [fromNumbers] = useState([
-    { number: '+33 1 59 58 01 89', calls: 0 },
-  ])
+function CallSettingsDropdown({ open, onToggle, parallel, setParallel, callLicense, autoRotate, setAutoRotate, voicemail, setVoicemail, completeTask, setCompleteTask, maxAttempts, setMaxAttempts, attemptPeriod, setAttemptPeriod, phoneField, setPhoneField, selectedFromNumber, setSelectedFromNumber, phoneNumbers }: CallSettingsProps) {
 
   // Voicemail drop — messages enregistrés persistés en localStorage
   const [vmMessages, setVmMessages] = useCallSetting<Array<{ id: string; name: string; url: string; created: string }>>('vm_messages', [])
@@ -392,9 +389,12 @@ function CallSettingsDropdown({ open, onToggle, parallel, setParallel, callLicen
               <span className="text-[13px] text-gray-700">Numéro appelant</span>
               <select value={selectedFromNumber} onChange={e => setSelectedFromNumber(e.target.value)}
                 className="text-[12px] text-gray-600 bg-transparent border border-gray-200 rounded-lg px-2 py-1 outline-none">
-                {fromNumbers.map((num, i) => (
-                  <option key={i} value={num.number}>{num.number} ({num.calls} appels)</option>
+                {phoneNumbers.map(num => (
+                  <option key={num.sid} value={num.phone}>{num.phone}{num.friendlyName ? ` (${num.friendlyName})` : ''}</option>
                 ))}
+                {phoneNumbers.length === 0 && (
+                  <option value={selectedFromNumber}>{selectedFromNumber}</option>
+                )}
               </select>
             </div>
             <div className="flex items-center gap-1 justify-end">
@@ -1311,10 +1311,22 @@ export default function Dialer() {
     })
     .sort((a, b) => {
       // Aucun tri = ordre d'insertion DB (created_at ASC, stable)
-      if (sortBy === 'none') return (a.created_at || '').localeCompare(b.created_at || '')
+      if (sortBy === 'none') {
+        const ta = a.created_at ? new Date(a.created_at).getTime() : 0
+        const tb = b.created_at ? new Date(b.created_at).getTime() : 0
+        return ta - tb
+      }
       let cmp = 0
-      if (sortBy === 'last_call') cmp = (a.last_call_at || '').localeCompare(b.last_call_at || '')
-      else if (sortBy === 'created') cmp = (a.created_at || '').localeCompare(b.created_at || '')
+      if (sortBy === 'last_call') {
+        const la = a.last_call_at ? new Date(a.last_call_at).getTime() : 0
+        const lb = b.last_call_at ? new Date(b.last_call_at).getTime() : 0
+        cmp = la - lb
+      }
+      else if (sortBy === 'created') {
+        const ca = a.created_at ? new Date(a.created_at).getTime() : 0
+        const cb = b.created_at ? new Date(b.created_at).getTime() : 0
+        cmp = ca - cb
+      }
       else if (sortBy === 'name') cmp = a.name.localeCompare(b.name)
       else if (sortBy === 'status') cmp = (a.crm_status || '').localeCompare(b.crm_status || '')
       else if (sortBy === 'call_status') cmp = getCallStatusKey(a).localeCompare(getCallStatusKey(b))
@@ -1330,7 +1342,7 @@ export default function Dialer() {
           // Tri spécifique selon le type pour ne pas faire du localeCompare sur des dates/nombres.
           // Fallback : si le nom de la colonne contient "date" mais fieldType était resté 'text'
           // (imports CSV custom typés text), on force le tri chronologique.
-          const looksLikeDate = col.fieldType === 'date' || /\bdate\b/i.test(col.name || '')
+          const looksLikeDate = col.fieldType === 'date' || /\b(date|created|cré[ée]|creation|création)\b/i.test(col.name || '')
           if (looksLikeDate) {
             // Vide en fin de liste, sinon parse en timestamp pour ordre chronologique réel
             const da = va ? parseAnyDate(va) : NaN
@@ -1670,7 +1682,8 @@ export default function Dialer() {
             maxAttempts={maxAttempts} setMaxAttempts={setMaxAttempts}
             attemptPeriod={attemptPeriod} setAttemptPeriod={setAttemptPeriod}
             phoneField={phoneField} setPhoneField={setPhoneField}
-            selectedFromNumber={selectedFromNumber} setSelectedFromNumber={setSelectedFromNumber} />
+            selectedFromNumber={selectedFromNumber} setSelectedFromNumber={setSelectedFromNumber}
+            phoneNumbers={orgPhoneNumbers || []} />
         </div>
       </div>
 
