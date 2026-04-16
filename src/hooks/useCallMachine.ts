@@ -10,9 +10,11 @@ import { useMachine } from '@xstate/react'
 import { useEffect, useRef, useCallback, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { callMachine } from '@/machines/callMachine'
-import { createProvider, type CallProvider, type CallSession, type AudioSample } from '@/services/providers'
+import { createProvider, type CallProvider, type CallSession, type AudioSample, type IncomingCallInfo } from '@/services/providers'
+import { TwilioProvider } from '@/services/providers/twilio-provider'
 import { fetchVoiceToken, fetchTelnyxToken, saveCallDisposition, dropVoicemail } from '@/services/api'
 import { useAuth } from '@/hooks/useAuth'
+import { useTwilioDevice } from '@/hooks/useIncomingCall'
 import { MOS_ALERT_THRESHOLD } from '@/config/constants'
 import type { Prospect } from '@/types/prospect'
 import type { Disposition } from '@/types/call'
@@ -20,6 +22,7 @@ import type { Disposition } from '@/types/call'
 export function useCallMachine() {
   const { organisation, profile } = useAuth()
   const queryClient = useQueryClient()
+  const { device: sharedDevice, deviceReady: sharedDeviceReady } = useTwilioDevice()
   const providerRef = useRef<CallProvider | null>(null)
   const sessionRef = useRef<CallSession | null>(null)
   const audioSamplesRef = useRef<AudioSample[]>([])
@@ -34,29 +37,28 @@ export function useCallMachine() {
   const voiceProvider = organisation?.voice_provider || 'twilio'
   useEffect(() => {
     if (!orgId) return
+    // Twilio : attendre le Device partagé du TwilioDeviceProvider
+    if (voiceProvider === 'twilio' && !sharedDevice) return
 
     const providerName = voiceProvider
     const provider = createProvider(providerName)
     providerRef.current = provider
     let cancelled = false
 
+    // Injecter le Device partagé — PAS de 2ème Device
+    if (providerName === 'twilio' && sharedDevice && provider instanceof TwilioProvider) {
+      provider.useExternalDevice(sharedDevice)
+    }
+
     const unsub = provider.on({
       onReady: () => {
         if (!cancelled) {
-          console.log(`[useCallMachine] ${providerName} ready`)
+          console.log(`[useCallMachine] ${providerName} ready (shared device)`)
           setProviderReady(true)
         }
       },
       onError: (err) => {
         if (cancelled) return
-        // Auto-refresh token quand il expire
-        if (err.message === 'TOKEN_WILL_EXPIRE') {
-          console.log('[useCallMachine] Token expiring, refreshing...')
-          fetchVoiceToken()
-            .then(newToken => { if (!cancelled) return provider.init(newToken) })
-            .catch(e => console.error('[useCallMachine] Token refresh failed:', e))
-          return
-        }
         console.error('[useCallMachine] Provider error:', err.message)
       },
       onStateChange: (callState, session) => {
@@ -68,12 +70,10 @@ export function useCallMachine() {
           if (sid) send({ type: 'RINGING', callSid: sid })
         }
         if (callState === 'active') {
-          // Capturer le callSid au accept si pas encore capturé au ringing
           if (sid) send({ type: 'RINGING', callSid: sid })
           send({ type: 'ANSWERED' })
         }
         if (callState === 'done') {
-          // Dernier essai de capturer le callSid
           if (sid) send({ type: 'RINGING', callSid: sid })
           setTimeout(() => { if (!cancelled) send({ type: 'REMOTE_HANG_UP' }) }, 100)
         }
@@ -87,10 +87,11 @@ export function useCallMachine() {
       },
     })
 
-    // Auto-refresh token — utiliser le bon fetcher selon le provider
     const tokenFetcher = providerName === 'telnyx' ? fetchTelnyxToken : fetchVoiceToken
     provider.setTokenFetcher(tokenFetcher)
 
+    // Twilio avec Device externe : init() est un no-op mais trigger onReady
+    // Telnyx : init normal avec token
     tokenFetcher()
       .then(token => { if (!cancelled) return provider.init(token) })
       .catch(err => { if (!cancelled) console.error('[useCallMachine] Init failed:', err) })
@@ -102,7 +103,7 @@ export function useCallMachine() {
       providerRef.current = null
       setProviderReady(false)
     }
-  }, [orgId, voiceProvider, send])
+  }, [orgId, voiceProvider, send, sharedDevice])
 
   // ── Wake Lock : empêcher Chrome de mettre en veille pendant un appel ──
   const isInCallState = state.matches('dialing') || state.matches('connected')

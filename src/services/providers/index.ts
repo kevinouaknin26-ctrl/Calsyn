@@ -1,4 +1,4 @@
-export type { CallProvider, CallSession, CallState, ConnectParams, AudioSample } from './types'
+export type { CallProvider, CallSession, CallState, ConnectParams, AudioSample, IncomingCallInfo } from './types'
 export { TwilioProvider } from './twilio-provider'
 export { TelnyxProvider } from './telnyx-provider'
 

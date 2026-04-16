@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { AuthProvider, useAuth } from '@/hooks/useAuth'
+import { TwilioDeviceProvider } from '@/hooks/useIncomingCall'
 import Layout from '@/components/layout/Layout'
 import Login from '@/pages/Login'
 import AcceptInvite from '@/pages/AcceptInvite'
@@ -56,7 +57,9 @@ export default function App() {
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
         <AuthProvider>
-          <AppRoutes />
+          <TwilioDeviceProvider>
+            <AppRoutes />
+          </TwilioDeviceProvider>
         </AuthProvider>
       </BrowserRouter>
     </QueryClientProvider>

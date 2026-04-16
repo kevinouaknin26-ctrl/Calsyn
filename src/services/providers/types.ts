@@ -37,6 +37,14 @@ export interface CallSession {
   isMuted: boolean
 }
 
+export interface IncomingCallInfo {
+  from: string
+  to: string
+  callSid: string
+  accept(): CallSession
+  reject(): void
+}
+
 export interface CallProviderEvents {
   /** L'etat de l'appel a change */
   onStateChange(state: CallState, session: CallSession): void
@@ -46,6 +54,8 @@ export interface CallProviderEvents {
   onError(error: Error): void
   /** Echantillon qualite audio (toutes les secondes) */
   onAudioSample?(sample: AudioSample): void
+  /** Appel entrant recu */
+  onIncoming?(info: IncomingCallInfo): void
 }
 
 export interface ConnectParams {
