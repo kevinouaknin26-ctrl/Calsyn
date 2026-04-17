@@ -4,8 +4,8 @@
 
 | # | Table | Status | Rows | Taille | Timing | Commit |
 |---|-------|--------|------|--------|--------|--------|
-| 1 | organisations | ✅ | 2 | 2.1 KB | ~2s | (à venir) |
-| 2 | profiles | ⏳ | - | - | - | - |
+| 1 | organisations | ✅ | 2 | 2.1 KB | ~2s | a37d323 |
+| 2 | profiles | ✅ | 2 | 1.8 KB | ~2s | (à venir) |
 | 3 | prospect_fields | ⏳ | - | - | - | - |
 | 4 | prospect_lists | ⏳ | - | - | - | - |
 | 5 | prospects | ⏳ | - | - | - | - |
