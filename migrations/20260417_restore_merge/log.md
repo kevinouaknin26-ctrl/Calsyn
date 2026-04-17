@@ -4,7 +4,7 @@
 
 | # | Table | Status | Rows | Taille | Timing | Commit |
 |---|-------|--------|------|--------|--------|--------|
-| 1 | organisations | ⏳ | - | - | - | - |
+| 1 | organisations | ✅ | 2 | 2.1 KB | ~2s | (à venir) |
 | 2 | profiles | ⏳ | - | - | - | - |
 | 3 | prospect_fields | ⏳ | - | - | - | - |
 | 4 | prospect_lists | ⏳ | - | - | - | - |
