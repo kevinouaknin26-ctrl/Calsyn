@@ -424,8 +424,19 @@ function CallSettingsDropdown({ open, onToggle, parallel, setParallel, callLicen
                     {vmMessages.map(msg => (
                       <div key={msg.id} className={`flex items-center gap-2 px-2 py-1.5 rounded-lg border transition-colors cursor-pointer ${
                         vmSelectedId === msg.id ? 'border-violet-300 bg-violet-50' : 'border-gray-200 bg-white hover:bg-gray-50'
-                      }`} onClick={() => setVmSelectedId(msg.id)}>
-                        <input type="radio" checked={vmSelectedId === msg.id} onChange={() => setVmSelectedId(msg.id)}
+                      }`} onClick={() => {
+                        setVmSelectedId(msg.id)
+                        // Mettre à jour l'URL en DB pour le auto-drop
+                        if (organisation?.id && msg.url.startsWith('http')) {
+                          supabase.from('organisations').update({ voicemail_audio_url: msg.url }).eq('id', organisation.id)
+                        }
+                      }}>
+                        <input type="radio" checked={vmSelectedId === msg.id} onChange={() => {
+                          setVmSelectedId(msg.id)
+                          if (organisation?.id && msg.url.startsWith('http')) {
+                            supabase.from('organisations').update({ voicemail_audio_url: msg.url }).eq('id', organisation.id)
+                          }
+                        }}
                           className="w-3 h-3 accent-violet-500" />
                         <span className="text-[12px] text-gray-700 flex-1 truncate">{msg.name}</span>
                         <button onClick={e => { e.stopPropagation(); new Audio(msg.url).play() }}
@@ -456,12 +467,30 @@ function CallSettingsDropdown({ open, onToggle, parallel, setParallel, callLicen
                       vmChunksRef.current = []
                       const recorder = new MediaRecorder(stream)
                       recorder.ondataavailable = e => vmChunksRef.current.push(e.data)
-                      recorder.onstop = () => {
+                      recorder.onstop = async () => {
                         stream.getTracks().forEach(t => t.stop())
                         const blob = new Blob(vmChunksRef.current, { type: 'audio/webm' })
-                        const url = URL.createObjectURL(blob)
+                        const localUrl = URL.createObjectURL(blob)
                         const name = vmNewName.trim() || `Message ${vmMessages.length + 1}`
-                        const newMsg = { id: crypto.randomUUID(), name, url, created: new Date().toISOString() }
+                        const msgId = crypto.randomUUID()
+
+                        // Upload vers Supabase Storage pour que le serveur (amd-callback) puisse le lire
+                        const filePath = `voicemail/${organisation?.id || 'default'}/${msgId}.webm`
+                        const { error: uploadErr } = await supabase.storage.from('recordings').upload(filePath, blob, { contentType: 'audio/webm', upsert: true })
+                        let publicUrl = localUrl
+                        if (!uploadErr) {
+                          const { data: urlData } = supabase.storage.from('recordings').getPublicUrl(filePath)
+                          publicUrl = urlData.publicUrl
+                          // Sauvegarder l'URL en DB pour que amd-callback auto-drop fonctionne
+                          if (organisation?.id) {
+                            await supabase.from('organisations').update({ voicemail_audio_url: publicUrl }).eq('id', organisation.id)
+                          }
+                          console.log(`[Voicemail] Uploaded: ${publicUrl}`)
+                        } else {
+                          console.error('[Voicemail] Upload failed:', uploadErr.message)
+                        }
+
+                        const newMsg = { id: msgId, name, url: publicUrl, created: new Date().toISOString() }
                         setVmMessages([...vmMessages, newMsg])
                         setVmSelectedId(newMsg.id)
                         setVmNewName('')
