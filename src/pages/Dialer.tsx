@@ -383,27 +383,24 @@ function CallSettingsDropdown({ open, onToggle, parallel, setParallel, callLicen
             </div>
           </div>
 
-          {/* From phone number */}
+          {/* From phone number — toujours visible, rotation = option */}
           <div>
             <div className="flex items-center justify-between mb-1">
               <span className="text-[13px] text-gray-700">Numéro appelant</span>
-              {autoRotate ? (
-                <span className="text-[12px] text-violet-500 font-medium">Rotation auto ({phoneNumbers.length} num.)</span>
-              ) : (
-                <select value={selectedFromNumber} onChange={e => setSelectedFromNumber(e.target.value)}
-                  className="text-[12px] text-gray-600 bg-transparent border border-gray-200 rounded-lg px-2 py-1 outline-none">
-                  {phoneNumbers.map(num => (
-                    <option key={num.sid} value={num.phone}>{num.phone}{num.friendlyName ? ` (${num.friendlyName})` : ''}</option>
-                  ))}
-                  {phoneNumbers.length === 0 && (
-                    <option value={selectedFromNumber}>{selectedFromNumber}</option>
-                  )}
-                </select>
-              )}
-            </div>
-            <div className="flex items-center gap-1 justify-end">
-              <span className={`w-2 h-2 rounded-full ${autoRotate ? 'bg-violet-500' : 'bg-green-500'}`} />
-              <span className="text-[11px] text-gray-400">{autoRotate ? 'Rotation active' : 'Fixe'}</span>
+              <select value={autoRotate ? '__rotate__' : selectedFromNumber} onChange={e => {
+                if (e.target.value === '__rotate__') {
+                  setAutoRotate(true)
+                } else {
+                  setAutoRotate(false)
+                  setSelectedFromNumber(e.target.value)
+                }
+              }}
+                className="text-[12px] text-gray-600 bg-transparent border border-gray-200 rounded-lg px-2 py-1 outline-none">
+                <option value="__rotate__">Rotation auto ({phoneNumbers.length} num.)</option>
+                {phoneNumbers.map(num => (
+                  <option key={num.sid} value={num.phone}>{num.phone}{num.friendlyName ? ` (${num.friendlyName})` : ''}</option>
+                ))}
+              </select>
             </div>
           </div>
 
@@ -2236,11 +2233,15 @@ export default function Dialer() {
               </svg>
             </button>
             {/* Voicemail drop VIOLET = déposer message + raccrocher + passer au suivant */}
-            {activeVmUrl && (cm.isDialing || cm.isConnected) && (
+            {activeVmUrl && !activeVmUrl.startsWith('blob:') && (cm.isDialing || cm.isConnected) && (
               <button onClick={async () => {
                 const callSid = cm.context.callSid
                 if (callSid && activeVmUrl) {
-                  await cm.voicemailDrop(activeVmUrl)
+                  try {
+                    await cm.voicemailDrop(activeVmUrl)
+                  } catch (e) {
+                    console.error('[Dialer] Voicemail drop failed:', e)
+                  }
                   setTimeout(async () => {
                     cm.reset()
                     setSelectedProspect(null)
