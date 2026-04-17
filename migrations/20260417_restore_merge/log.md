@@ -98,10 +98,21 @@ Transaction unique DO $$ … $$ avec 3 UPDATEs (call_count, last_call_at, last_c
 - `last_call_at` : 44 prospects mis à jour
 - `last_call_outcome` : 6 prospects mis à jour
 
-## Phase 6 — Audios Storage (séparé)
+## Phase 6 — Audios Storage ✅ INUTILE (skipped)
 
-| # | Étape | Status | Commit |
-|---|-------|--------|--------|
-| 1 | Liste fichiers bucket restore | ⏳ | - |
-| 2 | Download → Upload bucket prod | ⏳ | - |
-| 3 | UPDATE calls.recording_url | ⏳ | - |
+Découverte : les 81 `recording_url` pointent **directement vers `api.twilio.com`**, pas vers Supabase Storage. L'edge function `recording-proxy` fait le relai avec auth Twilio.
+
+Un seul Twilio Account SID pour tous les calls (11-17 avril) — identique pour restore et prod. L'edge function actuelle a les bons credentials → **les audios historiques sont écoutables immédiatement sans migration**.
+
+---
+
+## 🎯 MIGRATION COMPLÈTE
+
+- **Phase 1** ✅ Backup prod (2357 rows local)
+- **Phase 2** ✅ Export restore (2338 rows local)
+- **Phase 3** ✅ Génération merge.sql (2316 INSERTs)
+- **Phase 4** ✅ Merge exécuté (+2046 rows en 0.90s)
+- **Phase 5** ✅ Agrégats recomputed (44 updates, 0.08s)
+- **Phase 6** ✅ Skipped (audios chez Twilio, pas Supabase)
+
+**État prod final** : 4399 rows (était 2353 avant), data du 10-13 avril restaurée.
