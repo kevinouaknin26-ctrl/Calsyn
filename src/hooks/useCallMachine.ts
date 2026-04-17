@@ -12,7 +12,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { callMachine } from '@/machines/callMachine'
 import { createProvider, type CallProvider, type CallSession, type AudioSample, type IncomingCallInfo } from '@/services/providers'
 import { TwilioProvider } from '@/services/providers/twilio-provider'
-import { fetchVoiceToken, fetchTelnyxToken, saveCallDisposition, dropVoicemail, initiateCallWithAMD } from '@/services/api'
+import { fetchVoiceToken, fetchTelnyxToken, saveCallDisposition, dropVoicemail } from '@/services/api'
 import { useAuth } from '@/hooks/useAuth'
 import { useTwilioDevice } from '@/hooks/useIncomingCall'
 import { MOS_ALERT_THRESHOLD } from '@/config/constants'
@@ -183,68 +183,20 @@ export function useCallMachine() {
     }
 
     const fromNumber = overrideFromNumber || profile?.assigned_phone || organisation?.from_number || '+33757905591'
-    const useAmd = !!(organisation as any)?.voicemail_drop
-
+    console.log(`[useCallMachine] Calling ${prospect.name} from ${fromNumber}`)
     send({ type: 'CALL', prospect })
 
-    if (useAmd) {
-      // MODE AMD : appel server-side avec détection messagerie automatique
-      // 1. Créer l'appel côté serveur (initiate-call) — prospect reçoit l'appel
-      // 2. SDR rejoint la même conférence — entend la sonnerie puis le prospect
-      // 3. Si messagerie → amd-callback auto-drop le message, SDR libéré
-      const confName = `calsyn_${Date.now()}_${prospect.id?.substring(0, 8) || 'x'}`
-      console.log(`[useCallMachine] AMD mode: ${prospect.name} from ${fromNumber} conf=${confName}`)
+    const session = await provider.connect({
+      to: prospect.phone,
+      from: fromNumber,
+      prospectId: prospect.id,
+      prospectName: prospect.name,
+    })
 
-      try {
-        const result = await initiateCallWithAMD({
-          to: prospect.phone,
-          from: fromNumber,
-          prospectId: prospect.id,
-          prospectName: prospect.name,
-          conferenceName: confName,
-        })
-
-        if (!result.ok) {
-          console.error('[useCallMachine] AMD initiate failed')
-          send({ type: 'ERROR', message: 'AMD call failed' })
-          return
-        }
-
-        // SDR rejoint la conférence via le SDK (entend la sonnerie du prospect)
-        const session = await provider.connect({
-          to: prospect.phone,
-          from: fromNumber,
-          conferenceId: confName,
-          prospectId: prospect.id,
-          prospectName: prospect.name,
-        })
-
-        if (session) {
-          sessionRef.current = session
-          // Stocker le callSid du prospect (pas celui du SDR)
-          send({ type: 'RINGING', callSid: result.callSid })
-        } else {
-          send({ type: 'ERROR', message: 'Failed to join conference' })
-        }
-      } catch (err) {
-        console.error('[useCallMachine] AMD error:', err)
-        send({ type: 'ERROR', message: 'AMD error' })
-      }
+    if (session) {
+      sessionRef.current = session
     } else {
-      // MODE POWER DIALER : appel direct via SDK client (pas de conférence, pas d'AMD)
-      console.log(`[useCallMachine] Power mode: ${prospect.name} from ${fromNumber}`)
-      const session = await provider.connect({
-        to: prospect.phone,
-        from: fromNumber,
-        prospectId: prospect.id,
-        prospectName: prospect.name,
-      })
-
-      if (session) {
-        sessionRef.current = session
-      } else {
-        send({ type: 'ERROR', message: 'Failed to connect' })
-      }
+      send({ type: 'ERROR', message: 'Failed to connect' })
     }
   }, [send, organisation, profile])
 
