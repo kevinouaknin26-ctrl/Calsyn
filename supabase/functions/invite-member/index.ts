@@ -11,7 +11,7 @@ const EMAIL_FROM = Deno.env.get('EMAIL_FROM') || 'Calsyn <onboarding@resend.dev>
 const APP_URL = Deno.env.get('APP_URL') || 'http://localhost:5173'
 
 const CORS = {
-  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Origin': 'https://calsyn.app',
   'Access-Control-Allow-Headers': 'authorization, content-type, apikey, x-client-info',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 }

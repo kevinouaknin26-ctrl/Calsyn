@@ -44,7 +44,7 @@ Deno.serve(async () => {
       headers: {
         'Content-Type': 'image/png',
         'Cache-Control': 'public, max-age=31536000, immutable',
-        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Origin': 'https://calsyn.app',
       },
     })
   } catch (e) {
