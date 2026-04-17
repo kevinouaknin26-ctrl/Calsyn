@@ -100,17 +100,69 @@ export function useRdvToday() {
   })
 }
 
+const PROSPECT_COLS = 'id, list_id, organisation_id, name, phone, phone2, phone3, phone4, phone5, email, company, title, sector, linkedin_url, website_url, status, crm_status, call_count, last_call_at, last_call_outcome, snoozed_until, rdv_date, do_not_call, meeting_booked, address, city, postal_code, country, created_at'
+
+export const SMART_LIST_IDS = [
+  'smart:missed-calls',
+  'smart:contacted-this-week',
+  'smart:contacted-this-month',
+  'smart:contacted-30-days',
+] as const
+
+export const SMART_LIST_LABELS: Record<string, string> = {
+  'smart:missed-calls': '🔕 Appels manqués',
+  'smart:contacted-this-week': '📞 Contactés cette semaine',
+  'smart:contacted-this-month': '📅 Contactés ce mois',
+  'smart:contacted-30-days': '🗓 Contactés les 30 derniers jours',
+}
+
+export function isSmartListId(id: string | null | undefined): id is typeof SMART_LIST_IDS[number] {
+  return !!id && id.startsWith('smart:')
+}
+
 export function useProspects(listId: string | null) {
   const { organisation } = useAuth()
   const orgId = organisation?.id
 
   return useQuery({
-    queryKey: ['prospects', listId],
+    queryKey: ['prospects', listId, orgId],
     queryFn: async () => {
       if (!listId || !orgId) return []
+
+      // ── Listes intelligentes : query cross-listes avec filtre dynamique ──
+      if (isSmartListId(listId)) {
+        let q = supabase.from('prospects').select(PROSPECT_COLS)
+          .eq('organisation_id', orgId)
+          .is('deleted_at', null)
+          .order('last_call_at', { ascending: false, nullsFirst: false })
+          .limit(500)
+
+        const now = new Date()
+        if (listId === 'smart:missed-calls') {
+          // Prospect déjà tenté (call_count > 0) mais jamais connecté (pas connected/rdv_pris/signe/paye)
+          q = q.gt('call_count', 0)
+            .not('crm_status', 'in', '("connected","rdv_pris","rdv_fait","signe","paye","en_attente_signature","en_attente_paiement")')
+        } else if (listId === 'smart:contacted-this-week') {
+          const d = new Date(now); const day = d.getDay(); const diff = day === 0 ? 6 : day - 1
+          d.setDate(d.getDate() - diff); d.setHours(0, 0, 0, 0)
+          q = q.gte('last_call_at', d.toISOString())
+        } else if (listId === 'smart:contacted-this-month') {
+          const d = new Date(now.getFullYear(), now.getMonth(), 1)
+          q = q.gte('last_call_at', d.toISOString())
+        } else if (listId === 'smart:contacted-30-days') {
+          const d = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
+          q = q.gte('last_call_at', d.toISOString())
+        }
+
+        const { data, error } = await q
+        if (error) throw error
+        return (data || []) as Prospect[]
+      }
+
+      // ── Liste classique ──
       const { data, error } = await supabase
         .from('prospects')
-        .select('id, list_id, organisation_id, name, phone, phone2, phone3, phone4, phone5, email, company, title, sector, linkedin_url, website_url, status, crm_status, call_count, last_call_at, last_call_outcome, snoozed_until, rdv_date, do_not_call, meeting_booked, address, city, postal_code, country, created_at')
+        .select(PROSPECT_COLS)
         .eq('list_id', listId)
         .is('deleted_at', null)
         .order('created_at', { ascending: true })

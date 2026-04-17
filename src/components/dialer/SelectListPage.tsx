@@ -969,18 +969,22 @@ export default function SelectListPage({ onSelect, onClose }: Props) {
             <span className="text-[15px] font-bold text-gray-800">Listes intelligentes</span>
           </div>
           <div className="space-y-1.5">
-            <button className="w-full text-left px-3 py-2.5 rounded-xl bg-white border border-gray-100 hover:border-indigo-200 transition-colors">
-              <p className="text-[13px] text-gray-600">Appels manques</p>
-              <p className="text-[11px] text-gray-400">Pas encore de donnees</p>
+            <button onClick={() => onSelect('smart:missed-calls')}
+              className="w-full text-left px-3 py-2.5 rounded-xl bg-white border border-gray-100 hover:border-violet-300 hover:bg-violet-50/30 transition-colors">
+              <p className="text-[13px] text-gray-700 font-medium">🔕 Appels manqués</p>
+              <p className="text-[11px] text-gray-400">Déjà tentés, jamais connectés</p>
             </button>
-            <button className="w-full text-left px-3 py-2.5 rounded-xl bg-white border border-gray-100 hover:border-indigo-200 transition-colors">
-              <p className="text-[13px] text-gray-600">Contactes cette semaine</p>
+            <button onClick={() => onSelect('smart:contacted-this-week')}
+              className="w-full text-left px-3 py-2.5 rounded-xl bg-white border border-gray-100 hover:border-violet-300 hover:bg-violet-50/30 transition-colors">
+              <p className="text-[13px] text-gray-700 font-medium">📞 Contactés cette semaine</p>
             </button>
-            <button className="w-full text-left px-3 py-2.5 rounded-xl bg-white border border-gray-100 hover:border-indigo-200 transition-colors">
-              <p className="text-[13px] text-gray-600">Contactes ce mois</p>
+            <button onClick={() => onSelect('smart:contacted-this-month')}
+              className="w-full text-left px-3 py-2.5 rounded-xl bg-white border border-gray-100 hover:border-violet-300 hover:bg-violet-50/30 transition-colors">
+              <p className="text-[13px] text-gray-700 font-medium">📅 Contactés ce mois</p>
             </button>
-            <button className="w-full text-left px-3 py-2.5 rounded-xl bg-white border border-gray-100 hover:border-indigo-200 transition-colors">
-              <p className="text-[13px] text-gray-600">Contactes les 30 derniers jours</p>
+            <button onClick={() => onSelect('smart:contacted-30-days')}
+              className="w-full text-left px-3 py-2.5 rounded-xl bg-white border border-gray-100 hover:border-violet-300 hover:bg-violet-50/30 transition-colors">
+              <p className="text-[13px] text-gray-700 font-medium">🗓 Contactés les 30 derniers jours</p>
             </button>
           </div>
         </div>

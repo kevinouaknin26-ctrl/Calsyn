@@ -8,7 +8,7 @@ import { useState, useEffect, useCallback, useMemo, memo, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { useQueryClient, useQuery } from '@tanstack/react-query'
 import { useCallMachine } from '@/hooks/useCallMachine'
-import { useProspectLists, useProspects, useAddProspect, useCreateProspectField, useRdvToday } from '@/hooks/useProspects'
+import { useProspectLists, useProspects, useAddProspect, useCreateProspectField, useRdvToday, SMART_LIST_LABELS } from '@/hooks/useProspects'
 import { usePropertyDefinitions, useCustomFieldValues, groupProperties, updatePropertyValue, useCrmStatuses, type CrmStatusDef } from '@/hooks/useProperties'
 import { SYSTEM_PROPERTIES, DEFAULT_VISIBLE_COLUMNS, getPropertyValue, matchesSearch, CRM_STATUS_LABELS, type PropertyDefinition } from '@/config/properties'
 import { useCallsByProspect } from '@/hooks/useCalls'
@@ -1462,29 +1462,36 @@ export default function Dialer() {
           <span className="w-3.5 h-3.5 rounded-full bg-violet-500 text-white flex items-center justify-center text-[9px] font-bold leading-none">+</span>
           Nouvelle liste
         </button>
-        {lists?.filter(l => openTabIds.includes(l.id)).map(l => (
-          <div key={l.id} role="button" tabIndex={0}
-            onClick={() => { setActiveListId(l.id); localStorage.setItem('calsyn_active_list', l.id) }}
-            onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setActiveListId(l.id); localStorage.setItem('calsyn_active_list', l.id) } }}
-            className={`flex items-center gap-2 px-3 py-2 text-[12px] whitespace-nowrap flex-shrink-0 transition-colors rounded-t-lg cursor-pointer ${
-              activeListId === l.id
-                ? 'text-gray-800 font-semibold bg-white shadow-[0_-1px_3px_rgba(0,0,0,0.08)] border border-gray-200 border-b-white -mb-px relative z-10'
-                : 'text-gray-400 hover:text-gray-600'
-            }`}>
-            {l.name}
-            <button onClick={e => {
-              e.stopPropagation()
-              const remaining = openTabIds.filter(id => id !== l.id)
-              setOpenTabIds(remaining)
-              if (activeListId === l.id) {
-                const next = remaining.length > 0 ? remaining[remaining.length - 1] : null
-                setActiveListId(next)
-                if (next) localStorage.setItem('calsyn_active_list', next)
-                else localStorage.removeItem('calsyn_active_list')
-              }
-            }} className="text-gray-300 hover:text-gray-500 ml-0.5" aria-label="Fermer l'onglet">&times;</button>
-          </div>
-        ))}
+        {openTabIds.map(tabId => {
+          const isSmart = tabId.startsWith('smart:')
+          const tabName = isSmart
+            ? (SMART_LIST_LABELS[tabId] || tabId)
+            : lists?.find(l => l.id === tabId)?.name
+          if (!tabName) return null
+          return (
+            <div key={tabId} role="button" tabIndex={0}
+              onClick={() => { setActiveListId(tabId); localStorage.setItem('calsyn_active_list', tabId) }}
+              onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setActiveListId(tabId); localStorage.setItem('calsyn_active_list', tabId) } }}
+              className={`flex items-center gap-2 px-3 py-2 text-[12px] whitespace-nowrap flex-shrink-0 transition-colors rounded-t-lg cursor-pointer ${
+                activeListId === tabId
+                  ? 'text-gray-800 font-semibold bg-white shadow-[0_-1px_3px_rgba(0,0,0,0.08)] border border-gray-200 border-b-white -mb-px relative z-10'
+                  : 'text-gray-400 hover:text-gray-600'
+              } ${isSmart ? 'italic' : ''}`}>
+              {tabName}
+              <button onClick={e => {
+                e.stopPropagation()
+                const remaining = openTabIds.filter(id => id !== tabId)
+                setOpenTabIds(remaining)
+                if (activeListId === tabId) {
+                  const next = remaining.length > 0 ? remaining[remaining.length - 1] : null
+                  setActiveListId(next)
+                  if (next) localStorage.setItem('calsyn_active_list', next)
+                  else localStorage.removeItem('calsyn_active_list')
+                }
+              }} className="text-gray-300 hover:text-gray-500 ml-0.5" aria-label="Fermer l'onglet">&times;</button>
+            </div>
+          )
+        })}
         {(lists?.length || 0) > 8 && (
           <span className="px-2 py-2.5 text-[12px] text-gray-400 whitespace-nowrap flex-shrink-0">+{(lists?.length || 0) - 8} ▾</span>
         )}
