@@ -960,9 +960,16 @@ export default function Dialer() {
   const voicemail = org?.voicemail_drop ?? false
   const setVoicemail = (v: boolean) => updateOrg({ voicemail_drop: v })
   const [completeTask, setCompleteTask] = useCallSetting('complete_task', false)
-  const [vmMessagesMain] = useCallSetting<Array<{ id: string; name: string; url: string }>>('vm_messages', [])
-  const [vmSelectedIdMain] = useCallSetting('vm_selected', '')
-  const activeVmUrl = voicemail ? vmMessagesMain.find(m => m.id === vmSelectedIdMain)?.url : null
+  // Lire les messages vocaux directement depuis localStorage à chaque render
+  // (pas via useState qui ne se sync pas quand CallSettingsDropdown écrit)
+  const activeVmUrl = useMemo(() => {
+    if (!voicemail) return null
+    try {
+      const msgs = JSON.parse(localStorage.getItem('calsyn_cs_vm_messages') || '[]') as Array<{ id: string; url: string }>
+      const selId = JSON.parse(localStorage.getItem('calsyn_cs_vm_selected') || '""') as string
+      return msgs.find(m => m.id === selId)?.url || null
+    } catch { return null }
+  }, [voicemail, cm.isDialing, cm.isConnected]) // re-check quand l'état d'appel change
   const maxAttempts = org?.max_call_attempts || 'unlimited'
   const setMaxAttempts = (v: string) => updateOrg({ max_call_attempts: v })
   const attemptPeriod = org?.attempt_period || 'per_day'
