@@ -152,9 +152,41 @@ serve(async (req) => {
     return new Response('ok', { headers: corsHeaders })
   }
 
+  // ── Auth check (C5) : accepter service_role (pg_cron) OU admin JWT ──
+  const authHeader = req.headers.get('authorization') || ''
+  const token = authHeader.replace(/^Bearer\s+/i, '')
+  const serviceRole = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || ''
+  const supabaseUrl = Deno.env.get('SUPABASE_URL') || ''
+
+  if (!token) {
+    return new Response(JSON.stringify({ error: 'Unauthorized — no token' }), {
+      status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    })
+  }
+
+  if (token !== serviceRole) {
+    // Token user JWT — vérifier + check rôle admin
+    const userClient = createClient(supabaseUrl, Deno.env.get('SUPABASE_ANON_KEY') || '', {
+      global: { headers: { Authorization: `Bearer ${token}` } },
+    })
+    const { data: { user }, error: authErr } = await userClient.auth.getUser(token)
+    if (authErr || !user) {
+      return new Response(JSON.stringify({ error: 'Unauthorized — invalid JWT' }), {
+        status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+    const adminClient = createClient(supabaseUrl, serviceRole)
+    const { data: profile } = await adminClient.from('profiles').select('role').eq('id', user.id).single()
+    if (!profile || !['super_admin', 'admin'].includes(profile.role)) {
+      return new Response(JSON.stringify({ error: 'Forbidden — admin role required' }), {
+        status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+  }
+
   const supabase = createClient(
-    Deno.env.get('SUPABASE_URL') || '',
-    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '',
+    supabaseUrl,
+    serviceRole,
   )
 
   try {
