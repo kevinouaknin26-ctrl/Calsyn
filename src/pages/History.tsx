@@ -355,7 +355,7 @@ export default function History() {
   }, [filtered])
 
   return (
-    <div className="min-h-screen bg-[#f8f9fa] dark:bg-[#e8e0f0]">
+    <div className="h-full overflow-y-auto bg-[#f8f9fa] dark:bg-[#e8e0f0]">
       <div className="max-w-5xl mx-auto p-6">
         <div className="flex items-center justify-between mb-5 flex-wrap gap-3">
           <div>
