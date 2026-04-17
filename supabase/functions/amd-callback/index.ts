@@ -83,6 +83,49 @@ serve(async (req) => {
       console.error('[amd-callback] Update error:', error)
     }
 
+    // Si machine ET réellement répondu → auto voicemail drop
+    if (isMachine && isActuallyAnswered) {
+      // Chercher l'org pour savoir si voicemail_drop est activé + l'URL audio
+      const { data: callData } = await supabase
+        .from('calls')
+        .select('organisation_id, sdr_id')
+        .eq('call_sid', callSid)
+        .single()
+
+      if (callData?.organisation_id) {
+        const { data: org } = await supabase
+          .from('organisations')
+          .select('voicemail_drop, voicemail_audio_url')
+          .eq('id', callData.organisation_id)
+          .single()
+
+        if (org?.voicemail_drop && org?.voicemail_audio_url) {
+          // Auto-drop : modifier le call en cours pour jouer le message + raccrocher
+          const accountSid = Deno.env.get('TWILIO_ACCOUNT_SID') || ''
+          const authToken = Deno.env.get('TWILIO_AUTH_TOKEN') || ''
+
+          const twiml = `<Response><Play>${org.voicemail_audio_url}</Play><Hangup/></Response>`
+          const updateRes = await fetch(
+            `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Calls/${callSid}.json`,
+            {
+              method: 'POST',
+              headers: {
+                'Authorization': 'Basic ' + btoa(`${accountSid}:${authToken}`),
+                'Content-Type': 'application/x-www-form-urlencoded',
+              },
+              body: new URLSearchParams({ Twiml: twiml }).toString(),
+            }
+          )
+
+          if (updateRes.ok) {
+            console.log(`[amd-callback] Auto voicemail drop on ${callSid}`)
+          } else {
+            console.error(`[amd-callback] Voicemail drop failed: ${await updateRes.text()}`)
+          }
+        }
+      }
+    }
+
     // Si machine ET réellement répondu → mettre à jour le prospect aussi (avec priorité)
     if (isMachine && isActuallyAnswered && call?.prospect_id) {
       const outcomePriority: Record<string, number> = {
