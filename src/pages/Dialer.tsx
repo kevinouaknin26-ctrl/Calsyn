@@ -262,6 +262,7 @@ interface CallSettingsProps {
 }
 
 function CallSettingsDropdown({ open, onToggle, parallel, setParallel, callLicense, autoRotate, setAutoRotate, voicemail, setVoicemail, completeTask, setCompleteTask, maxAttempts, setMaxAttempts, attemptPeriod, setAttemptPeriod, phoneField, setPhoneField, selectedFromNumber, setSelectedFromNumber, phoneNumbers }: CallSettingsProps) {
+  const { organisation } = useAuth()
 
   // Voicemail drop — messages enregistrés persistés en localStorage
   const [vmMessages, setVmMessages] = useCallSetting<Array<{ id: string; name: string; url: string; created: string }>>('vm_messages', [])
@@ -496,7 +497,7 @@ function CallSettingsDropdown({ open, onToggle, parallel, setParallel, callLicen
                       recorder.start()
                       setVmRecording(true)
                       setTimeout(() => { if (recorder.state === 'recording') { recorder.stop(); setVmRecording(false) } }, 60000)
-                    } catch { setMicError(true); setTimeout(() => setMicError(false), 3000) }
+                    } catch (err) { console.error('[Voicemail] Record error:', err); setMicError(true); setTimeout(() => setMicError(false), 3000) }
                   }} className={`px-2.5 py-1 rounded-lg border text-[11px] whitespace-nowrap ${vmRecording ? 'border-red-300 text-red-500 bg-red-50 animate-pulse' : 'border-gray-200 text-gray-500 hover:bg-white'}`}>
                     {vmRecording ? '⏹ Stop' : '🎤 Enregistrer'}
                   </button>
