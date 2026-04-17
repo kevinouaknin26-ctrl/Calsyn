@@ -960,6 +960,9 @@ export default function Dialer() {
   const voicemail = org?.voicemail_drop ?? false
   const setVoicemail = (v: boolean) => updateOrg({ voicemail_drop: v })
   const [completeTask, setCompleteTask] = useCallSetting('complete_task', false)
+  const [vmMessagesMain] = useCallSetting<Array<{ id: string; name: string; url: string }>>('vm_messages', [])
+  const [vmSelectedIdMain] = useCallSetting('vm_selected', '')
+  const activeVmUrl = voicemail ? vmMessagesMain.find(m => m.id === vmSelectedIdMain)?.url : null
   const maxAttempts = org?.max_call_attempts || 'unlimited'
   const setMaxAttempts = (v: string) => updateOrg({ max_call_attempts: v })
   const attemptPeriod = org?.attempt_period || 'per_day'
@@ -1271,6 +1274,32 @@ export default function Dialer() {
       setSelectedProspect(cm.context.prospect)
     }
   }, [cm.isConnected, cm.context.prospect, selectedProspect])
+
+  // ── Raccourci Cmd+P : raccrocher + passer au suivant (Minari exact) ──
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'p') {
+        e.preventDefault()
+        if (cm.isDialing || cm.isConnected) {
+          cm.hangup()
+          setTimeout(async () => {
+            cm.reset()
+            setSelectedProspect(null)
+            queryClient.invalidateQueries({ queryKey: ['prospects', activeListId] })
+            if (dialSession.isActive) {
+              const nextId = await dialSession.nextProspect()
+              if (nextId) {
+                const p = prospects?.find(pr => pr.id === nextId)
+                if (p) setTimeout(() => handleCall(p), 300)
+              }
+            }
+          }, 500)
+        }
+      }
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [cm, dialSession, prospects, activeListId, handleCall, queryClient])
 
   const isInCall = cm.isDialing || cm.isConnected
   const meetings = prospects?.filter(p => p.meeting_booked || p.crm_status === 'rdv_pris' || p.crm_status === 'rdv_fait').length || 0
@@ -2199,6 +2228,32 @@ export default function Dialer() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
               </svg>
             </button>
+            {/* Voicemail drop VIOLET = déposer message + raccrocher + passer au suivant */}
+            {activeVmUrl && (cm.isDialing || cm.isConnected) && (
+              <button onClick={async () => {
+                const callSid = cm.context.callSid
+                if (callSid && activeVmUrl) {
+                  await cm.voicemailDrop(activeVmUrl)
+                  setTimeout(async () => {
+                    cm.reset()
+                    setSelectedProspect(null)
+                    queryClient.invalidateQueries({ queryKey: ['prospects', activeListId] })
+                    if (dialSession.isActive) {
+                      const nextId = await dialSession.nextProspect()
+                      if (nextId) {
+                        const p = prospects?.find(pr => pr.id === nextId)
+                        if (p) setTimeout(() => handleCall(p), 300)
+                      }
+                    }
+                  }, 500)
+                }
+              }} title="Déposer message vocal + suivant"
+                className="w-11 h-11 rounded-full bg-violet-500 text-white flex items-center justify-center hover:bg-violet-600 transition-colors border border-violet-400/50">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+                </svg>
+              </button>
+            )}
             {/* Raccrocher BLEU >> = raccrocher et passer au suivant (Minari exact) */}
             <button onClick={async () => {
               cm.hangup()
