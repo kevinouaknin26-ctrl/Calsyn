@@ -383,23 +383,27 @@ function CallSettingsDropdown({ open, onToggle, parallel, setParallel, callLicen
             </div>
           </div>
 
-          {/* From phone number (Minari — dropdown multi-numéros + compteur appels) */}
+          {/* From phone number */}
           <div>
             <div className="flex items-center justify-between mb-1">
               <span className="text-[13px] text-gray-700">Numéro appelant</span>
-              <select value={selectedFromNumber} onChange={e => setSelectedFromNumber(e.target.value)}
-                className="text-[12px] text-gray-600 bg-transparent border border-gray-200 rounded-lg px-2 py-1 outline-none">
-                {phoneNumbers.map(num => (
-                  <option key={num.sid} value={num.phone}>{num.phone}{num.friendlyName ? ` (${num.friendlyName})` : ''}</option>
-                ))}
-                {phoneNumbers.length === 0 && (
-                  <option value={selectedFromNumber}>{selectedFromNumber}</option>
-                )}
-              </select>
+              {autoRotate ? (
+                <span className="text-[12px] text-violet-500 font-medium">Rotation auto ({phoneNumbers.length} num.)</span>
+              ) : (
+                <select value={selectedFromNumber} onChange={e => setSelectedFromNumber(e.target.value)}
+                  className="text-[12px] text-gray-600 bg-transparent border border-gray-200 rounded-lg px-2 py-1 outline-none">
+                  {phoneNumbers.map(num => (
+                    <option key={num.sid} value={num.phone}>{num.phone}{num.friendlyName ? ` (${num.friendlyName})` : ''}</option>
+                  ))}
+                  {phoneNumbers.length === 0 && (
+                    <option value={selectedFromNumber}>{selectedFromNumber}</option>
+                  )}
+                </select>
+              )}
             </div>
             <div className="flex items-center gap-1 justify-end">
-              <span className="w-2 h-2 rounded-full bg-violet-500" />
-              <span className="text-[11px] text-gray-400">Actif</span>
+              <span className={`w-2 h-2 rounded-full ${autoRotate ? 'bg-violet-500' : 'bg-green-500'}`} />
+              <span className="text-[11px] text-gray-400">{autoRotate ? 'Rotation active' : 'Fixe'}</span>
             </div>
           </div>
 
@@ -1210,15 +1214,18 @@ export default function Dialer() {
         return
       }
 
-      // ── From Number : rotation auto ou numéro fixe ──
+      // ── From Number : numéro sélectionné manuellement, rotation seulement si activée ──
       let fromNumber = selectedFromNumber
       if (autoRotate && orgPhoneNumbers && orgPhoneNumbers.length > 1) {
-        // Rotation : chaque appel utilise le numéro suivant dans la liste
+        // Rotation : chaque appel utilise le numéro suivant (voice-capable uniquement)
         const voiceNums = orgPhoneNumbers.filter(n => n.capabilities?.voice).map(n => n.phone)
         if (voiceNums.length > 1) {
           const rotateIdx = (p.call_count || 0) % voiceNums.length
           fromNumber = voiceNums[rotateIdx]
+          console.log(`[Dialer] Auto-rotate: ${fromNumber} (idx ${rotateIdx}/${voiceNums.length})`)
         }
+      } else {
+        console.log(`[Dialer] Fixed number: ${fromNumber}`)
       }
 
       const prospectWithPhone = phoneNumber !== p.phone
