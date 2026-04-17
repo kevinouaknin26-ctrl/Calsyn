@@ -29,19 +29,26 @@ Commits antérieurs de cette phase (contenu re-exporté après pour uniformité)
 
 Commit final Phase 1 : voir git log.
 
-## Phase 2 — Export restore (read-only)
+## Phase 2 — Export restore (read-only) ✅ COMPLÈTE
 
-| # | Table | Status | Rows | Taille | Timing | Commit |
-|---|-------|--------|------|--------|--------|--------|
-| 1 | organisations | ⏳ | - | - | - | - |
-| 2 | profiles | ⏳ | - | - | - | - |
-| 3 | prospect_fields | ⏳ | - | - | - | - |
-| 4 | prospect_lists | ⏳ | - | - | - | - |
-| 5 | prospects | ⏳ | - | - | - | - |
-| 6 | calls | ⏳ | - | - | - | - |
-| 7 | prospect_socials | ⏳ | - | - | - | - |
-| 8 | prospect_field_values | ⏳ | - | - | - | - |
-| 9 | activity_logs + analysis_jobs + dialing_sessions | ⏳ | - | - | - | - |
+Script : `dump_tables.py restore` via pooler session mode (`aws-1-eu-west-3.pooler.supabase.com:5432`, user `postgres.wjqnrlhfwjeobnoxkpdi`). Le direct port 5432 refuse les connections sur ce projet.
+
+| # | Table | Rows | Taille |
+|---|-------|------|--------|
+| 1 | organisations | 1 | 0.8 KB |
+| 2 | profiles | 1 | 0.4 KB |
+| 3 | prospect_fields | 16 | 4.5 KB |
+| 4 | prospect_lists | 8 | 2.4 KB |
+| 5 | prospects | 280 | 250.8 KB |
+| 6 | calls | 125 | 371.2 KB |
+| 7 | activity_logs | 269 | 106.3 KB |
+| 8 | prospect_socials | 212 | 54.9 KB |
+| 9 | prospect_field_values | 1345 | 444.5 KB |
+| 10 | dialing_sessions | 16 | 9.3 KB |
+| 10b | dialing_session_calls | 0 | - |
+| 11 | analysis_jobs | 52 | 41.3 KB |
+| 11b | crm_statuses | 13 | 3.8 KB |
+| **TOTAL** | **13 tables** | **2338 rows** | **~1.26 MB** |
 
 ## Phase 3 — Génération script (local)
 

@@ -15,8 +15,8 @@ import psycopg2, json, os, sys, time
 from pathlib import Path
 
 PROJECTS = {
-    "prod":    ("db.enrpuayypjnpfmdgpfhs.supabase.co", "Murmuse prod (callio-v2)"),
-    "restore": ("db.wjqnrlhfwjeobnoxkpdi.supabase.co", "Snapshot 14 avril (calsyn-restore-20260414)"),
+    "prod":    ("db.enrpuayypjnpfmdgpfhs.supabase.co", 5432, "postgres",                              "Murmuse prod (callio-v2)"),
+    "restore": ("aws-1-eu-west-3.pooler.supabase.com",  5432, "postgres.wjqnrlhfwjeobnoxkpdi",          "Snapshot 14 avril — pooler session mode (direct refuse les connections)"),
 }
 
 TABLES = [
@@ -38,15 +38,15 @@ TABLES = [
 def dump(target: str):
     if target not in PROJECTS:
         sys.exit(f"Unknown target {target!r}. Options: {list(PROJECTS)}")
-    host, label = PROJECTS[target]
+    host, port, user, label = PROJECTS[target]
     pwd = os.environ.get("PGPASSWORD")
     if not pwd:
         sys.exit("PGPASSWORD env var missing. Run: export PGPASSWORD=...")
     out = Path(__file__).parent / target
     out.mkdir(parents=True, exist_ok=True)
 
-    print(f"Target: {label}\nHost: {host}\nOutput: {out}\n")
-    conn = psycopg2.connect(host=host, port=5432, dbname="postgres", user="postgres", password=pwd, connect_timeout=10, sslmode="require")
+    print(f"Target: {label}\nHost: {host}:{port}  user={user}\nOutput: {out}\n")
+    conn = psycopg2.connect(host=host, port=port, dbname="postgres", user=user, password=pwd, connect_timeout=10, sslmode="require")
     cur = conn.cursor()
     total_rows, total_bytes = 0, 0
     for name, sql in TABLES:
