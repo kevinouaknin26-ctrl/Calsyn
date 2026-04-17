@@ -23,6 +23,7 @@ import { exportListWithAudios, type ExportProgress } from '@/services/exportList
 import { usePermissions } from '@/hooks/usePermissions'
 import { useRealtimeProspects } from '@/hooks/useRealtime'
 import { useDialingSession } from '@/hooks/useDialingSession'
+import VoicemailRecorder from '@/components/VoicemailRecorder'
 import type { Prospect } from '@/types/prospect'
 
 // ── Call status badges (Minari exact) ──────────────────────────────
@@ -398,17 +399,34 @@ function CallSettingsDropdown({ open, onToggle, parallel, setParallel, callLicen
               }}
                 className="text-[12px] text-gray-600 bg-transparent border border-gray-200 rounded-lg px-2 py-1 outline-none">
                 <option value="__rotate__">Rotation auto ({phoneNumbers.length} num.)</option>
-                {phoneNumbers.map(num => (
-                  <option key={num.sid} value={num.phone}>{num.phone}{num.friendlyName ? ` (${num.friendlyName})` : ''}</option>
-                ))}
+                {phoneNumbers.map(num => {
+                  const fn = (num.friendlyName || '').trim()
+                  const phoneNoPlus = num.phone.replace(/^\+/, '')
+                  const showFriendly = fn && fn !== num.phone && fn !== phoneNoPlus
+                  return (
+                    <option key={num.sid} value={num.phone}>{num.phone}{showFriendly ? ` (${fn})` : ''}</option>
+                  )
+                })}
               </select>
             </div>
           </div>
 
-          {/* Voicemail drop (Minari — messages pré-enregistrés + toggle) */}
+          {/* Mon message d'accueil — joué à celui qui me rappelle */}
+          <div>
+            <div className="mb-1.5">
+              <span className="text-[13px] text-gray-700">Mon message d'accueil</span>
+              <p className="text-[10px] text-gray-400">Joué à celui qui vous rappelle si vous ne décrochez pas</p>
+            </div>
+            <VoicemailRecorder compact />
+          </div>
+
+          {/* Voicemail drop (Minari — laisse un message sur le répondeur du PROSPECT) */}
           <div>
             <div className="flex items-center justify-between mb-1.5">
-              <span className="text-[13px] text-gray-700">Messagerie vocale</span>
+              <div>
+                <span className="text-[13px] text-gray-700">Répondeur prospect (auto-drop)</span>
+                <p className="text-[10px] text-gray-400">Laisse automatiquement un message si le prospect a une messagerie</p>
+              </div>
               <div className="flex items-center gap-2">
                 <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" /></svg>
                 <Toggle value={voicemail} onChange={setVoicemail} />
