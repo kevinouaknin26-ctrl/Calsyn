@@ -18,6 +18,7 @@ import { useTwilioDevice } from '@/hooks/useIncomingCall'
 import { MOS_ALERT_THRESHOLD } from '@/config/constants'
 import type { Prospect } from '@/types/prospect'
 import type { Disposition } from '@/types/call'
+import { normalizePhone } from '@/utils/phone'
 
 export function useCallMachine() {
   const { organisation, profile } = useAuth()
@@ -183,11 +184,17 @@ export function useCallMachine() {
     }
 
     const fromNumber = overrideFromNumber || profile?.assigned_phone || organisation?.from_number || '+33757905591'
-    console.log(`[useCallMachine] Calling ${prospect.name} from ${fromNumber}`)
+    const toNumber = normalizePhone(prospect.phone)
+    if (!toNumber) {
+      console.error(`[useCallMachine] Numéro invalide pour ${prospect.name}: "${prospect.phone}"`)
+      send({ type: 'ERROR', message: 'Numéro invalide' })
+      return
+    }
+    console.log(`[useCallMachine] Calling ${prospect.name} from ${fromNumber} to ${toNumber}`)
     send({ type: 'CALL', prospect })
 
     const session = await provider.connect({
-      to: prospect.phone,
+      to: toNumber,
       from: fromNumber,
       prospectId: prospect.id,
       prospectName: prospect.name,
