@@ -472,18 +472,25 @@ function CallSettingsDropdown({ open, onToggle, parallel, setParallel, callLicen
                         const name = vmNewName.trim() || `Message ${vmMessages.length + 1}`
                         const msgId = crypto.randomUUID()
 
-                        // Upload vers Supabase Storage pour que le serveur (amd-callback) puisse le lire
+                        // Upload vers Supabase Storage (bucket `recordings` privé).
+                        // Twilio (amd-callback) a besoin d'une URL accessible → signed URL.
+                        // Max expiration Supabase = 7 jours. Kevin re-signe via Settings
+                        // si elle expire.
                         const filePath = `voicemail/${organisation?.id || 'default'}/${msgId}.webm`
                         const { error: uploadErr } = await supabase.storage.from('recordings').upload(filePath, blob, { contentType: 'audio/webm', upsert: true })
                         let publicUrl = localUrl
                         if (!uploadErr) {
-                          const { data: urlData } = supabase.storage.from('recordings').getPublicUrl(filePath)
-                          publicUrl = urlData.publicUrl
-                          // Sauvegarder l'URL en DB pour que amd-callback auto-drop fonctionne
-                          if (organisation?.id) {
-                            await supabase.from('organisations').update({ voicemail_audio_url: publicUrl }).eq('id', organisation.id)
+                          const { data: signed, error: signErr } = await supabase.storage.from('recordings').createSignedUrl(filePath, 60 * 60 * 24 * 7)
+                          if (signErr || !signed) {
+                            console.error('[Voicemail] Signed URL failed:', signErr?.message)
+                          } else {
+                            publicUrl = signed.signedUrl
+                            // Sauvegarder l'URL en DB pour que amd-callback auto-drop fonctionne
+                            if (organisation?.id) {
+                              await supabase.from('organisations').update({ voicemail_audio_url: publicUrl }).eq('id', organisation.id)
+                            }
+                            console.log(`[Voicemail] Uploaded + signed (7d): ${filePath}`)
                           }
-                          console.log(`[Voicemail] Uploaded: ${publicUrl}`)
                         } else {
                           console.error('[Voicemail] Upload failed:', uploadErr.message)
                         }
