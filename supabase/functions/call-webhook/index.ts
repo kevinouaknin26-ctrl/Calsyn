@@ -11,6 +11,16 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.0'
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') || ''
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || ''
 
+// Escape pour valeurs texte ET URL dans attributs/contenu XML TwiML
+function escapeXml(s: string): string {
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;')
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: {
@@ -42,22 +52,22 @@ serve(async (req) => {
     console.log(`[call-webhook] to=${to} from=${from} direction=${direction} isInbound=${isInbound} ProspectId=${params.ProspectId || 'none'} ConferenceId=${params.ConferenceId || 'none'}`)
     if (isInbound) {
       const admin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
-      let clientIdentity = ''
+      let sdrProfile: { id: string; voicemail_url: string | null; voicemail_text: string | null } | null = null
 
       // 1. Chercher un SDR assigné à ce numéro spécifique
       const { data: assigned } = await admin
         .from('profiles')
-        .select('id')
+        .select('id, voicemail_url, voicemail_text')
         .contains('assigned_phones', [to])
         .is('deactivated_at', null)
         .limit(1)
 
       if (assigned && assigned.length > 0) {
-        clientIdentity = `calsyn_${assigned[0].id.substring(0, 8)}`
+        sdrProfile = assigned[0]
       }
 
       // 2. Fallback : chercher l'org propriétaire du numéro (from_number)
-      if (!clientIdentity) {
+      if (!sdrProfile) {
         const { data: orgs } = await admin
           .from('organisations')
           .select('id')
@@ -67,48 +77,70 @@ serve(async (req) => {
         if (orgs && orgs.length > 0) {
           const { data: admins } = await admin
             .from('profiles')
-            .select('id')
+            .select('id, voicemail_url, voicemail_text')
             .eq('organisation_id', orgs[0].id)
             .in('role', ['admin', 'manager'])
             .is('deactivated_at', null)
             .limit(1)
           if (admins && admins.length > 0) {
-            clientIdentity = `calsyn_${admins[0].id.substring(0, 8)}`
+            sdrProfile = admins[0]
           }
         }
       }
 
       // 3. Dernier fallback : premier admin/super_admin actif (single-tenant phase)
-      if (!clientIdentity) {
+      if (!sdrProfile) {
         const { data: anyAdmin } = await admin
           .from('profiles')
-          .select('id')
+          .select('id, voicemail_url, voicemail_text')
           .in('role', ['super_admin', 'admin'])
           .is('deactivated_at', null)
           .order('created_at', { ascending: true })
           .limit(1)
         if (anyAdmin && anyAdmin.length > 0) {
-          clientIdentity = `calsyn_${anyAdmin[0].id.substring(0, 8)}`
+          sdrProfile = anyAdmin[0]
         }
-        console.log(`[call-webhook] Inbound fallback: to=${to}, from=${from}, identity=${clientIdentity || 'NONE'}`)
+        console.log(`[call-webhook] Inbound fallback: to=${to}, from=${from}, sdr=${sdrProfile?.id || 'NONE'}`)
       }
 
-      console.log(`[call-webhook] INBOUND → clientIdentity=${clientIdentity || 'NONE'}`)
+      // Construction TwiML voicemail : <Play> audio OU <Say> Polly Neural
+      const buildVoicemailTwiml = async (): Promise<string> => {
+        // 1. Audio enregistré → signed URL 5 min (suffit pour Twilio qui fetch immédiatement)
+        if (sdrProfile?.voicemail_url) {
+          const { data: signed } = await admin.storage
+            .from('voicemails')
+            .createSignedUrl(sdrProfile.voicemail_url, 300)
+          if (signed?.signedUrl) {
+            return `<Play>${escapeXml(signed.signedUrl)}</Play>`
+          }
+        }
+        // 2. Texte custom du SDR → Polly Neural
+        if (sdrProfile?.voicemail_text) {
+          return `<Say voice="Polly.Lea-Neural" language="fr-FR">${escapeXml(sdrProfile.voicemail_text)}</Say>`
+        }
+        // 3. Fallback générique
+        return `<Say voice="Polly.Lea-Neural" language="fr-FR">Bonjour, vous êtes bien sur la ligne de notre équipe. Nous ne pouvons pas vous répondre pour le moment. Laissez-nous un message ou rappelez plus tard. Merci.</Say>`
+      }
+
+      const clientIdentity = sdrProfile ? `calsyn_${sdrProfile.id.substring(0, 8)}` : ''
+      console.log(`[call-webhook] INBOUND → sdr=${sdrProfile?.id || 'NONE'} clientIdentity=${clientIdentity || 'NONE'}`)
+
       if (clientIdentity) {
+        const vmTwiml = await buildVoicemailTwiml()
         const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Dial timeout="30">
+  <Dial timeout="25">
     <Client>
       <Identity>${clientIdentity}</Identity>
     </Client>
   </Dial>
-  <Say language="fr-FR">Aucun agent disponible. Identité cherchée : ${clientIdentity}.</Say>
+  ${vmTwiml}
 </Response>`
         return new Response(twiml, { headers: { 'Content-Type': 'text/xml' } })
       } else {
         const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Say language="fr-FR">Ce numéro ne peut pas recevoir d'appels pour le moment.</Say>
+  <Say voice="Polly.Lea-Neural" language="fr-FR">Ce numéro ne peut pas recevoir d'appels pour le moment.</Say>
 </Response>`
         return new Response(twiml, { headers: { 'Content-Type': 'text/xml' } })
       }
