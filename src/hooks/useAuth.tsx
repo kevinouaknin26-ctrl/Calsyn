@@ -14,12 +14,14 @@ interface AuthState {
   isAdmin: boolean
   isManager: boolean
   refreshOrganisation: () => Promise<void>
+  refreshProfile: () => Promise<void>
 }
 
 const AuthContext = createContext<AuthState>({
   user: null, profile: null, organisation: null,
   loading: true, role: null, isSuperAdmin: false, isAdmin: false, isManager: false,
   refreshOrganisation: async () => {},
+  refreshProfile: async () => {},
 })
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -31,7 +33,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   async function loadProfile(userId: string) {
     const { data: p } = await supabase
       .from('profiles')
-      .select('id, organisation_id, email, full_name, role, is_active, assigned_phone, assigned_phones, call_license, deactivated_at, work_hours_start, work_hours_end, max_calls_per_day, last_seen_at, invite_expires_at, created_at')
+      .select('id, organisation_id, email, full_name, role, is_active, assigned_phone, assigned_phones, call_license, deactivated_at, work_hours_start, work_hours_end, max_calls_per_day, last_seen_at, invite_expires_at, voicemail_url, voicemail_text, created_at')
       .eq('id', userId)
       .single()
 
@@ -92,6 +94,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (org) setOrganisation(org as Organisation)
   }, [profile?.organisation_id])
 
+  const refreshProfile = useCallback(async () => {
+    if (!user?.id) return
+    const { data: p } = await supabase
+      .from('profiles')
+      .select('id, organisation_id, email, full_name, role, is_active, assigned_phone, assigned_phones, call_license, deactivated_at, work_hours_start, work_hours_end, max_calls_per_day, last_seen_at, invite_expires_at, voicemail_url, voicemail_text, created_at')
+      .eq('id', user.id)
+      .single()
+    if (p) setProfile(p as Profile)
+  }, [user?.id])
+
   // Auto-refresh org toutes les 10s pour synchro Settings ↔ Dialer
   useEffect(() => {
     if (!profile?.organisation_id) return
@@ -106,6 +118,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       isAdmin: role === 'super_admin' || role === 'admin',
       isManager: role === 'super_admin' || role === 'admin' || role === 'manager',
       refreshOrganisation,
+      refreshProfile,
     }}>
       {children}
     </AuthContext.Provider>

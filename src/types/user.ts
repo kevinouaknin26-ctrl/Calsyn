@@ -79,6 +79,10 @@ export interface Profile {
   last_seen_at: string | null
   /** Expiration du lien d'invitation (null = lien consommé ou jamais envoyé). */
   invite_expires_at: string | null
+  /** Path Storage bucket 'voicemails' — message de messagerie vocale perso (mp3/webm). null = pas de message enregistré. */
+  voicemail_url: string | null
+  /** Fallback texte (joué via Polly.Lea-Neural) si pas d'audio enregistré. null = message générique. */
+  voicemail_text: string | null
   created_at: string
 }
 
