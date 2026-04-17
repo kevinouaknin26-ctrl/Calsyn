@@ -223,6 +223,11 @@ function CallSettings({ org, save }: { org: any; save: (u: Record<string, unknow
         <label className="text-xs font-semibold text-gray-600 block mb-2">Microphone</label>
         <MicrophoneTest />
       </div>
+
+      {/* Messagerie vocale perso */}
+      <div className="pt-4 mt-2 border-t border-gray-100">
+        <VoicemailRecorder />
+      </div>
     </div>
   )
 }
