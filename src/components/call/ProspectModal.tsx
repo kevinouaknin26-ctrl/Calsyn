@@ -149,22 +149,42 @@ function AudioPlayer({ url, date, prospectName }: { url: string; date?: string; 
   const [currentTime, setCurrentTime] = useState(0)
   const [duration, setDuration] = useState(0)
   const [speed, setSpeed] = useState(1)
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const [ready, setReady] = useState(false)
 
   const fmt = (s: number) => `${Math.floor(s / 60).toString().padStart(2, '0')}:${Math.floor(s % 60).toString().padStart(2, '0')}`
 
+  const readDuration = () => {
+    const a = audioRef.current
+    if (!a) return
+    const d = a.duration
+    if (Number.isFinite(d) && d > 0) setDuration(d)
+  }
+
   return (
     <div className="mb-3">
-      <audio ref={audioRef} src={url} preload="auto"
-        onLoadedMetadata={() => { if (audioRef.current) setDuration(audioRef.current.duration) }}
+      <audio ref={audioRef} src={url} preload="metadata" crossOrigin="anonymous"
+        onLoadedMetadata={readDuration}
+        onDurationChange={readDuration}
+        onCanPlay={() => { setReady(true); setLoadError(null); readDuration() }}
+        onError={() => setLoadError('Impossible de charger l\'enregistrement')}
         onTimeUpdate={() => { if (audioRef.current) setCurrentTime(audioRef.current.currentTime) }}
-        onEnded={() => setPlaying(false)} />
+        onEnded={() => setPlaying(false)}
+        onPause={() => setPlaying(false)}
+        onPlay={() => setPlaying(true)} />
       <div className="flex items-center gap-2 bg-gray-50 rounded-lg px-3 py-2">
         {/* Play/Pause */}
-        <button onClick={() => {
-          if (!audioRef.current) return
-          if (playing) { audioRef.current.pause(); setPlaying(false) }
-          else { audioRef.current.play(); setPlaying(true) }
-        }} className="text-gray-500 hover:text-gray-700 flex-shrink-0">
+        <button onClick={async () => {
+          const a = audioRef.current
+          if (!a) return
+          if (playing) { a.pause(); return }
+          try {
+            await a.play()
+          } catch (err) {
+            setLoadError(err instanceof Error ? err.message : 'Lecture impossible')
+            setPlaying(false)
+          }
+        }} disabled={!!loadError} className="text-gray-500 hover:text-gray-700 flex-shrink-0 disabled:opacity-40">
           {playing ? (
             <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zM7 8a1 1 0 012 0v4a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v4a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" /></svg>
           ) : (
@@ -174,19 +194,23 @@ function AudioPlayer({ url, date, prospectName }: { url: string; date?: string; 
         {/* Barre de progression cliquable — zone élargie pour le clic */}
         <div className="flex-1 py-2 cursor-pointer"
           onClick={e => {
-            if (!audioRef.current || !duration) return
+            const a = audioRef.current
+            if (!a || !Number.isFinite(a.duration) || a.duration <= 0) return
             const bar = e.currentTarget.firstElementChild as HTMLElement
             if (!bar) return
             const rect = bar.getBoundingClientRect()
             const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width))
-            audioRef.current.currentTime = pct * duration
+            const target = pct * a.duration
+            try { a.currentTime = target; setCurrentTime(target) } catch { /* seek refusé (stream non-seekable) */ }
           }}>
           <div className="h-2 bg-gray-200 rounded-full relative overflow-hidden">
             <div className="h-full bg-violet-400 rounded-full transition-all" style={{ width: duration ? `${(currentTime / duration) * 100}%` : '0%' }} />
           </div>
         </div>
         {/* Durée */}
-        <span className="text-[11px] text-gray-400 font-mono flex-shrink-0">{fmt(currentTime)}/{fmt(duration)}</span>
+        <span className="text-[11px] text-gray-400 font-mono flex-shrink-0">
+          {loadError ? <span className="text-red-500" title={loadError}>erreur</span> : (!ready && !duration ? '...' : `${fmt(currentTime)}/${fmt(duration)}`)}
+        </span>
         {/* Download — force téléchargement via XMLHttpRequest pour éviter redirect login */}
         <button onClick={() => {
           const xhr = new XMLHttpRequest()
