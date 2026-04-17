@@ -50,15 +50,28 @@ Script : `dump_tables.py restore` via pooler session mode (`aws-1-eu-west-3.pool
 | 11b | crm_statuses | 13 | 3.8 KB |
 | **TOTAL** | **13 tables** | **2338 rows** | **~1.26 MB** |
 
-## Phase 3 — Génération script (local)
+## Phase 3 — Génération script (local) ✅ COMPLÈTE
 
-| # | Action | Status | Commit |
-|---|--------|--------|--------|
-| 1 | Parser les JSON | ⏳ | - |
-| 2 | Build mapping restore_field_id → prod_field_id | ⏳ | - |
-| 3 | Générer les INSERTs + remap org_id | ⏳ | - |
-| 4 | Envelopper dans DO $$ BEGIN … EXCEPTION … END $$ | ⏳ | - |
-| 5 | Écrire merge.sql + review | ⏳ | - |
+Script : `generate_merge.py` (parse les JSON, build mapping field_id, génère merge.sql).
+
+Résultat `merge.sql` (gitignored, local) :
+- 1.26 MB, 2353 lignes
+- **2316 INSERTs** transactionnels avec `ON CONFLICT (id) DO NOTHING`
+- Wrapper `DO $$ BEGIN … EXCEPTION WHEN OTHERS THEN RAISE; END $$`
+- Org remappée : `43d695b7…` → `8228401f…`
+- Field mapping : 7 fields prod déjà existants réutilisés, 9 nouveaux ajoutés
+
+Répartition des INSERTs :
+- prospect_fields (new) : 9
+- prospect_lists : 8
+- prospects : 280
+- calls : 125
+- prospect_socials : 212
+- prospect_field_values : 1345 (0 skip, tous les field_id mappés)
+- activity_logs : 269
+- analysis_jobs : 52
+- dialing_sessions : 16
+- dialing_session_calls : 0
 
 ## Phase 4 — Exécution merge (écriture prod)
 
