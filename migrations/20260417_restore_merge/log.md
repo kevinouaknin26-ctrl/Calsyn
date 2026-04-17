@@ -73,25 +73,30 @@ Répartition des INSERTs :
 - dialing_sessions : 16
 - dialing_session_calls : 0
 
-## Phase 4 — Exécution merge (écriture prod)
+## Phase 4 — Exécution merge (écriture prod) ✅ COMPLÈTE en 0.90s
 
-| # | Étape | Status | Rows insérées | Commit |
-|---|-------|--------|---------------|--------|
-| 1 | prospect_fields + mapping | ⏳ | - | - |
-| 2 | prospect_lists | ⏳ | - | - |
-| 3 | prospects (+ remap org) | ⏳ | - | - |
-| 4 | calls (+ remap org) | ⏳ | - | - |
-| 5 | prospect_socials | ⏳ | - | - |
-| 6 | prospect_field_values (+ remap field_id) | ⏳ | - | - |
-| 7 | activity_logs (+ remap org) | ⏳ | - | - |
+Transaction atomique `DO $$ … $$` exécutée via direct Postgres. Aucune erreur.
 
-## Phase 5 — Recompute agrégats
+| Table | Avant | Après | +rows |
+|---|---|---|---|
+| prospect_fields | 13 | 22 | +9 |
+| prospect_lists | 6 | 14 | +8 |
+| prospects | 222 | **502** | **+280** |
+| calls | 54 | **178** | +124 (1 call_sid dédupliqué via ON CONFLICT) |
+| prospect_socials | 179 | 391 | +212 |
+| prospect_field_values | 1277 | **2622** | **+1345** |
+| activity_logs | 573 | 573 | +0 (tous IDs existaient déjà) |
+| analysis_jobs | 29 | 81 | +52 |
+| dialing_sessions | 0 | 16 | +16 |
+| **TOTAL** | **2353** | **4399** | **+2046 rows** |
 
-| # | Étape | Status | Commit |
-|---|-------|--------|--------|
-| 1 | prospects.call_count | ⏳ | - |
-| 2 | prospects.last_call_at | ⏳ | - |
-| 3 | prospects.last_call_outcome | ⏳ | - |
+## Phase 5 — Recompute agrégats ✅ COMPLÈTE en 0.08s
+
+Transaction unique DO $$ … $$ avec 3 UPDATEs (call_count, last_call_at, last_call_outcome) via subqueries.
+
+- `call_count` : 1 prospect mis à jour
+- `last_call_at` : 44 prospects mis à jour
+- `last_call_outcome` : 6 prospects mis à jour
 
 ## Phase 6 — Audios Storage (séparé)
 

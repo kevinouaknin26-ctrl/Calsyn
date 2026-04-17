@@ -52,7 +52,10 @@ def remap_org(row):
 def insert_stmt(table, cols, row, on_conflict_id=True):
     """Génère un INSERT single-row avec ON CONFLICT (id) DO NOTHING."""
     vals = [sql_val(row.get(c)) for c in cols]
-    conflict = " ON CONFLICT (id) DO NOTHING" if on_conflict_id else ""
+    # ON CONFLICT DO NOTHING (sans colonne) couvre toutes les contraintes uniques
+    # (id, call_sid, etc.) au lieu de seulement (id). Nécessaire car overlap
+    # observé sur calls.call_sid entre restore et prod.
+    conflict = " ON CONFLICT DO NOTHING" if on_conflict_id else ""
     return f"  INSERT INTO {table} ({', '.join(cols)}) VALUES ({', '.join(vals)}){conflict};"
 
 # ── Chargement ────────────────────────────────────────────────────────
