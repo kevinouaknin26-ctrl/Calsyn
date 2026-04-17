@@ -24,6 +24,17 @@ import { usePermissions } from '@/hooks/usePermissions'
 import { useRealtimeProspects } from '@/hooks/useRealtime'
 import { useDialingSession } from '@/hooks/useDialingSession'
 import VoicemailRecorder from '@/components/VoicemailRecorder'
+
+// Format E.164 → lisible (+33 7 57 90 55 91). Fallback : inchangé.
+function formatE164(e164: string): string {
+  if (!e164?.startsWith('+')) return e164
+  const digits = e164.replace(/\D/g, '')
+  // FR : +33 suivi de 9 chiffres → +33 X XX XX XX XX
+  if (digits.startsWith('33') && digits.length === 11) {
+    return `+33 ${digits.slice(2, 3)} ${digits.slice(3, 5)} ${digits.slice(5, 7)} ${digits.slice(7, 9)} ${digits.slice(9, 11)}`
+  }
+  return e164
+}
 import type { Prospect } from '@/types/prospect'
 
 // ── Call status badges (Minari exact) ──────────────────────────────
@@ -404,7 +415,7 @@ function CallSettingsDropdown({ open, onToggle, parallel, setParallel, callLicen
                   const phoneNoPlus = num.phone.replace(/^\+/, '')
                   const showFriendly = fn && fn !== num.phone && fn !== phoneNoPlus
                   return (
-                    <option key={num.sid} value={num.phone}>{num.phone}{showFriendly ? ` (${fn})` : ''}</option>
+                    <option key={num.sid} value={num.phone}>{formatE164(num.phone)}{showFriendly ? ` (${fn})` : ''}</option>
                   )
                 })}
               </select>
