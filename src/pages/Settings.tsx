@@ -37,6 +37,7 @@ const SECTIONS: Section[] = [
   { id: 'permissions', label: 'Permissions', icon: '🔒', group: 'Admin', adminOnly: true },
   { id: 'billing', label: 'Facturation', icon: '💳', group: 'Admin', superAdminOnly: true },
   { id: 'organisation', label: 'Organisation', icon: '🏢', group: 'Admin', adminOnly: true },
+  { id: 'account', label: 'Mon compte', icon: '🔐', group: 'Compte' },
 ]
 
 // ══════════════════════════════════════════════════════════════════
@@ -891,6 +892,55 @@ function BillingSection({ org }: { org: any }) {
 // ══════════════════════════════════════════════════════════════════
 // SECTION 11 : ORGANISATION
 // ══════════════════════════════════════════════════════════════════
+function AccountSection() {
+  const { profile } = useAuth()
+  const [pwd, setPwd] = useState('')
+  const [confirm, setConfirm] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [msg, setMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null)
+
+  const submit = async () => {
+    setMsg(null)
+    if (pwd.length < 8) { setMsg({ type: 'err', text: 'Minimum 8 caractères.' }); return }
+    if (pwd !== confirm) { setMsg({ type: 'err', text: 'Les deux mots de passe ne correspondent pas.' }); return }
+    setBusy(true)
+    const { error } = await supabase.auth.updateUser({ password: pwd })
+    setBusy(false)
+    if (error) { setMsg({ type: 'err', text: error.message }); return }
+    setPwd(''); setConfirm('')
+    setMsg({ type: 'ok', text: 'Mot de passe changé. Toutes les autres sessions (autres appareils, autres navigateurs) sont invalidées — la prochaine personne qui tentera une action devra se reconnecter.' })
+  }
+
+  return (
+    <div className="space-y-4 max-w-xl">
+      <h2 className="text-[15px] font-bold text-gray-800">Mon compte</h2>
+      <p className="text-[12px] text-gray-400">Connecté en tant que <span className="font-semibold text-gray-600">{profile?.email}</span></p>
+
+      <div className="space-y-3 pt-2 border-t border-gray-100">
+        <h3 className="text-[13px] font-semibold text-gray-700">Changer le mot de passe</h3>
+        <div>
+          <label className="text-xs font-semibold text-gray-600 block mb-1.5">Nouveau mot de passe</label>
+          <input type="password" value={pwd} onChange={e => setPwd(e.target.value)} autoComplete="new-password"
+            className="w-full text-[13px] border border-gray-200 rounded-lg px-3 py-2 outline-none focus:border-violet-400" />
+        </div>
+        <div>
+          <label className="text-xs font-semibold text-gray-600 block mb-1.5">Confirmer</label>
+          <input type="password" value={confirm} onChange={e => setConfirm(e.target.value)} autoComplete="new-password"
+            className="w-full text-[13px] border border-gray-200 rounded-lg px-3 py-2 outline-none focus:border-violet-400" />
+        </div>
+        <button onClick={submit} disabled={busy || !pwd || !confirm}
+          className="px-4 py-2 rounded-lg bg-violet-600 text-white text-[13px] font-semibold hover:bg-violet-700 disabled:opacity-40">
+          {busy ? 'Changement…' : 'Changer le mot de passe'}
+        </button>
+        {msg && (
+          <p className={`text-[12px] mt-2 ${msg.type === 'ok' ? 'text-emerald-600' : 'text-red-600'}`}>{msg.text}</p>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ══════════════════════════════════════════════════════════════════
 function OrganisationSection({ org, save }: { org: any; save: (u: Record<string, unknown>) => void }) {
   const [name, setName] = useState(org?.name || '')
 
@@ -1237,6 +1287,7 @@ export default function Settings() {
       case 'permissions': return <PermissionsSection />
       case 'billing': return <BillingSection org={organisation} />
       case 'organisation': return <OrganisationSection org={organisation} save={save} />
+      case 'account': return <AccountSection />
       default: return null
     }
   }
