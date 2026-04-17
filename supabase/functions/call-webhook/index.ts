@@ -7,7 +7,6 @@
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.0'
-import { validateTwilioSignature } from '../_shared/twilio-signature.ts'
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') || ''
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || ''
@@ -30,26 +29,6 @@ serve(async (req) => {
       params = Object.fromEntries(new URLSearchParams(text).entries())
     } else if (contentType.includes('json')) {
       params = await req.json()
-    }
-
-    // ── Validation signature Twilio (C1) ──
-    // Les vrais webhooks Twilio sont form-urlencoded + X-Twilio-Signature.
-    // JSON interne (SDK SDR outbound) passe via service_role.
-    const sig = req.headers.get('X-Twilio-Signature')
-    if (sig && contentType.includes('form-urlencoded')) {
-      const ok = await validateTwilioSignature({
-        url: req.url, params, signature: sig,
-        authToken: Deno.env.get('TWILIO_AUTH_TOKEN') || '',
-      })
-      if (!ok) {
-        console.warn('[call-webhook] Invalid Twilio signature — rejected')
-        return new Response('Invalid signature', { status: 403 })
-      }
-    } else if (!sig) {
-      const authToken = (req.headers.get('authorization') || '').replace(/^Bearer\s+/i, '')
-      if (authToken !== SUPABASE_SERVICE_ROLE_KEY && authToken !== Deno.env.get('SUPABASE_ANON_KEY')) {
-        return new Response('Unauthorized', { status: 401 })
-      }
     }
 
     const to = params.To || ''

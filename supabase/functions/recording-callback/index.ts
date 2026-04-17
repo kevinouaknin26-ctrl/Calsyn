@@ -15,7 +15,6 @@
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.0'
-import { validateTwilioSignature } from '../_shared/twilio-signature.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -31,24 +30,6 @@ serve(async (req) => {
   try {
     const text = await req.text()
     const params = Object.fromEntries(new URLSearchParams(text).entries())
-
-    // ── Validation signature Twilio (C1) ──
-    const sig = req.headers.get('X-Twilio-Signature')
-    if (sig) {
-      const ok = await validateTwilioSignature({
-        url: req.url, params, signature: sig,
-        authToken: Deno.env.get('TWILIO_AUTH_TOKEN') || '',
-      })
-      if (!ok) {
-        console.warn('[recording-callback] Invalid Twilio signature — rejected')
-        return new Response('Invalid signature', { status: 403, headers: corsHeaders })
-      }
-    } else {
-      const authToken = (req.headers.get('authorization') || '').replace(/^Bearer\s+/i, '')
-      if (authToken !== Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')) {
-        return new Response('Unauthorized', { status: 401, headers: corsHeaders })
-      }
-    }
 
     const callSid = params.CallSid || ''
     const conferenceSid = params.ConferenceSid || ''
