@@ -17,7 +17,14 @@ export interface WavRecording {
   stream: MediaStream
 }
 
-export async function startWavRecording(constraints: MediaStreamConstraints = { audio: true }): Promise<WavRecording> {
+export interface StartWavOptions {
+  padStartMs?: number  // silence préfixé en début de WAV (absorbe le warmup Twilio <Play>)
+}
+
+export async function startWavRecording(
+  constraints: MediaStreamConstraints = { audio: true },
+  options: StartWavOptions = {},
+): Promise<WavRecording> {
   const stream = await navigator.mediaDevices.getUserMedia(constraints)
   const AudioCtx = (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)
   const audioContext = new AudioCtx()
@@ -46,13 +53,14 @@ export async function startWavRecording(constraints: MediaStreamConstraints = { 
       const sampleRate = audioContext.sampleRate
       await audioContext.close()
 
-      // Concat tous les chunks PCM en un seul Float32Array
-      const totalLength = chunks.reduce((sum, c) => sum + c.length, 0)
+      // Padding silence en début (absorbe le warmup Twilio <Play> qui mange 2-3s)
+      const padSamples = Math.round((options.padStartMs || 0) / 1000 * sampleRate)
+      const totalLength = chunks.reduce((sum, c) => sum + c.length, 0) + padSamples
       const flat = new Float32Array(totalLength)
-      let offset = 0
+      let offset = padSamples // skip les premiers samples = silence (zeros par défaut)
       for (const c of chunks) { flat.set(c, offset); offset += c.length }
 
-      console.log(`[startWavRecording] ${chunks.length} chunks, ${totalLength} samples, ${(totalLength / sampleRate).toFixed(2)}s @ ${sampleRate}Hz`)
+      console.log(`[startWavRecording] ${chunks.length} chunks, ${totalLength - padSamples} samples + ${padSamples} pad, ${(totalLength / sampleRate).toFixed(2)}s @ ${sampleRate}Hz`)
 
       return floatToWavBlob(flat, sampleRate)
     },

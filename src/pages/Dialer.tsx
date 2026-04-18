@@ -554,7 +554,9 @@ function CallSettingsDropdown({ open, onToggle, parallel, setParallel, callLicen
                       return
                     }
                     try {
-                      const rec = await startWavRecording({ audio: true })
+                      // padStartMs=3000 → 3s de silence en début de WAV.
+                      // Absorbe le warmup Twilio <Play> qui mangeait les premières syllabes.
+                      const rec = await startWavRecording({ audio: true }, { padStartMs: 3000 })
                       vmRecRef.current = rec
                       setVmRecording(true)
                       // Safety : auto-stop à 60s
