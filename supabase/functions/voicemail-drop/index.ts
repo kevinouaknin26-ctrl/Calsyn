@@ -1,14 +1,14 @@
 /**
  * voicemail-drop — Arme un voicemail drop sur le call actif.
  *
- * Mécanisme propre (zéro latence) :
- * - Update calls.pending_voicemail_url = audioUrl
- * - amd-callback pose automatiquement le TwiML <Play>+<Hangup/> sur le leg prospect
- *   pile quand Twilio détecte machine_end_beep (pas de round-trip frontend)
- * - Si amd_result='machine' est DÉJÀ posé (Kevin arme tardivement), on pose le
- *   TwiML immédiatement en fallback
- *
- * Body JSON : { callSid (parent SDR), audioUrl }
+ * Flow (latence zéro) :
+ * - Frontend envoie le PARENT call_sid (leg SDR via Twilio Device SDK)
+ * - On identifie le CHILD call_sid (leg prospect) via Twilio API ParentCallSid
+ * - UPDATE calls SET pending_voicemail_url = audioUrl, call_outcome = 'voicemail'
+ *   WHERE call_sid = childSid (c'est cette row qui a le vrai prospect)
+ * - amd-callback (qui reçoit le CHILD callSid depuis Twilio AMD) pose le TwiML
+ *   <Play><Hangup/> pile au machine_end_beep
+ * - Fallback : si AMD a déjà détecté machine avant l'armement, on modify direct
  */
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
@@ -54,44 +54,50 @@ serve(async (req) => {
       })
     }
 
-    // 1. Armer le drop : amd-callback le posera automatiquement au machine_end_beep
+    const accountSid = Deno.env.get('TWILIO_ACCOUNT_SID') || ''
+    const authToken = Deno.env.get('TWILIO_AUTH_TOKEN') || ''
+    const twilioAuth = 'Basic ' + btoa(`${accountSid}:${authToken}`)
+
+    // 1. Identifier le child call_sid (leg prospect) via Twilio API
+    const childsRes = await fetch(
+      `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Calls.json?ParentCallSid=${callSid}&Status=in-progress`,
+      { headers: { Authorization: twilioAuth } }
+    )
+    const childsData = await childsRes.json()
+    let childSid = (childsData?.calls?.[0]?.sid as string | undefined) || ''
+    if (!childSid) {
+      const anyChildsRes = await fetch(
+        `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Calls.json?ParentCallSid=${callSid}`,
+        { headers: { Authorization: twilioAuth } }
+      )
+      const anyChildsData = await anyChildsRes.json()
+      childSid = (anyChildsData?.calls?.[0]?.sid as string | undefined) || ''
+    }
+    console.log(`[voicemail-drop] parent=${callSid} child=${childSid || 'NONE'}`)
+
+    if (!childSid) {
+      return new Response(JSON.stringify({ error: 'No child call found (prospect leg not bridged yet)' }), {
+        status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
+    // 2. Armer le drop sur la row DB du child
     const { data: callRow } = await admin
       .from('calls')
       .select('amd_result, call_outcome')
-      .eq('call_sid', callSid)
+      .eq('call_sid', childSid)
       .maybeSingle()
 
     await admin
       .from('calls')
-      .update({ pending_voicemail_url: audioUrl })
-      .eq('call_sid', callSid)
+      .update({ pending_voicemail_url: audioUrl, call_outcome: 'voicemail' })
+      .eq('call_sid', childSid)
 
-    // Mettre déjà le call_outcome à voicemail pour que status-callback ne l'écrase pas
-    await admin
-      .from('calls')
-      .update({ call_outcome: 'voicemail' })
-      .eq('call_sid', callSid)
-
-    // 2. Si AMD a déjà détecté la machine AVANT le click, on pose le TwiML
-    //    immédiatement (fallback) en plus d'armer. Double sécurité idempotente
-    //    — si amd-callback re-tire plus tard, le modify Twilio retournera juste
-    //    un no-op car le call sera déjà terminé.
+    // 3. Fallback immédiat : si AMD a déjà détecté machine, on pose le TwiML maintenant
     if (callRow?.amd_result === 'machine') {
-      const accountSid = Deno.env.get('TWILIO_ACCOUNT_SID') || ''
-      const authToken = Deno.env.get('TWILIO_AUTH_TOKEN') || ''
-      const twilioAuth = 'Basic ' + btoa(`${accountSid}:${authToken}`)
-
-      // callSid reçu = leg SDR (parent). Cibler le child (leg prospect).
-      const childsRes = await fetch(
-        `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Calls.json?ParentCallSid=${callSid}&Status=in-progress`,
-        { headers: { Authorization: twilioAuth } }
-      )
-      const childsData = await childsRes.json()
-      const targetSid = (childsData?.calls?.[0]?.sid as string | undefined) || callSid
-
       const twiml = `<?xml version="1.0" encoding="UTF-8"?><Response><Play>${audioUrl}</Play><Hangup/></Response>`
       const res = await fetch(
-        `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Calls/${targetSid}.json`,
+        `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Calls/${childSid}.json`,
         {
           method: 'POST',
           headers: { Authorization: twilioAuth, 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -99,15 +105,20 @@ serve(async (req) => {
         }
       )
       const data = await res.json()
-      if (!res.ok) console.error('[voicemail-drop] Fallback Twilio error:', data)
-      else console.log('[voicemail-drop] Fallback immediate drop on child:', targetSid)
-
-      // Clear le pending (on vient de poser)
-      await admin.from('calls').update({ pending_voicemail_url: null }).eq('call_sid', callSid)
-    } else {
-      console.log('[voicemail-drop] Armed (AMD pending) for', callSid)
+      if (!res.ok) {
+        console.error('[voicemail-drop] Fallback Twilio error:', data)
+        return new Response(JSON.stringify({ error: data.message || 'Fallback failed' }), {
+          status: res.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        })
+      }
+      console.log(`[voicemail-drop] Fallback immediate drop on child=${childSid}`)
+      await admin.from('calls').update({ pending_voicemail_url: null }).eq('call_sid', childSid)
+      return new Response(JSON.stringify({ ok: true, fallback: true }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
     }
 
+    console.log(`[voicemail-drop] Armed (AMD pending) for child=${childSid}`)
     return new Response(JSON.stringify({ ok: true, armed: true }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     })
