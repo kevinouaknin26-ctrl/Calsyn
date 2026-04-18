@@ -1036,14 +1036,10 @@ export default function Dialer() {
   const activeVmUrl = voicemail
     ? (dialerVmMessages.find(m => m.id === dialerVmSelectedId)?.url || null)
     : null
-  // AMD : on suit le résultat pour le feedback visuel (bip détecté / en attente).
-  // Le bouton est cliquable TOUT LE TEMPS pendant l'appel : click = arme un drop
-  // que amd-callback posera pile au bip (latence 0 côté frontend).
+  // AMD : quand Twilio détecte machine_end_beep, le bouton voicemail drop
+  // devient cliquable. Before: grisé. Timing parfait pour le modify.
   const amdResult = useAmdResult(cm.context.callSid || null)
   const isMachineDetected = amdResult === 'machine'
-  const [vmArmed, setVmArmed] = useState(false)
-  // Reset l'état armé quand un nouveau call commence
-  useEffect(() => { if (cm.isIdle) setVmArmed(false) }, [cm.isIdle])
   const maxAttempts = org?.max_call_attempts || 'unlimited'
   const setMaxAttempts = (v: string) => updateOrg({ max_call_attempts: v })
   const attemptPeriod = org?.attempt_period || 'per_day'
@@ -2316,33 +2312,37 @@ export default function Dialer() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
               </svg>
             </button>
-            {/* Voicemail drop VIOLET — arme le drop. amd-callback pose le TwiML
-                pile au machine_end_beep détecté par Twilio → latence zéro. */}
+            {/* Voicemail drop VIOLET — grisé tant qu'AMD n'a pas détecté machine_end_beep.
+                Activé pile au bon moment : modify child avec Play+Hangup. */}
             {activeVmUrl && !activeVmUrl.startsWith('blob:') && (cm.isDialing || cm.isConnected) && (
               <button
-                disabled={vmArmed}
+                disabled={!isMachineDetected}
                 onClick={async () => {
                   const callSid = cm.context.callSid
-                  if (!callSid || vmArmed) return
-                  setVmArmed(true)
+                  if (!callSid || !isMachineDetected) return
                   try {
                     await cm.voicemailDrop(activeVmUrl)
                   } catch (e) {
                     console.error('[Dialer] Voicemail drop failed:', e)
-                    setVmArmed(false)
                   }
+                  setTimeout(async () => {
+                    cm.reset()
+                    setSelectedProspect(null)
+                    queryClient.invalidateQueries({ queryKey: ['prospects', activeListId] })
+                    if (dialSession.isActive) {
+                      const nextId = await dialSession.nextProspect()
+                      if (nextId) {
+                        const p = prospects?.find(pr => pr.id === nextId)
+                        if (p) setTimeout(() => handleCall(p), 300)
+                      }
+                    }
+                  }, 500)
                 }}
-                title={
-                  vmArmed
-                    ? (isMachineDetected ? 'Drop en cours…' : 'Drop armé — en attente du bip')
-                    : 'Armer un voicemail drop'
-                }
+                title={isMachineDetected ? 'Déposer message vocal + suivant' : 'En attente du bip répondeur…'}
                 className={`w-11 h-11 rounded-full flex items-center justify-center border transition-colors ${
-                  vmArmed
-                    ? (isMachineDetected
-                        ? 'bg-emerald-500 text-white border-emerald-400/50'
-                        : 'bg-violet-500 text-white border-violet-400/50 animate-pulse')
-                    : 'bg-white/10 text-white/80 border-white/20 hover:bg-violet-500 hover:text-white hover:border-violet-400/50'
+                  isMachineDetected
+                    ? 'bg-violet-500 text-white border-violet-400/50 hover:bg-violet-600'
+                    : 'bg-white/10 text-white/40 border-white/20 cursor-not-allowed'
                 }`}>
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
