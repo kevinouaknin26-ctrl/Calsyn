@@ -2280,11 +2280,18 @@ export default function Dialer() {
             {activeVmUrl && !activeVmUrl.startsWith('blob:') && (cm.isDialing || cm.isConnected) && (
               <button onClick={async () => {
                 const callSid = cm.context.callSid
+                const conferenceSid = cm.context.conferenceSid
+                console.log('[Dialer] Voicemail drop click', { callSid, conferenceSid, activeVmUrl, isDialing: cm.isDialing, isConnected: cm.isConnected })
+                if (!callSid) {
+                  alert('Voicemail drop impossible : callSid introuvable. Ouvre la console et envoie-moi le log "[Dialer] Voicemail drop click".')
+                  return
+                }
                 if (callSid && activeVmUrl) {
                   try {
                     await cm.voicemailDrop(activeVmUrl)
                   } catch (e) {
                     console.error('[Dialer] Voicemail drop failed:', e)
+                    alert('Voicemail drop error : ' + (e as Error).message)
                   }
                   setTimeout(async () => {
                     cm.reset()
