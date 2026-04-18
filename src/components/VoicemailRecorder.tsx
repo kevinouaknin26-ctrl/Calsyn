@@ -18,6 +18,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useAuth } from '@/hooks/useAuth'
 import { supabase } from '@/config/supabase'
+import { webmBlobToWav } from '@/lib/audio'
 
 export default function VoicemailRecorder({ compact = false }: { compact?: boolean }) {
   const { profile, refreshProfile } = useAuth()
@@ -80,25 +81,32 @@ export default function VoicemailRecorder({ compact = false }: { compact?: boole
   const uploadRecording = async () => {
     if (!recordedBlob || !profile?.id) return
     setUploading(true)
-    const path = `${profile.id}/greeting.webm`
-    const { error: upErr } = await supabase.storage.from('voicemails')
-      .upload(path, recordedBlob, { upsert: true, contentType: 'audio/webm' })
-    if (upErr) {
-      alert('Erreur upload : ' + upErr.message)
+    try {
+      // webm/opus → WAV (format compatible Twilio <Play>)
+      const wavBlob = await webmBlobToWav(recordedBlob)
+      const path = `${profile.id}/greeting.wav`
+
+      // Nettoyer un ancien .webm orphelin éventuel
+      if (profile.voicemail_url && profile.voicemail_url !== path) {
+        await supabase.storage.from('voicemails').remove([profile.voicemail_url])
+      }
+
+      const { error: upErr } = await supabase.storage.from('voicemails')
+        .upload(path, wavBlob, { upsert: true, contentType: 'audio/wav' })
+      if (upErr) { alert('Erreur upload : ' + upErr.message); return }
+
+      const { error: dbErr } = await supabase.from('profiles')
+        .update({ voicemail_url: path })
+        .eq('id', profile.id)
+      if (dbErr) { alert('Erreur sauvegarde : ' + dbErr.message); return }
+
+      await refreshProfile()
+      resetRecording()
+    } catch (err) {
+      alert('Erreur conversion audio : ' + (err as Error).message)
+    } finally {
       setUploading(false)
-      return
     }
-    const { error: dbErr } = await supabase.from('profiles')
-      .update({ voicemail_url: path })
-      .eq('id', profile.id)
-    if (dbErr) {
-      alert('Erreur sauvegarde : ' + dbErr.message)
-      setUploading(false)
-      return
-    }
-    await refreshProfile()
-    resetRecording()
-    setUploading(false)
   }
 
   const deleteVoicemail = async () => {

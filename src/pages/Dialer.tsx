@@ -24,6 +24,7 @@ import { usePermissions } from '@/hooks/usePermissions'
 import { useRealtimeProspects } from '@/hooks/useRealtime'
 import { useDialingSession } from '@/hooks/useDialingSession'
 import VoicemailRecorder from '@/components/VoicemailRecorder'
+import { webmBlobToWav } from '@/lib/audio'
 
 // Format E.164 → lisible (+33 7 57 90 55 91). Fallback : inchangé.
 function formatE164(e164: string): string {
@@ -496,7 +497,11 @@ function CallSettingsDropdown({ open, onToggle, parallel, setParallel, callLicen
                       recorder.ondataavailable = e => vmChunksRef.current.push(e.data)
                       recorder.onstop = async () => {
                         stream.getTracks().forEach(t => t.stop())
-                        const blob = new Blob(vmChunksRef.current, { type: 'audio/webm' })
+                        const rawBlob = new Blob(vmChunksRef.current, { type: 'audio/webm' })
+                        // webm/opus → WAV PCM (Twilio <Play> ne lit pas le webm)
+                        let blob: Blob
+                        try { blob = await webmBlobToWav(rawBlob) }
+                        catch (err) { console.error('[Voicemail] WAV conversion failed:', err); blob = rawBlob }
                         const localUrl = URL.createObjectURL(blob)
                         const name = vmNewName.trim() || `Message ${vmMessages.length + 1}`
                         const msgId = crypto.randomUUID()
@@ -505,8 +510,8 @@ function CallSettingsDropdown({ open, onToggle, parallel, setParallel, callLicen
                         // Twilio (amd-callback) a besoin d'une URL accessible → signed URL.
                         // Max expiration Supabase = 7 jours. Kevin re-signe via Settings
                         // si elle expire.
-                        const filePath = `voicemail/${organisation?.id || 'default'}/${msgId}.webm`
-                        const { error: uploadErr } = await supabase.storage.from('recordings').upload(filePath, blob, { contentType: 'audio/webm', upsert: true })
+                        const filePath = `voicemail/${organisation?.id || 'default'}/${msgId}.wav`
+                        const { error: uploadErr } = await supabase.storage.from('recordings').upload(filePath, blob, { contentType: 'audio/wav', upsert: true })
                         let publicUrl = localUrl
                         if (!uploadErr) {
                           const { data: signed, error: signErr } = await supabase.storage.from('recordings').createSignedUrl(filePath, 60 * 60 * 24 * 7)
