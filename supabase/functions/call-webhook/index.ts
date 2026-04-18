@@ -186,6 +186,12 @@ serve(async (req) => {
     // IMPORTANT: & → &amp; pour XML valide dans les attributs TwiML
     const statusCbUrl = `${SUPABASE_URL}/functions/v1/status-callback?prospectId=${encodeURIComponent(prospectId)}&amp;prospectName=${encodeURIComponent(prospectName)}`
 
+    // AMD : DetectMessageEnd + async → Twilio envoie un event machine_end_beep PILE
+    // à la fin de l'annonce répondeur (après le bip). Le frontend active alors le
+    // bouton voicemail drop, et le modify Twilio pose le message au bon moment sans
+    // pause ni padding.
+    const amdCbUrl = `${SUPABASE_URL}/functions/v1/amd-callback`
+
     const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   <Dial callerId="${from}"
@@ -197,7 +203,12 @@ serve(async (req) => {
     <Number
       statusCallbackEvent="initiated ringing answered completed"
       statusCallback="${statusCbUrl}"
-      statusCallbackMethod="POST">
+      statusCallbackMethod="POST"
+      machineDetection="DetectMessageEnd"
+      machineDetectionTimeout="30"
+      amdStatusCallback="${amdCbUrl}"
+      amdStatusCallbackMethod="POST"
+      asyncAmd="true">
       ${to}
     </Number>
   </Dial>

@@ -81,10 +81,10 @@ serve(async (req) => {
 
     console.log('[voicemail-drop] parent:', callSid, 'targeting child:', targetSid)
 
-    // Modifier le leg prospect : jouer l'audio puis raccrocher.
-    // <Pause length="6"> absorbe la latence Twilio (bip Orange + warmup Play).
-    // Sans ça, la messagerie du prospect rate le début du WAV.
-    const twiml = `<?xml version="1.0" encoding="UTF-8"?><Response><Pause length="6"/><Play>${audioUrl}</Play><Hangup/></Response>`
+    // Le frontend n'active le bouton que lorsque l'event AMD machine_end_beep est
+    // reçu (= fin de l'annonce répondeur + bip). Pas besoin de Pause : le Play
+    // démarre pile quand la messagerie commence à enregistrer.
+    const twiml = `<?xml version="1.0" encoding="UTF-8"?><Response><Play>${audioUrl}</Play><Hangup/></Response>`
 
     const formData = new URLSearchParams({
       Twiml: twiml,

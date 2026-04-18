@@ -21,7 +21,7 @@ import SelectListPage from '@/components/dialer/SelectListPage'
 import ProspectModal from '@/components/call/ProspectModal'
 import { exportListWithAudios, type ExportProgress } from '@/services/exportList'
 import { usePermissions } from '@/hooks/usePermissions'
-import { useRealtimeProspects } from '@/hooks/useRealtime'
+import { useRealtimeProspects, useAmdResult } from '@/hooks/useRealtime'
 import { useDialingSession } from '@/hooks/useDialingSession'
 import VoicemailRecorder from '@/components/VoicemailRecorder'
 import { startWavRecording, type WavRecording } from '@/lib/audio'
@@ -554,9 +554,10 @@ function CallSettingsDropdown({ open, onToggle, parallel, setParallel, callLicen
                       return
                     }
                     try {
-                      // padStartMs=3000 → 3s de silence en début de WAV.
-                      // Absorbe le warmup Twilio <Play> qui mangeait les premières syllabes.
-                      const rec = await startWavRecording({ audio: true }, { padStartMs: 3000 })
+                      // AMD DetectMessageEnd prévient le frontend au bon moment (bip passé)
+                      // via amd_result. Le bouton drop n'est actif qu'à ce moment — le Play
+                      // démarre pile quand la messagerie enregistre. Pas besoin de padding.
+                      const rec = await startWavRecording({ audio: true })
                       vmRecRef.current = rec
                       setVmRecording(true)
                       // Safety : auto-stop à 60s
@@ -1035,6 +1036,10 @@ export default function Dialer() {
   const activeVmUrl = voicemail
     ? (dialerVmMessages.find(m => m.id === dialerVmSelectedId)?.url || null)
     : null
+  // AMD : quand Twilio détecte la fin de l'annonce répondeur + bip, amd_result passe
+  // à 'machine'. On active le bouton voicemail drop pile à ce moment (pas avant).
+  const amdResult = useAmdResult(cm.context.callSid || null)
+  const isMachineDetected = amdResult === 'machine'
   const maxAttempts = org?.max_call_attempts || 'unlimited'
   const setMaxAttempts = (v: string) => updateOrg({ max_call_attempts: v })
   const attemptPeriod = org?.attempt_period || 'per_day'
@@ -2307,22 +2312,18 @@ export default function Dialer() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
               </svg>
             </button>
-            {/* Voicemail drop VIOLET = déposer message + raccrocher + passer au suivant */}
+            {/* Voicemail drop VIOLET = déposer message + raccrocher + passer au suivant.
+                Activé uniquement après AMD machine_end_beep (Twilio a détecté le bip du répondeur). */}
             {activeVmUrl && !activeVmUrl.startsWith('blob:') && (cm.isDialing || cm.isConnected) && (
-              <button onClick={async () => {
-                const callSid = cm.context.callSid
-                const conferenceSid = cm.context.conferenceSid
-                console.log('[Dialer] Voicemail drop click', { callSid, conferenceSid, activeVmUrl, isDialing: cm.isDialing, isConnected: cm.isConnected })
-                if (!callSid) {
-                  alert('Voicemail drop impossible : callSid introuvable. Ouvre la console et envoie-moi le log "[Dialer] Voicemail drop click".')
-                  return
-                }
-                if (callSid && activeVmUrl) {
+              <button
+                disabled={!isMachineDetected}
+                onClick={async () => {
+                  const callSid = cm.context.callSid
+                  if (!callSid || !isMachineDetected) return
                   try {
                     await cm.voicemailDrop(activeVmUrl)
                   } catch (e) {
                     console.error('[Dialer] Voicemail drop failed:', e)
-                    alert('Voicemail drop error : ' + (e as Error).message)
                   }
                   setTimeout(async () => {
                     cm.reset()
@@ -2336,9 +2337,13 @@ export default function Dialer() {
                       }
                     }
                   }, 500)
-                }
-              }} title="Déposer message vocal + suivant"
-                className="w-11 h-11 rounded-full bg-violet-500 text-white flex items-center justify-center hover:bg-violet-600 transition-colors border border-violet-400/50">
+                }}
+                title={isMachineDetected ? 'Déposer message vocal + suivant' : 'En attente du bip répondeur…'}
+                className={`w-11 h-11 rounded-full flex items-center justify-center border transition-colors ${
+                  isMachineDetected
+                    ? 'bg-violet-500 text-white border-violet-400/50 hover:bg-violet-600'
+                    : 'bg-white/10 text-white/40 border-white/20 cursor-not-allowed'
+                }`}>
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
                 </svg>
