@@ -81,8 +81,10 @@ serve(async (req) => {
 
     console.log('[voicemail-drop] parent:', callSid, 'targeting child:', targetSid)
 
-    // Modifier le leg prospect : jouer l'audio puis raccrocher
-    const twiml = `<?xml version="1.0" encoding="UTF-8"?><Response><Play>${audioUrl}</Play><Hangup/></Response>`
+    // Modifier le leg prospect : jouer l'audio puis raccrocher.
+    // <Pause length="2"> absorbe la latence Twilio (1-3s entre API modify et
+    // Play effectif). Sans ça, la messagerie du prospect rate le début du WAV.
+    const twiml = `<?xml version="1.0" encoding="UTF-8"?><Response><Pause length="2"/><Play>${audioUrl}</Play><Hangup/></Response>`
 
     const formData = new URLSearchParams({
       Twiml: twiml,
