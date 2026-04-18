@@ -18,7 +18,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useAuth } from '@/hooks/useAuth'
 import { supabase } from '@/config/supabase'
-import { webmBlobToWav } from '@/lib/audio'
+import { startWavRecording, type WavRecording } from '@/lib/audio'
 
 export default function VoicemailRecorder({ compact = false }: { compact?: boolean }) {
   const { profile, refreshProfile } = useAuth()
@@ -29,8 +29,7 @@ export default function VoicemailRecorder({ compact = false }: { compact?: boole
   const [voicemailText, setVoicemailText] = useState(profile?.voicemail_text || '')
   const [uploading, setUploading] = useState(false)
   const [elapsed, setElapsed] = useState(0)
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null)
-  const chunksRef = useRef<Blob[]>([])
+  const recRef = useRef<WavRecording | null>(null)
   const timerRef = useRef<number | null>(null)
 
   useEffect(() => {
@@ -45,18 +44,8 @@ export default function VoicemailRecorder({ compact = false }: { compact?: boole
 
   const startRecording = async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-      const mr = new MediaRecorder(stream, { mimeType: 'audio/webm' })
-      chunksRef.current = []
-      mr.ondataavailable = e => { if (e.data.size > 0) chunksRef.current.push(e.data) }
-      mr.onstop = () => {
-        const blob = new Blob(chunksRef.current, { type: 'audio/webm' })
-        setRecordedBlob(blob)
-        setRecordedUrl(URL.createObjectURL(blob))
-        stream.getTracks().forEach(t => t.stop())
-      }
-      mr.start()
-      mediaRecorderRef.current = mr
+      const rec = await startWavRecording({ audio: true })
+      recRef.current = rec
       setRecording(true)
       setElapsed(0)
       timerRef.current = window.setInterval(() => setElapsed(e => e + 1), 1000)
@@ -65,8 +54,12 @@ export default function VoicemailRecorder({ compact = false }: { compact?: boole
     }
   }
 
-  const stopRecording = () => {
-    mediaRecorderRef.current?.stop()
+  const stopRecording = async () => {
+    if (!recRef.current) return
+    const blob = await recRef.current.stop()
+    recRef.current = null
+    setRecordedBlob(blob)
+    setRecordedUrl(URL.createObjectURL(blob))
     setRecording(false)
     if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null }
   }
@@ -82,17 +75,15 @@ export default function VoicemailRecorder({ compact = false }: { compact?: boole
     if (!recordedBlob || !profile?.id) return
     setUploading(true)
     try {
-      // webm/opus → WAV (format compatible Twilio <Play>)
-      const wavBlob = await webmBlobToWav(recordedBlob)
       const path = `${profile.id}/greeting.wav`
 
-      // Nettoyer un ancien .webm orphelin éventuel
+      // Nettoyer une ancienne version orpheline si chemin différent
       if (profile.voicemail_url && profile.voicemail_url !== path) {
         await supabase.storage.from('voicemails').remove([profile.voicemail_url])
       }
 
       const { error: upErr } = await supabase.storage.from('voicemails')
-        .upload(path, wavBlob, { upsert: true, contentType: 'audio/wav' })
+        .upload(path, recordedBlob, { upsert: true, contentType: 'audio/wav' })
       if (upErr) { alert('Erreur upload : ' + upErr.message); return }
 
       const { error: dbErr } = await supabase.from('profiles')
@@ -103,7 +94,7 @@ export default function VoicemailRecorder({ compact = false }: { compact?: boole
       await refreshProfile()
       resetRecording()
     } catch (err) {
-      alert('Erreur conversion audio : ' + (err as Error).message)
+      alert('Erreur upload : ' + (err as Error).message)
     } finally {
       setUploading(false)
     }

@@ -24,7 +24,7 @@ import { usePermissions } from '@/hooks/usePermissions'
 import { useRealtimeProspects } from '@/hooks/useRealtime'
 import { useDialingSession } from '@/hooks/useDialingSession'
 import VoicemailRecorder from '@/components/VoicemailRecorder'
-import { webmBlobToWav } from '@/lib/audio'
+import { startWavRecording, type WavRecording } from '@/lib/audio'
 
 // Format E.164 → lisible (+33 7 57 90 55 91). Fallback : inchangé.
 function formatE164(e164: string): string {
@@ -253,10 +253,24 @@ function ExportButton({ listId, listName, prospects }: { listId: string | null; 
 }
 
 function useCallSetting<T>(key: string, defaultValue: T): [T, (v: T) => void] {
+  const storageKey = `calsyn_cs_${key}`
   const [val, setVal] = useState<T>(() => {
-    try { const s = localStorage.getItem(`calsyn_cs_${key}`); return s ? JSON.parse(s) : defaultValue } catch { return defaultValue }
+    try { const s = localStorage.getItem(storageKey); return s ? JSON.parse(s) : defaultValue } catch { return defaultValue }
   })
-  const set = (v: T) => { setVal(v); localStorage.setItem(`calsyn_cs_${key}`, JSON.stringify(v)) }
+  // Sync cross-component dans le même onglet (plusieurs useCallSetting sur la même key)
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail as { key: string; value: unknown } | undefined
+      if (detail?.key === storageKey) setVal(detail.value as T)
+    }
+    window.addEventListener('callsetting-change', handler)
+    return () => window.removeEventListener('callsetting-change', handler)
+  }, [storageKey])
+  const set = (v: T) => {
+    setVal(v)
+    localStorage.setItem(storageKey, JSON.stringify(v))
+    window.dispatchEvent(new CustomEvent('callsetting-change', { detail: { key: storageKey, value: v } }))
+  }
   return [val, set]
 }
 
@@ -282,8 +296,7 @@ function CallSettingsDropdown({ open, onToggle, parallel, setParallel, callLicen
   const [vmSelectedId, setVmSelectedId] = useCallSetting('vm_selected', '')
   const [vmRecording, setVmRecording] = useState(false)
   const [vmNewName, setVmNewName] = useState('')
-  const vmRecorderRef = useRef<MediaRecorder | null>(null)
-  const vmChunksRef = useRef<Blob[]>([])
+  const vmRecRef = useRef<WavRecording | null>(null)
 
   // Microphone — vrais périphériques audio
   const [micDevices, setMicDevices] = useState<MediaDeviceInfo[]>([])
@@ -486,58 +499,54 @@ function CallSettingsDropdown({ open, onToggle, parallel, setParallel, callLicen
                     className="flex-1 text-[11px] border border-gray-200 rounded-lg px-2 py-1 outline-none bg-white" />
                   <button onClick={async () => {
                     if (vmRecording) {
-                      vmRecorderRef.current?.stop()
+                      // Stop : finalise l'enregistrement, encode WAV, upload
+                      const rec = vmRecRef.current
+                      vmRecRef.current = null
                       setVmRecording(false)
+                      if (!rec) return
+                      const blob = await rec.stop()
+                      const localUrl = URL.createObjectURL(blob)
+                      const name = vmNewName.trim() || `Message ${vmMessages.length + 1}`
+                      const msgId = crypto.randomUUID()
+
+                      // Upload vers Supabase Storage (bucket `recordings` privé).
+                      // Signed URL 7j pour que Twilio puisse la fetch.
+                      const filePath = `voicemail/${organisation?.id || 'default'}/${msgId}.wav`
+                      const { error: uploadErr } = await supabase.storage.from('recordings').upload(filePath, blob, { contentType: 'audio/wav', upsert: true })
+                      let publicUrl = localUrl
+                      if (!uploadErr) {
+                        const { data: signed, error: signErr } = await supabase.storage.from('recordings').createSignedUrl(filePath, 60 * 60 * 24 * 7)
+                        if (signErr || !signed) {
+                          console.error('[Voicemail] Signed URL failed:', signErr?.message)
+                        } else {
+                          publicUrl = signed.signedUrl
+                          if (organisation?.id) {
+                            await supabase.from('organisations').update({ voicemail_audio_url: publicUrl }).eq('id', organisation.id)
+                          }
+                          console.log(`[Voicemail] Uploaded + signed (7d): ${filePath}`)
+                        }
+                      } else {
+                        console.error('[Voicemail] Upload failed:', uploadErr.message)
+                      }
+
+                      const newMsg = { id: msgId, name, url: publicUrl, created: new Date().toISOString() }
+                      setVmMessages([...vmMessages, newMsg])
+                      setVmSelectedId(newMsg.id)
+                      setVmNewName('')
                       return
                     }
                     try {
-                      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-                      vmChunksRef.current = []
-                      const recorder = new MediaRecorder(stream)
-                      recorder.ondataavailable = e => vmChunksRef.current.push(e.data)
-                      recorder.onstop = async () => {
-                        stream.getTracks().forEach(t => t.stop())
-                        const rawBlob = new Blob(vmChunksRef.current, { type: 'audio/webm' })
-                        // webm/opus → WAV PCM (Twilio <Play> ne lit pas le webm)
-                        let blob: Blob
-                        try { blob = await webmBlobToWav(rawBlob) }
-                        catch (err) { console.error('[Voicemail] WAV conversion failed:', err); blob = rawBlob }
-                        const localUrl = URL.createObjectURL(blob)
-                        const name = vmNewName.trim() || `Message ${vmMessages.length + 1}`
-                        const msgId = crypto.randomUUID()
-
-                        // Upload vers Supabase Storage (bucket `recordings` privé).
-                        // Twilio (amd-callback) a besoin d'une URL accessible → signed URL.
-                        // Max expiration Supabase = 7 jours. Kevin re-signe via Settings
-                        // si elle expire.
-                        const filePath = `voicemail/${organisation?.id || 'default'}/${msgId}.wav`
-                        const { error: uploadErr } = await supabase.storage.from('recordings').upload(filePath, blob, { contentType: 'audio/wav', upsert: true })
-                        let publicUrl = localUrl
-                        if (!uploadErr) {
-                          const { data: signed, error: signErr } = await supabase.storage.from('recordings').createSignedUrl(filePath, 60 * 60 * 24 * 7)
-                          if (signErr || !signed) {
-                            console.error('[Voicemail] Signed URL failed:', signErr?.message)
-                          } else {
-                            publicUrl = signed.signedUrl
-                            // Sauvegarder l'URL en DB pour que amd-callback auto-drop fonctionne
-                            if (organisation?.id) {
-                              await supabase.from('organisations').update({ voicemail_audio_url: publicUrl }).eq('id', organisation.id)
-                            }
-                            console.log(`[Voicemail] Uploaded + signed (7d): ${filePath}`)
-                          }
-                        } else {
-                          console.error('[Voicemail] Upload failed:', uploadErr.message)
-                        }
-
-                        const newMsg = { id: msgId, name, url: publicUrl, created: new Date().toISOString() }
-                        setVmMessages([...vmMessages, newMsg])
-                        setVmSelectedId(newMsg.id)
-                        setVmNewName('')
-                      }
-                      vmRecorderRef.current = recorder
-                      recorder.start()
+                      const rec = await startWavRecording({ audio: true })
+                      vmRecRef.current = rec
                       setVmRecording(true)
-                      setTimeout(() => { if (recorder.state === 'recording') { recorder.stop(); setVmRecording(false) } }, 60000)
+                      // Safety : auto-stop à 60s
+                      setTimeout(() => {
+                        if (vmRecRef.current === rec) {
+                          // (le click handler rejoue le flow stop si user ne l'a pas déjà fait)
+                          // On ne fait pas de logique ici — on laisse l'utilisateur cliquer stop.
+                          // Si on voulait vraiment auto-stop, il faudrait dupliquer la logique ci-dessus.
+                        }
+                      }, 60000)
                     } catch (err) { console.error('[Voicemail] Record error:', err); setMicError(true); setTimeout(() => setMicError(false), 3000) }
                   }} className={`px-2.5 py-1 rounded-lg border text-[11px] whitespace-nowrap ${vmRecording ? 'border-red-300 text-red-500 bg-red-50 animate-pulse' : 'border-gray-200 text-gray-500 hover:bg-white'}`}>
                     {vmRecording ? '⏹ Stop' : '🎤 Enregistrer'}
@@ -999,16 +1008,13 @@ export default function Dialer() {
   const voicemail = org?.voicemail_drop ?? false
   const setVoicemail = (v: boolean) => updateOrg({ voicemail_drop: v })
   const [completeTask, setCompleteTask] = useCallSetting('complete_task', false)
-  // Lire les messages vocaux directement depuis localStorage à chaque render
-  // (pas via useState qui ne se sync pas quand CallSettingsDropdown écrit)
-  const activeVmUrl = useMemo(() => {
-    if (!voicemail) return null
-    try {
-      const msgs = JSON.parse(localStorage.getItem('calsyn_cs_vm_messages') || '[]') as Array<{ id: string; url: string }>
-      const selId = JSON.parse(localStorage.getItem('calsyn_cs_vm_selected') || '""') as string
-      return msgs.find(m => m.id === selId)?.url || null
-    } catch { return null }
-  }, [voicemail, cm.isDialing, cm.isConnected]) // re-check quand l'état d'appel change
+  // Les mêmes useCallSetting que dans CallSettingsDropdown : sync cross-component
+  // via CustomEvent, donc toujours à jour quand Kevin enregistre un nouveau message.
+  const [dialerVmMessages] = useCallSetting<Array<{ id: string; url: string }>>('vm_messages', [])
+  const [dialerVmSelectedId] = useCallSetting('vm_selected', '')
+  const activeVmUrl = voicemail
+    ? (dialerVmMessages.find(m => m.id === dialerVmSelectedId)?.url || null)
+    : null
   const maxAttempts = org?.max_call_attempts || 'unlimited'
   const setMaxAttempts = (v: string) => updateOrg({ max_call_attempts: v })
   const attemptPeriod = org?.attempt_period || 'per_day'

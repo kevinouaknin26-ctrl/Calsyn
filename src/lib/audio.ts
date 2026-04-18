@@ -1,42 +1,63 @@
 /**
- * Conversion audio navigateur — webm/opus → WAV PCM 16-bit mono.
+ * Capture audio navigateur → WAV PCM 16-bit mono.
  *
- * Raison : Twilio <Play> ne supporte pas le webm (formats autorisés : mp3, wav,
- * aiff, gsm, ulaw). Le MediaRecorder natif Chrome/Safari produit uniquement du
- * webm/opus ou ogg/opus. On décode le webm en PCM via AudioContext puis on
- * encode en WAV RIFF minimal (mono pour réduire la taille, Twilio resample
- * tout en 8 kHz ulaw à la volée de toute façon).
+ * Raison : MediaRecorder produit du webm/opus sans duration tag ; decodeAudioData
+ * ne décode que les premières secondes → audio tronqué. On contourne en
+ * capturant les samples PCM directement depuis le MediaStream via un
+ * ScriptProcessorNode (deprecated mais fiable et universel).
+ *
+ * Usage :
+ *   const rec = await startWavRecording()
+ *   // ... plus tard
+ *   const wavBlob = await rec.stop()
  */
 
-export async function webmBlobToWav(webmBlob: Blob): Promise<Blob> {
-  const arrayBuffer = await webmBlob.arrayBuffer()
+export interface WavRecording {
+  stop(): Promise<Blob>
+  stream: MediaStream
+}
+
+export async function startWavRecording(constraints: MediaStreamConstraints = { audio: true }): Promise<WavRecording> {
+  const stream = await navigator.mediaDevices.getUserMedia(constraints)
   const AudioCtx = (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)
   const audioContext = new AudioCtx()
-  try {
-    const audioBuffer = await audioContext.decodeAudioData(arrayBuffer)
-    return audioBufferToWav(audioBuffer)
-  } finally {
-    audioContext.close()
+  const source = audioContext.createMediaStreamSource(stream)
+  const bufferSize = 4096
+  const processor = audioContext.createScriptProcessor(bufferSize, 1, 1)
+
+  const chunks: Float32Array[] = []
+  processor.onaudioprocess = (e) => {
+    const input = e.inputBuffer.getChannelData(0)
+    chunks.push(new Float32Array(input))
+  }
+
+  source.connect(processor)
+  processor.connect(audioContext.destination)
+
+  return {
+    stream,
+    async stop() {
+      processor.disconnect()
+      source.disconnect()
+      stream.getTracks().forEach(t => t.stop())
+      const sampleRate = audioContext.sampleRate
+      await audioContext.close()
+
+      // Concat tous les chunks PCM en un seul Float32Array
+      const totalLength = chunks.reduce((sum, c) => sum + c.length, 0)
+      const flat = new Float32Array(totalLength)
+      let offset = 0
+      for (const c of chunks) { flat.set(c, offset); offset += c.length }
+
+      return floatToWavBlob(flat, sampleRate)
+    },
   }
 }
 
-function audioBufferToWav(buffer: AudioBuffer): Blob {
+function floatToWavBlob(samples: Float32Array, sampleRate: number): Blob {
   const numChannels = 1
-  const sampleRate = buffer.sampleRate
   const bitDepth = 16
-
-  // Downmix en mono si besoin (moyenne des canaux)
-  const length = buffer.length
-  const samples = new Float32Array(length)
-  if (buffer.numberOfChannels === 1) {
-    samples.set(buffer.getChannelData(0))
-  } else {
-    const left = buffer.getChannelData(0)
-    const right = buffer.getChannelData(1)
-    for (let i = 0; i < length; i++) samples[i] = (left[i] + right[i]) / 2
-  }
-
-  const byteLength = 44 + length * (bitDepth / 8)
+  const byteLength = 44 + samples.length * (bitDepth / 8)
   const arrayBuffer = new ArrayBuffer(byteLength)
   const view = new DataView(arrayBuffer)
 
@@ -44,18 +65,18 @@ function audioBufferToWav(buffer: AudioBuffer): Blob {
   view.setUint32(4, byteLength - 8, true)
   writeString(view, 8, 'WAVE')
   writeString(view, 12, 'fmt ')
-  view.setUint32(16, 16, true) // fmt chunk size
-  view.setUint16(20, 1, true)  // PCM format
+  view.setUint32(16, 16, true)
+  view.setUint16(20, 1, true)
   view.setUint16(22, numChannels, true)
   view.setUint32(24, sampleRate, true)
   view.setUint32(28, sampleRate * numChannels * bitDepth / 8, true)
   view.setUint16(32, numChannels * bitDepth / 8, true)
   view.setUint16(34, bitDepth, true)
   writeString(view, 36, 'data')
-  view.setUint32(40, length * (bitDepth / 8), true)
+  view.setUint32(40, samples.length * (bitDepth / 8), true)
 
   let offset = 44
-  for (let i = 0; i < length; i++) {
+  for (let i = 0; i < samples.length; i++) {
     const s = Math.max(-1, Math.min(1, samples[i]))
     view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7FFF, true)
     offset += 2
