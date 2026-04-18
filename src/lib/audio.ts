@@ -26,13 +26,22 @@ export async function startWavRecording(constraints: MediaStreamConstraints = { 
   const processor = audioContext.createScriptProcessor(bufferSize, 1, 1)
 
   const chunks: Float32Array[] = []
+  // Promise résolue au premier sample capturé — garantit que la capture tourne
+  // vraiment avant que l'appelant ne considère l'enregistrement "prêt"
+  // (sinon les premières centaines de ms de parole sont perdues pendant le setup).
+  let firstSampleResolve: (() => void) | null = null
+  const firstSample = new Promise<void>((resolve) => { firstSampleResolve = resolve })
   processor.onaudioprocess = (e) => {
     const input = e.inputBuffer.getChannelData(0)
     chunks.push(new Float32Array(input))
+    if (firstSampleResolve) { firstSampleResolve(); firstSampleResolve = null }
   }
 
   source.connect(processor)
   processor.connect(audioContext.destination)
+  // Chrome : le context peut être 'suspended' tant qu'il n'y a pas eu d'interaction
+  if (audioContext.state === 'suspended') await audioContext.resume()
+  await firstSample
 
   return {
     stream,

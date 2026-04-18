@@ -297,6 +297,24 @@ function CallSettingsDropdown({ open, onToggle, parallel, setParallel, callLicen
   const [vmRecording, setVmRecording] = useState(false)
   const [vmNewName, setVmNewName] = useState('')
   const vmRecRef = useRef<WavRecording | null>(null)
+  // Preview play/pause — un seul audio à la fois, toggle au lieu de re-play
+  const vmPreviewAudioRef = useRef<HTMLAudioElement | null>(null)
+  const [vmPlayingId, setVmPlayingId] = useState<string | null>(null)
+  const togglePreview = (msgId: string, url: string) => {
+    const current = vmPreviewAudioRef.current
+    if (vmPlayingId === msgId && current) {
+      current.pause()
+      vmPreviewAudioRef.current = null
+      setVmPlayingId(null)
+      return
+    }
+    if (current) { current.pause(); vmPreviewAudioRef.current = null }
+    const audio = new Audio(url)
+    audio.onended = () => { vmPreviewAudioRef.current = null; setVmPlayingId(null) }
+    audio.play()
+    vmPreviewAudioRef.current = audio
+    setVmPlayingId(msgId)
+  }
 
   // Microphone — vrais périphériques audio
   const [micDevices, setMicDevices] = useState<MediaDeviceInfo[]>([])
@@ -480,8 +498,8 @@ function CallSettingsDropdown({ open, onToggle, parallel, setParallel, callLicen
                         }}
                           className="w-3 h-3 accent-violet-500" />
                         <span className="text-[12px] text-gray-700 flex-1 truncate">{msg.name}</span>
-                        <button onClick={e => { e.stopPropagation(); new Audio(msg.url).play() }}
-                          className="text-[10px] text-gray-400 hover:text-violet-500">▶</button>
+                        <button onClick={e => { e.stopPropagation(); togglePreview(msg.id, msg.url) }}
+                          className="text-[10px] text-gray-400 hover:text-violet-500">{vmPlayingId === msg.id ? '⏸' : '▶'}</button>
                         <button onClick={e => {
                           e.stopPropagation()
                           setVmMessages(vmMessages.filter(m => m.id !== msg.id))
