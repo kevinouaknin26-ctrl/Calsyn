@@ -59,8 +59,29 @@ serve(async (req) => {
     const authToken = Deno.env.get('TWILIO_AUTH_TOKEN') || ''
     const twilioAuth = 'Basic ' + btoa(`${accountSid}:${authToken}`)
 
-    // Modifier l'appel pour jouer l'audio puis raccrocher
-    // Le TwiML <Play> joue l'audio, puis <Hangup/> termine l'appel
+    // Le callSid reçu = leg SDR (parent). Pour jouer l'audio au PROSPECT,
+    // il faut cibler le leg enfant (<Dial><Number>) via ParentCallSid.
+    const childsRes = await fetch(
+      `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Calls.json?ParentCallSid=${callSid}&Status=in-progress`,
+      { headers: { Authorization: twilioAuth } }
+    )
+    const childsData = await childsRes.json()
+    let targetSid = (childsData?.calls?.[0]?.sid as string | undefined) || ''
+
+    // Fallback : si pas encore in-progress, prendre n'importe quel child actif
+    if (!targetSid) {
+      const anyChildsRes = await fetch(
+        `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Calls.json?ParentCallSid=${callSid}`,
+        { headers: { Authorization: twilioAuth } }
+      )
+      const anyChildsData = await anyChildsRes.json()
+      targetSid = (anyChildsData?.calls?.[0]?.sid as string | undefined) || callSid
+      console.log('[voicemail-drop] fallback target:', targetSid, 'parent:', callSid)
+    }
+
+    console.log('[voicemail-drop] parent:', callSid, 'targeting child:', targetSid)
+
+    // Modifier le leg prospect : jouer l'audio puis raccrocher
     const twiml = `<?xml version="1.0" encoding="UTF-8"?><Response><Play>${audioUrl}</Play><Hangup/></Response>`
 
     const formData = new URLSearchParams({
@@ -68,7 +89,7 @@ serve(async (req) => {
     })
 
     const res = await fetch(
-      `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Calls/${callSid}.json`,
+      `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Calls/${targetSid}.json`,
       {
         method: 'POST',
         headers: { Authorization: twilioAuth, 'Content-Type': 'application/x-www-form-urlencoded' },
