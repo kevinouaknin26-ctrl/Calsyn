@@ -256,22 +256,21 @@ export function useCallMachine() {
 
   const sendDTMF = useCallback((digit: string) => { sessionRef.current?.sendDTMF(digit) }, [])
 
-  // Voicemail drop : déposer un message et raccrocher
+  // Voicemail drop : arme un drop sur le call (amd-callback le posera au bip).
+  // Pas de disconnect immédiat — answerOnBridge=true ferait hangup le child
+  // avant que AMD ne tire. Le call se termine naturellement quand amd-callback
+  // pose <Play><Hangup/> sur le child, qui cascade au parent via answerOnBridge.
   const voicemailDrop = useCallback(async (audioUrl: string) => {
     const callSid = state.context.callSid
     if (!callSid) { console.warn('[useCallMachine] No callSid for voicemail drop'); return }
-    console.log(`[useCallMachine] Voicemail drop: ${audioUrl} on ${callSid}`)
+    console.log(`[useCallMachine] Arming voicemail drop: ${audioUrl} on ${callSid}`)
     try {
       await dropVoicemail(callSid, audioUrl)
-      // Forcer le outcome à 'voicemail' AVANT l'autosave (sinon la durée Pause+Play
-      // dépasse 8s et l'autosave default outcome = 'connected').
+      // Marque le outcome voicemail en anticipation (au cas où status-callback
+      // arrive avant amd-callback pour un scénario racy).
       send({ type: 'SET_DISPOSITION', disposition: 'voicemail' })
-      // Raccrocher le leg SDR — le message continue de jouer côté prospect
-      providerRef.current?.disconnectAll()
-      sessionRef.current = null
-      send({ type: 'HANG_UP' })
     } catch (err) {
-      console.error('[useCallMachine] Voicemail drop failed:', err)
+      console.error('[useCallMachine] Arm voicemail drop failed:', err)
     }
   }, [state.context.callSid, send])
 

@@ -1,15 +1,16 @@
 /**
- * amd-callback — Reçoit le résultat AMD de Twilio.
+ * amd-callback — Reçoit le résultat AMD de Twilio (DetectMessageEnd).
  *
- * Twilio envoie ce webhook 2-3 secondes après le décroché avec :
- * - CallSid
- * - AnsweredBy : human | machine_start | machine_end_beep | machine_end_silence | machine_end_other | fax | unknown
- * - MachineDetectionDuration (ms)
+ * Timing Twilio avec DetectMessageEnd : le webhook est POSTé PILE quand la fin
+ * de l'annonce répondeur est détectée (généralement au bip). C'est le moment
+ * exact où la messagerie commence à enregistrer → fenêtre optimale pour poser
+ * un voicemail drop.
  *
- * Actions :
- * - Si machine → update call_outcome = 'voicemail' + amd_result = 'machine'
- * - Si human → update amd_result = 'human' (call_outcome reste ce que status-callback a mis)
- * - Supabase Realtime propage le changement au frontend
+ * Flow voicemail drop :
+ * - Si calls.pending_voicemail_url set (SDR a armé via le bouton voicemail) →
+ *   modify TwiML <Play>+<Hangup/> immédiatement, clear pending, outcome=voicemail.
+ * - Sinon si organisations.voicemail_drop + voicemail_audio_url → auto-drop
+ *   (feature Minari historique).
  */
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
@@ -41,16 +42,12 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '',
     )
 
-    // Vérifier d'abord que l'appel a bien été répondu (pas juste le ringback)
     const { data: existingCall } = await supabase
       .from('calls')
-      .select('id, call_outcome, call_duration')
+      .select('id, call_outcome, call_duration, organisation_id, prospect_id, pending_voicemail_url')
       .eq('call_sid', callSid)
-      .single()
+      .maybeSingle()
 
-    // Si l'appel n'existe pas encore ou est encore en "no_answer" avec durée 0,
-    // c'est peut-être un faux positif AMD sur le ringback. On stocke le résultat
-    // mais on ne change PAS le call_outcome tant que status-callback n'a pas confirmé "answered".
     const callStatus = params.CallStatus || ''
     const isActuallyAnswered = callStatus === 'in-progress' || callStatus === 'completed' ||
       (existingCall && existingCall.call_duration > 0)
@@ -63,99 +60,84 @@ serve(async (req) => {
       amd_detected_at: new Date().toISOString(),
     }
 
-    // Si machine ET l'appel a été réellement répondu → corriger le call_outcome
     if (isMachine && isActuallyAnswered) {
       updates.call_outcome = 'voicemail'
-      console.log(`[amd-callback] Machine confirmed (call answered) → voicemail`)
-    } else if (isMachine && !isActuallyAnswered) {
-      console.log(`[amd-callback] Machine detected but call not answered yet — storing result only`)
+      console.log(`[amd-callback] Machine confirmed → outcome=voicemail`)
     }
 
-    // Update le call par call_sid
-    const { data: call, error } = await supabase
-      .from('calls')
-      .update(updates)
-      .eq('call_sid', callSid)
-      .select('id, prospect_id')
-      .single()
+    await supabase.from('calls').update(updates).eq('call_sid', callSid)
 
-    if (error) {
-      console.error('[amd-callback] Update error:', error)
-    }
+    // ── Voicemail drop : priorité au pending armé par le SDR, sinon auto-org ──
+    if (isMachine && isActuallyAnswered && existingCall) {
+      const accountSid = Deno.env.get('TWILIO_ACCOUNT_SID') || ''
+      const authToken = Deno.env.get('TWILIO_AUTH_TOKEN') || ''
+      const twilioAuth = 'Basic ' + btoa(`${accountSid}:${authToken}`)
 
-    // Si machine ET réellement répondu → auto voicemail drop
-    if (isMachine && isActuallyAnswered) {
-      // Chercher l'org pour savoir si voicemail_drop est activé + l'URL audio
-      const { data: callData } = await supabase
-        .from('calls')
-        .select('organisation_id, sdr_id')
-        .eq('call_sid', callSid)
-        .single()
+      let audioUrl: string | null = existingCall.pending_voicemail_url || null
+      let source = 'pending'
 
-      if (callData?.organisation_id) {
+      if (!audioUrl && existingCall.organisation_id) {
         const { data: org } = await supabase
           .from('organisations')
           .select('voicemail_drop, voicemail_audio_url')
-          .eq('id', callData.organisation_id)
+          .eq('id', existingCall.organisation_id)
           .single()
-
         if (org?.voicemail_drop && org?.voicemail_audio_url) {
-          // Auto-drop : modifier le call en cours pour jouer le message + raccrocher
-          const accountSid = Deno.env.get('TWILIO_ACCOUNT_SID') || ''
-          const authToken = Deno.env.get('TWILIO_AUTH_TOKEN') || ''
+          audioUrl = org.voicemail_audio_url
+          source = 'org-auto'
+        }
+      }
 
-          const twiml = `<Response><Play>${org.voicemail_audio_url}</Play><Hangup/></Response>`
-          const updateRes = await fetch(
-            `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Calls/${callSid}.json`,
-            {
-              method: 'POST',
-              headers: {
-                'Authorization': 'Basic ' + btoa(`${accountSid}:${authToken}`),
-                'Content-Type': 'application/x-www-form-urlencoded',
-              },
-              body: new URLSearchParams({ Twiml: twiml }).toString(),
-            }
-          )
-
-          if (updateRes.ok) {
-            console.log(`[amd-callback] Auto voicemail drop on ${callSid}`)
-          } else {
-            console.error(`[amd-callback] Voicemail drop failed: ${await updateRes.text()}`)
+      if (audioUrl) {
+        // callSid ici = child leg (Twilio envoie amd-callback pour le leg prospect).
+        // On modifie directement — pas besoin de chercher le parent.
+        const twiml = `<?xml version="1.0" encoding="UTF-8"?><Response><Play>${audioUrl}</Play><Hangup/></Response>`
+        const updateRes = await fetch(
+          `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Calls/${callSid}.json`,
+          {
+            method: 'POST',
+            headers: {
+              'Authorization': twilioAuth,
+              'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: new URLSearchParams({ Twiml: twiml }).toString(),
           }
+        )
+
+        if (updateRes.ok) {
+          console.log(`[amd-callback] Voicemail drop posted (source=${source}) on ${callSid}`)
+          if (source === 'pending') {
+            await supabase
+              .from('calls')
+              .update({ pending_voicemail_url: null })
+              .eq('call_sid', callSid)
+          }
+        } else {
+          console.error(`[amd-callback] Voicemail drop failed: ${await updateRes.text()}`)
         }
       }
     }
 
-    // Si machine ET réellement répondu → mettre à jour le prospect aussi (avec priorité)
-    if (isMachine && isActuallyAnswered && call?.prospect_id) {
+    // ── Prospect : last_call_outcome = voicemail si machine ──
+    if (isMachine && isActuallyAnswered && existingCall?.prospect_id) {
       const outcomePriority: Record<string, number> = {
         'connected': 100, 'callback': 60, 'not_interested': 50,
         'voicemail': 40, 'busy': 35, 'no_answer': 30,
         'cancelled': 20, 'failed': 10, 'wrong_number': 5,
       }
-
       const { data: prospect } = await supabase
         .from('prospects')
         .select('last_call_outcome')
-        .eq('id', call.prospect_id)
+        .eq('id', existingCall.prospect_id)
         .single()
-
       const currentPriority = outcomePriority[prospect?.last_call_outcome || ''] || 0
       const voicemailPriority = outcomePriority['voicemail'] || 0
-
-      // Ne downgrade pas si le prospect a déjà un meilleur statut
       if (voicemailPriority >= currentPriority) {
         await supabase
           .from('prospects')
           .update({ last_call_outcome: 'voicemail' })
-          .eq('id', call.prospect_id)
+          .eq('id', existingCall.prospect_id)
       }
-
-      console.log(`[amd-callback] Machine detected for ${callSid} — prospect updated`)
-    }
-
-    if (isHuman) {
-      console.log(`[amd-callback] Human detected for ${callSid}`)
     }
 
     return new Response(JSON.stringify({ ok: true, answeredBy, isMachine }), {

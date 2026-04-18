@@ -1,10 +1,14 @@
 /**
- * voicemail-drop — Dépose un message vocal pré-enregistré sur la messagerie du prospect.
+ * voicemail-drop — Arme un voicemail drop sur le call actif.
  *
- * Mécanisme : modifie l'appel Twilio en cours pour jouer un audio puis raccrocher.
- * Le SDR est libéré immédiatement (son leg se termine), le message continue de jouer.
+ * Mécanisme propre (zéro latence) :
+ * - Update calls.pending_voicemail_url = audioUrl
+ * - amd-callback pose automatiquement le TwiML <Play>+<Hangup/> sur le leg prospect
+ *   pile quand Twilio détecte machine_end_beep (pas de round-trip frontend)
+ * - Si amd_result='machine' est DÉJÀ posé (Kevin arme tardivement), on pose le
+ *   TwiML immédiatement en fallback
  *
- * Body JSON : { callSid, audioUrl }
+ * Body JSON : { callSid (parent SDR), audioUrl }
  */
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
@@ -29,17 +33,12 @@ serve(async (req) => {
       })
     }
 
-    const supabase = createClient(
-      Deno.env.get('SUPABASE_URL') || '',
-      Deno.env.get('SUPABASE_ANON_KEY') || '',
-      { global: { headers: { Authorization: authHeader } } }
-    )
-    const _jwtAdmin = createClient(
+    const admin = createClient(
       Deno.env.get('SUPABASE_URL') || '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || ''
     )
     const _token = (authHeader || '').replace('Bearer ', '')
-    const { data: { user }, error: authError } = await _jwtAdmin.auth.getUser(_token)
+    const { data: { user } } = await admin.auth.getUser(_token)
     if (!user) {
       return new Response(JSON.stringify({ error: 'Unauthorized' }), {
         status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -55,60 +54,61 @@ serve(async (req) => {
       })
     }
 
-    const accountSid = Deno.env.get('TWILIO_ACCOUNT_SID') || ''
-    const authToken = Deno.env.get('TWILIO_AUTH_TOKEN') || ''
-    const twilioAuth = 'Basic ' + btoa(`${accountSid}:${authToken}`)
+    // 1. Armer le drop : amd-callback le posera automatiquement au machine_end_beep
+    const { data: callRow } = await admin
+      .from('calls')
+      .select('amd_result, call_outcome')
+      .eq('call_sid', callSid)
+      .maybeSingle()
 
-    // Le callSid reçu = leg SDR (parent). Pour jouer l'audio au PROSPECT,
-    // il faut cibler le leg enfant (<Dial><Number>) via ParentCallSid.
-    const childsRes = await fetch(
-      `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Calls.json?ParentCallSid=${callSid}&Status=in-progress`,
-      { headers: { Authorization: twilioAuth } }
-    )
-    const childsData = await childsRes.json()
-    let targetSid = (childsData?.calls?.[0]?.sid as string | undefined) || ''
+    await admin
+      .from('calls')
+      .update({ pending_voicemail_url: audioUrl })
+      .eq('call_sid', callSid)
 
-    // Fallback : si pas encore in-progress, prendre n'importe quel child actif
-    if (!targetSid) {
-      const anyChildsRes = await fetch(
-        `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Calls.json?ParentCallSid=${callSid}`,
+    // Mettre déjà le call_outcome à voicemail pour que status-callback ne l'écrase pas
+    await admin
+      .from('calls')
+      .update({ call_outcome: 'voicemail' })
+      .eq('call_sid', callSid)
+
+    // 2. Si AMD a déjà détecté la machine AVANT le click, on pose le TwiML
+    //    immédiatement (fallback) en plus d'armer. Double sécurité idempotente
+    //    — si amd-callback re-tire plus tard, le modify Twilio retournera juste
+    //    un no-op car le call sera déjà terminé.
+    if (callRow?.amd_result === 'machine') {
+      const accountSid = Deno.env.get('TWILIO_ACCOUNT_SID') || ''
+      const authToken = Deno.env.get('TWILIO_AUTH_TOKEN') || ''
+      const twilioAuth = 'Basic ' + btoa(`${accountSid}:${authToken}`)
+
+      // callSid reçu = leg SDR (parent). Cibler le child (leg prospect).
+      const childsRes = await fetch(
+        `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Calls.json?ParentCallSid=${callSid}&Status=in-progress`,
         { headers: { Authorization: twilioAuth } }
       )
-      const anyChildsData = await anyChildsRes.json()
-      targetSid = (anyChildsData?.calls?.[0]?.sid as string | undefined) || callSid
-      console.log('[voicemail-drop] fallback target:', targetSid, 'parent:', callSid)
+      const childsData = await childsRes.json()
+      const targetSid = (childsData?.calls?.[0]?.sid as string | undefined) || callSid
+
+      const twiml = `<?xml version="1.0" encoding="UTF-8"?><Response><Play>${audioUrl}</Play><Hangup/></Response>`
+      const res = await fetch(
+        `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Calls/${targetSid}.json`,
+        {
+          method: 'POST',
+          headers: { Authorization: twilioAuth, 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: new URLSearchParams({ Twiml: twiml }).toString(),
+        }
+      )
+      const data = await res.json()
+      if (!res.ok) console.error('[voicemail-drop] Fallback Twilio error:', data)
+      else console.log('[voicemail-drop] Fallback immediate drop on child:', targetSid)
+
+      // Clear le pending (on vient de poser)
+      await admin.from('calls').update({ pending_voicemail_url: null }).eq('call_sid', callSid)
+    } else {
+      console.log('[voicemail-drop] Armed (AMD pending) for', callSid)
     }
 
-    console.log('[voicemail-drop] parent:', callSid, 'targeting child:', targetSid)
-
-    // Le frontend n'active le bouton que lorsque l'event AMD machine_end_beep est
-    // reçu (= fin de l'annonce répondeur + bip). Pas besoin de Pause : le Play
-    // démarre pile quand la messagerie commence à enregistrer.
-    const twiml = `<?xml version="1.0" encoding="UTF-8"?><Response><Play>${audioUrl}</Play><Hangup/></Response>`
-
-    const formData = new URLSearchParams({
-      Twiml: twiml,
-    })
-
-    const res = await fetch(
-      `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Calls/${targetSid}.json`,
-      {
-        method: 'POST',
-        headers: { Authorization: twilioAuth, 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: formData.toString(),
-      }
-    )
-
-    const data = await res.json()
-
-    if (!res.ok) {
-      console.error('[voicemail-drop] Twilio error:', data)
-      return new Response(JSON.stringify({ error: data.message || 'Failed' }), {
-        status: res.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
-    }
-
-    return new Response(JSON.stringify({ ok: true }), {
+    return new Response(JSON.stringify({ ok: true, armed: true }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     })
 
