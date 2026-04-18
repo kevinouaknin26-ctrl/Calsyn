@@ -95,6 +95,21 @@ serve(async (req) => {
       outcome = 'failed'
     }
 
+    // Si un call existe déjà avec un outcome explicite posé par le SDR
+    // (ex: voicemail drop manuel côté client → autosave save-call
+    // écrit 'voicemail' avant que status-callback n'arrive), ne pas
+    // l'écraser avec l'outcome calculé depuis la durée brute.
+    const { data: existingCall } = await supabase
+      .from('calls')
+      .select('call_outcome')
+      .eq('call_sid', callSid)
+      .maybeSingle()
+    const protectedOutcomes = ['voicemail', 'callback', 'not_interested', 'wrong_number', 'dnc']
+    if (existingCall?.call_outcome && protectedOutcomes.includes(existingCall.call_outcome)) {
+      outcome = existingCall.call_outcome
+      console.log(`[status-callback] preserving explicit outcome='${outcome}' for ${callSid}`)
+    }
+
     // ── 1. Chercher le prospect ──
     // Priorité : prospectId passé par call-webhook > recherche par numéro
     let prospectName: string | null = urlProspectName || null
