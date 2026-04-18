@@ -263,6 +263,9 @@ export function useCallMachine() {
     console.log(`[useCallMachine] Voicemail drop: ${audioUrl} on ${callSid}`)
     try {
       await dropVoicemail(callSid, audioUrl)
+      // Forcer le outcome à 'voicemail' AVANT l'autosave (sinon la durée Pause+Play
+      // dépasse 8s et l'autosave default outcome = 'connected').
+      send({ type: 'SET_DISPOSITION', disposition: 'voicemail' })
       // Raccrocher le leg SDR — le message continue de jouer côté prospect
       providerRef.current?.disconnectAll()
       sessionRef.current = null
