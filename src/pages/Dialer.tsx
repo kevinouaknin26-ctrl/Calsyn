@@ -319,7 +319,7 @@ function CallSettingsDropdown({ open, onToggle, parallel, setParallel, callLicen
       </button>
 
       {open && (
-        <div className="absolute right-0 top-10 w-[440px] bg-white dark:bg-[#ede6f3] rounded-xl shadow-lg border border-gray-200 dark:border-[#d4cade] z-50 p-5 space-y-4 animate-slide-down">
+        <div className="absolute right-0 top-10 w-[440px] bg-white dark:bg-[#ede6f3] rounded-xl shadow-lg border border-gray-200 dark:border-[#d4cade] z-50 p-5 space-y-4 animate-slide-down overflow-y-auto" style={{ maxHeight: 'calc(100vh - 80px)' }}>
 
           {/* Microphone (connecté — vrais périphériques + Test/Play) */}
           <div>
