@@ -9,7 +9,7 @@ import { normalizePhone } from '@/utils/phone'
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
 import { supabase } from '@/config/supabase'
 import { useAuth } from '@/hooks/useAuth'
-import { useCallMachine } from '@/hooks/useCallMachine'
+import { useCall } from '@/contexts/CallContext'
 import { useCallsByProspect } from '@/hooks/useCalls'
 import { useProspectLists } from '@/hooks/useProspects'
 import ProspectModal from '@/components/call/ProspectModal'
@@ -230,7 +230,7 @@ function CalendarInner() {
   const { organisation, profile } = useAuth()
   const queryClient = useQueryClient()
   const gcal = useGoogleCalendar()
-  const cm = useCallMachine()
+  const cm = useCall()
   const [currentDate, setCurrentDate] = useState(getDayStart(new Date()))
   const [view, setView] = useState<'day' | 'week'>('week')
   const [selectedProspect, setSelectedProspect] = useState<Prospect | null>(null)

@@ -1078,6 +1078,22 @@ export default function ProspectModal({
               {/* ── Onglet Notes ── */}
               {activeTab === 'notes' && (
                 <div>
+                  {/* Note principale du prospect — toujours éditable (indépendante des appels) */}
+                  <div className="mb-4 rounded-xl border border-indigo-100 bg-indigo-50/40 p-3">
+                    <p className="text-[10px] font-bold text-indigo-500 uppercase tracking-wider mb-1.5">Note principale</p>
+                    <textarea
+                      defaultValue={prospect.notes || ''}
+                      placeholder="Notes générales sur ce prospect (toujours accessibles, même sans appel)..."
+                      onBlur={async e => {
+                        const val = e.target.value.trim()
+                        if (val !== (prospect.notes || '')) {
+                          await supabase.from('prospects').update({ notes: val || null }).eq('id', prospect.id)
+                          queryClient.invalidateQueries({ queryKey: ['prospects'] })
+                        }
+                      }}
+                      rows={3}
+                      className="w-full text-[13px] text-gray-700 bg-white border border-indigo-100 rounded-lg p-2.5 resize-none outline-none focus:border-indigo-300 focus:ring-1 focus:ring-indigo-200 placeholder:text-gray-400" />
+                  </div>
                   {/* Notes de tous les appels */}
                   {callHistory.filter(c => c.note).length > 0 ? (
                     <div className="space-y-2 mb-4">
