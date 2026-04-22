@@ -88,9 +88,11 @@ export default function Team() {
   const canInvite = me?.role === 'super_admin' || me?.role === 'admin' || me?.role === 'manager'
   const canManage = (target: Profile) => {
     if (!me) return false
+    // Super admin gère tout, y compris son propre profil (pour réattribuer ses numéros, etc.)
+    if (me.role === 'super_admin') return true
     if (target.id === me.id) return false
-    if (target.role === 'super_admin' && me.role !== 'super_admin') return false
-    return ['super_admin', 'admin'].includes(me.role) || (me.role === 'manager' && target.role === 'sdr')
+    if (target.role === 'super_admin') return false
+    return me.role === 'admin' || (me.role === 'manager' && target.role === 'sdr')
   }
 
   // ── Compteurs licences ──
@@ -249,8 +251,6 @@ export default function Team() {
                 <Th>Rôle</Th>
                 <Th>Licence</Th>
                 <Th>Numéros assignés</Th>
-                <Th>Horaires</Th>
-                <Th>Quota</Th>
                 <Th>Dernière activité</Th>
                 <Th></Th>
               </tr>
@@ -477,36 +477,6 @@ function MemberRow({ m, isMe, canManage, twilioNumbers, phonesUsedByOthers, conf
         </div>
       </td>
 
-      {/* Horaires */}
-      <td className="px-3 py-3">
-        {canManage ? (
-          <div className="flex items-center gap-1">
-            <input type="time" value={m.work_hours_start?.slice(0, 5) || '09:00'}
-              onChange={e => onPatch({ work_hours_start: e.target.value + ':00' })}
-              className="text-[11px] border border-gray-200 rounded px-1 py-0.5 w-[72px]" />
-            <span className="text-[10px] text-gray-400">→</span>
-            <input type="time" value={m.work_hours_end?.slice(0, 5) || '18:00'}
-              onChange={e => onPatch({ work_hours_end: e.target.value + ':00' })}
-              className="text-[11px] border border-gray-200 rounded px-1 py-0.5 w-[72px]" />
-          </div>
-        ) : (
-          <span className="text-[12px] text-gray-500">
-            {m.work_hours_start?.slice(0, 5) || '09:00'} – {m.work_hours_end?.slice(0, 5) || '18:00'}
-          </span>
-        )}
-      </td>
-
-      {/* Quota appels/jour */}
-      <td className="px-3 py-3">
-        {canManage ? (
-          <input type="number" min="0" value={m.max_calls_per_day || 0}
-            onChange={e => onPatch({ max_calls_per_day: parseInt(e.target.value) || 0 })}
-            className="text-[12px] border border-gray-200 rounded px-2 py-0.5 w-[64px]"
-            title="0 = illimité" />
-        ) : (
-          <span className="text-[12px] text-gray-500">{m.max_calls_per_day || '∞'}</span>
-        )}
-      </td>
 
       {/* Dernière activité OU expiration invitation */}
       <td className="px-3 py-3">
@@ -713,22 +683,6 @@ function InviteModal({ twilioNumbers, phonesUsedByOthers, meRole, onClose, onInv
               </>
             )}
           </Field>
-
-          <div className="grid grid-cols-3 gap-3">
-            <Field label="Début">
-              <input type="time" value={workStart} onChange={e => setWorkStart(e.target.value)}
-                className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm" />
-            </Field>
-            <Field label="Fin">
-              <input type="time" value={workEnd} onChange={e => setWorkEnd(e.target.value)}
-                className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm" />
-            </Field>
-            <Field label="Quota/jour">
-              <input type="number" min="0" value={maxCalls} onChange={e => setMaxCalls(parseInt(e.target.value) || 0)}
-                title="0 = illimité"
-                className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm" />
-            </Field>
-          </div>
 
           <Field label="Validité du lien d'invitation">
             <select value={expiresInHours} onChange={e => setExpiresInHours(parseInt(e.target.value))}
