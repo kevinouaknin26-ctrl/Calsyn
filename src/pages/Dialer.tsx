@@ -24,6 +24,7 @@ import { usePermissions } from '@/hooks/usePermissions'
 import { useRealtimeProspects, useAmdResult } from '@/hooks/useRealtime'
 import { useDialingSession } from '@/hooks/useDialingSession'
 import VoicemailRecorder from '@/components/VoicemailRecorder'
+import ShareListDialog from '@/components/ShareListDialog'
 import { startWavRecording, type WavRecording } from '@/lib/audio'
 
 // Format E.164 → lisible (+33 7 57 90 55 91). Fallback : inchangé.
@@ -1214,6 +1215,7 @@ export default function Dialer() {
   const [refreshing, setRefreshing] = useState(false)
   const [renamingList, setRenamingList] = useState(false)
   const [renameValue, setRenameValue] = useState('')
+  const [showShareDialog, setShowShareDialog] = useState(false)
   const [showAddProspect, setShowAddProspect] = useState(false)
   const [showDTMF, setShowDTMF] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
@@ -1617,6 +1619,17 @@ export default function Dialer() {
                 listName={activeList?.name || 'export'}
                 prospects={prospects || []}
               />
+            )}
+            {/* Partager la liste avec des SDR (admin/manager only) */}
+            {(perms.isAdmin) && activeListId && (
+              <button onClick={() => setShowShareDialog(true)}
+                className="text-[13px] text-gray-400 hover:text-indigo-600 flex items-center gap-1"
+                title="Partager cette liste avec un ou plusieurs SDR">
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 12a4 4 0 10-8 0 4 4 0 008 0zm6 8a6 6 0 00-12 0M8 12a4 4 0 108 0" />
+                </svg>
+                Partager
+              </button>
             )}
           </div>
           <div className="flex flex-col items-end gap-1">
@@ -2157,6 +2170,16 @@ export default function Dialer() {
       </div>
 
       </div>{/* fin conteneur blanc global */}
+
+      {/* ── Modal Partager liste ── */}
+      {showShareDialog && activeListId && activeList && (
+        <ShareListDialog
+          listId={activeListId}
+          listName={activeList.name}
+          currentAssignedTo={activeList.assigned_to || []}
+          onClose={() => setShowShareDialog(false)}
+        />
+      )}
 
       {/* ── Modal Ajouter un contact ── */}
       {showAddProspect && activeListId && (
