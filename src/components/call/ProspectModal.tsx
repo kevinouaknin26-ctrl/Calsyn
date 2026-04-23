@@ -12,6 +12,7 @@ import { usePropertyDefinitions, useProspectCustomValues, groupProperties, updat
 import { getPropertyValue } from '@/config/properties'
 import SocialLinks, { PlatformIcon } from './SocialLinks'
 import { supabase } from '@/config/supabase'
+import { useRecordingSignedUrl } from '@/hooks/useRecordingSignedUrl'
 import type { Prospect, CrmStatus } from '@/types/prospect'
 import type { Disposition, Call } from '@/types/call'
 import type { CallContext } from '@/machines/callMachine'
@@ -36,12 +37,6 @@ function formatPhone(phone: string): string {
   if (phone.startsWith('+33') && phone.length === 12)
     return `+33 ${phone[3]} ${phone.slice(4, 6)} ${phone.slice(6, 8)} ${phone.slice(8, 10)} ${phone.slice(10, 12)}`
   return phone
-}
-
-/** Transforme une URL Twilio recording en URL proxy pour éviter l'auth browser */
-function proxyRecordingUrl(url: string): string {
-  if (!url || !url.includes('twilio.com')) return url
-  return `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/recording-proxy?url=${encodeURIComponent(url)}`
 }
 
 function formatDuration(s: number) {
@@ -251,6 +246,7 @@ function AudioPlayer({ url, date, prospectName }: { url: string; date?: string; 
 function CallCard({ call, defaultOpen, onUpdate, onCelebrate }: { call: Call; defaultOpen: boolean; onUpdate: () => void; onCelebrate: () => void }) {
   const [open, setOpen] = useState(defaultOpen)
   const [showTranscript, setShowTranscript] = useState(false)
+  const signedAudioUrl = useRecordingSignedUrl(call.recording_url)
 
   return (
     <div className={`border border-gray-100 rounded-xl mb-2 overflow-hidden transition-all ${open ? 'bg-white' : 'bg-gray-50/50'}`}>
@@ -316,7 +312,7 @@ function CallCard({ call, defaultOpen, onUpdate, onCelebrate }: { call: Call; de
           </div>
 
           {/* Player audio (Minari exact — ▶ barre + durée + download + vitesse) */}
-          {call.recording_url && <AudioPlayer url={proxyRecordingUrl(call.recording_url!)} date={call.created_at} prospectName={call.prospect_name || undefined} />}
+          {call.recording_url && signedAudioUrl && <AudioPlayer url={signedAudioUrl} date={call.created_at} prospectName={call.prospect_name || undefined} />}
 
           {/* ── Bulle Notes & Résumé (toujours ouverte) ── */}
           <div className="mt-3 rounded-xl border border-indigo-100 bg-indigo-50/40 p-4 space-y-3">

@@ -11,6 +11,8 @@ import { saveAs } from 'file-saver'
 import { useAuth } from '@/hooks/useAuth'
 import { useCalls } from '@/hooks/useCalls'
 import { useRealtimeCalls } from '@/hooks/useRealtime'
+import { useRecordingSignedUrl } from '@/hooks/useRecordingSignedUrl'
+import { getSignedRecordingUrl } from '@/services/recordingSignedUrl'
 import type { Call } from '@/types/call'
 
 function formatDuration(s: number) {
@@ -84,20 +86,24 @@ function buildFicheMarkdown(call: Call): string {
   return lines.join('\n')
 }
 
-async function downloadCallZip(call: Call, supabaseUrl: string) {
+async function downloadCallZip(call: Call) {
   const zip = new JSZip()
   const slug = `${slugify(call.prospect_name || 'inconnu')}_${new Date(call.created_at).toISOString().slice(0, 10)}`
   zip.file(`${slug}/fiche.md`, buildFicheMarkdown(call))
   if (call.recording_url) {
     try {
-      const audioUrl = `${supabaseUrl}/functions/v1/recording-proxy?url=${encodeURIComponent(call.recording_url)}`
-      const res = await fetch(audioUrl)
-      if (res.ok) {
-        const blob = await res.blob()
-        const ext = blob.type.includes('wav') ? 'wav' : 'mp3'
-        zip.file(`${slug}/audio.${ext}`, blob)
+      const signed = await getSignedRecordingUrl(call.recording_url)
+      if (!signed) {
+        zip.file(`${slug}/_AUDIO_ERREUR.txt`, 'Impossible de signer l\'URL (session expirée ?)')
       } else {
-        zip.file(`${slug}/_AUDIO_ERREUR.txt`, `HTTP ${res.status}\n${call.recording_url}`)
+        const res = await fetch(signed)
+        if (res.ok) {
+          const blob = await res.blob()
+          const ext = blob.type.includes('wav') ? 'wav' : 'mp3'
+          zip.file(`${slug}/audio.${ext}`, blob)
+        } else {
+          zip.file(`${slug}/_AUDIO_ERREUR.txt`, `HTTP ${res.status}\n${call.recording_url}`)
+        }
       }
     } catch (e) {
       zip.file(`${slug}/_AUDIO_ERREUR.txt`, (e as Error).message)
@@ -144,7 +150,7 @@ function CallRow({ call }: { call: Call }) {
   const [expanded, setExpanded] = useState(false)
   const [downloading, setDownloading] = useState(false)
   const navigate = useNavigate()
-  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
+  const signedAudioUrl = useRecordingSignedUrl(expanded ? call.recording_url : null)
   const color = OUTCOME_COLORS[call.call_outcome || ''] || '#9ca3af'
   const label = OUTCOME_LABELS[call.call_outcome || ''] || call.call_outcome || '—'
   const hasAI = call.ai_analysis_status === 'completed' && call.ai_score_global != null
@@ -153,7 +159,7 @@ function CallRow({ call }: { call: Call }) {
   const handleDownload = async () => {
     if (downloading) return
     setDownloading(true)
-    try { await downloadCallZip(call, supabaseUrl) } catch (e) { alert('Erreur export : ' + (e as Error).message) }
+    try { await downloadCallZip(call) } catch (e) { alert('Erreur export : ' + (e as Error).message) }
     finally { setDownloading(false) }
   }
 
@@ -234,9 +240,11 @@ function CallRow({ call }: { call: Call }) {
 
           {call.recording_url && (
             <Section title="Enregistrement audio" defaultOpen>
-              <audio controls preload="none"
-                src={`${supabaseUrl}/functions/v1/recording-proxy?url=${encodeURIComponent(call.recording_url)}`}
-                className="w-full h-9" />
+              {signedAudioUrl ? (
+                <audio controls preload="none" src={signedAudioUrl} className="w-full h-9" />
+              ) : (
+                <p className="text-gray-400 italic text-[12px]">Chargement de l'enregistrement…</p>
+              )}
             </Section>
           )}
 
