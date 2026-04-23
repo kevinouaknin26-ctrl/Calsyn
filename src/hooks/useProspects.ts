@@ -254,11 +254,13 @@ export function useImportProspects() {
         return n
       }
 
-      // Dédupliquer cross-listes : récupérer TOUS les numéros de l'org
+      // Dédupliquer intra-liste uniquement : un même prospect peut apparaître dans
+      // plusieurs listes (ex. candidature inbound + liste dédiée SDR). On ne filtre
+      // que les doublons DANS la liste cible, pas contre toute l'org.
       const { data: existing } = await supabase
         .from('prospects')
         .select('phone')
-        .eq('organisation_id', organisation.id)
+        .eq('list_id', listId)
       const existingPhones = new Set((existing || []).map(p => normalizePhone(p.phone || '')).filter(Boolean))
 
       // Dédupliquer dans le CSV (garder le premier) + contre l'existant
