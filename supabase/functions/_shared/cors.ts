@@ -18,7 +18,9 @@ const EXACT_ALLOWED = new Set<string>([
 ])
 
 const PATTERN_ALLOWED: RegExp[] = [
-  /^https:\/\/calsyn-[a-z0-9]+-kevins-projects-010aea77\.vercel\.app$/,
+  // Preview Vercel : le slug peut contenir des tirets (branche `calsyn-git-<branch-slug>-kevins-...`)
+  // ou être un hash compact (`calsyn-<hash>-kevins-...`). On accepte les deux.
+  /^https:\/\/calsyn-[a-z0-9-]+-kevins-projects-010aea77\.vercel\.app$/,
   /^http:\/\/localhost(:\d+)?$/,
   /^http:\/\/127\.0\.0\.1(:\d+)?$/,
 ]
