@@ -139,15 +139,28 @@ export function useCustomFieldValues(prospectIds: string[], enabled = true) {
     queryKey: ['custom-field-values', prospectIds.length, prospectIds[0]],
     queryFn: async () => {
       if (!prospectIds.length) return {}
-      const { data } = await supabase
-        .from('prospect_field_values')
-        .select('prospect_id, field_id, value')
-        .in('prospect_id', prospectIds)
+      // Batch par chunks de 100 UUIDs : un `IN (...)` avec 500+ UUIDs
+      // depasse la limite URL de PostgREST (~8 KB) et renvoie 400.
+      const CHUNK = 100
+      const chunks: string[][] = []
+      for (let i = 0; i < prospectIds.length; i += CHUNK) {
+        chunks.push(prospectIds.slice(i, i + CHUNK))
+      }
+      const results = await Promise.all(
+        chunks.map((chunk) =>
+          supabase
+            .from('prospect_field_values')
+            .select('prospect_id, field_id, value')
+            .in('prospect_id', chunk)
+        )
+      )
       // Grouper : { prospectId: { fieldId: value } }
       const map: Record<string, Record<string, string>> = {}
-      for (const row of (data || [])) {
-        if (!map[row.prospect_id]) map[row.prospect_id] = {}
-        map[row.prospect_id][row.field_id] = row.value
+      for (const { data } of results) {
+        for (const row of (data || [])) {
+          if (!map[row.prospect_id]) map[row.prospect_id] = {}
+          map[row.prospect_id][row.field_id] = row.value
+        }
       }
       return map
     },
