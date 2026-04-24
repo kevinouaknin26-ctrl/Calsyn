@@ -2,13 +2,16 @@
  * UI/UX sweep — capture des 7 ecrans SDR critiques, screenshots +
  * console errors + network errors, desktop + mobile.
  *
- * GARDE-FOUS (zero risque de vrai appel Twilio) :
+ * GARDE-FOUS (zero ecriture en prod) :
  *  1. AUDIT_BASE_URL DOIT etre une preview Vercel (*.vercel.app) sinon exit.
- *  2. Tous les POST vers les endpoints d'appel (initiate-call, parallel-dial,
- *     voicemail-drop, amd-callback, end-call) sont aborted cote navigateur
- *     via page.route() — aucune requete reseau ne part vers Twilio.
- *  3. Le script ne clique jamais sur les boutons "Appeler". Les interactions
- *     se limitent a : login, ouvrir modals, scroller, screenshot.
+ *  2. TOUTES les mutations Supabase (POST/PUT/PATCH/DELETE) sont aborted au
+ *     niveau network via page.route(), peu importe ce qui se passe dans
+ *     l'UI : /rest/v1/*, /functions/v1/*, /storage/v1/object/*.
+ *     Le preview tape sur la prod Supabase mais aucune ecriture ne peut
+ *     sortir. Les lectures (GET, login /auth/v1/) restent permises.
+ *  3. Le script ne clique jamais sur les boutons "Appeler" / "Enregistrer" /
+ *     "Supprimer". Interactions limitees a : login, ouvrir modals, scroll,
+ *     screenshot.
  *
  * Usage :
  *   # Installer Playwright (une fois)
@@ -47,15 +50,17 @@ if (!/\.vercel\.app\b/.test(BASE_URL)) {
   process.exit(1)
 }
 
-// Garde-fou 2 : endpoints d'appel Twilio bloques au niveau network.
-// Meme si une interaction clique par erreur sur "Appeler", la requete ne part pas.
-const CALL_ENDPOINTS_BLOCKLIST = [
-  '/functions/v1/initiate-call',
-  '/functions/v1/parallel-dial',
-  '/functions/v1/voicemail-drop',
-  '/functions/v1/amd-callback',
-  '/functions/v1/end-call',
+// Garde-fou 2 : TOUTES les mutations Supabase bloquees au niveau network.
+// Le preview tape sur la prod Supabase via les env vars de Kevin. Pour etre
+// 100% sur qu'aucune ecriture ne part en prod (meme accidentelle via
+// interaction Playwright), on abort toutes les requetes mutantes vers
+// Supabase : rest/v1 mutations + functions/v1 edge functions.
+const SUPABASE_MUTATION_PATTERNS = [
+  /\/rest\/v1\/[^?]+/,      // POST/PATCH/DELETE sur n'importe quelle table
+  /\/functions\/v1\//,       // Edge functions (toutes : call, save-call, end-call, etc.)
+  /\/storage\/v1\/object\//, // Upload/delete storage
 ]
+const MUTATION_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE'])
 
 const SCREENSHOTS_DIR = resolve(__dirname, 'screenshots')
 const REPORTS_DIR = resolve(__dirname, 'reports')
@@ -119,14 +124,18 @@ async function sweepScreen(context: BrowserContext, screen: Screen, viewport: Vi
   const consoleErrors: Finding['console_errors'] = []
   const networkErrors: Finding['network_errors'] = []
 
-  // Garde-fou 2 runtime : abort tout POST sur un endpoint d'appel.
-  // Meme si une interaction dans le sweep touche a un bouton appelant, la
-  // requete est interceptee cote navigateur avant de partir au reseau.
+  // Garde-fou 2 runtime : abort TOUTE mutation vers Supabase prod.
+  // Le preview Vercel tape sur la prod Supabase ; on bloque toute ecriture
+  // pour garantir l'audit 100% read-only, peu importe ce qui se passe dans
+  // l'UI pendant le sweep.
   await page.route('**/*', (route) => {
     const req = route.request()
     const url = req.url()
-    if (req.method() === 'POST' && CALL_ENDPOINTS_BLOCKLIST.some((ep) => url.includes(ep))) {
-      console.warn(`[SAFETY] Blocked POST to call endpoint: ${url}`)
+    const method = req.method()
+    const isMutation = MUTATION_METHODS.has(method)
+    const isSupabaseWrite = isMutation && SUPABASE_MUTATION_PATTERNS.some((re) => re.test(url))
+    if (isSupabaseWrite) {
+      console.warn(`[SAFETY] Blocked ${method} mutation: ${url}`)
       return route.abort('blockedbyclient')
     }
     return route.continue()
