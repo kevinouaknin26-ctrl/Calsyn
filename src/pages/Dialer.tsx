@@ -8,7 +8,7 @@ import { useState, useEffect, useCallback, useMemo, memo, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { useQueryClient, useQuery } from '@tanstack/react-query'
 import { useCall } from '@/contexts/CallContext'
-import { useCallBarVisibility } from '@/components/layout/Layout'
+import { useCallBarVisibility } from '@/components/layout/CallBarVisibilityContext'
 import { useProspectLists, useProspects, useAddProspect, useCreateProspectField, useRdvToday, SMART_LIST_LABELS } from '@/hooks/useProspects'
 import { usePropertyDefinitions, useCustomFieldValues, groupProperties, updatePropertyValue, useCrmStatuses, type CrmStatusDef } from '@/hooks/useProperties'
 import { SYSTEM_PROPERTIES, DEFAULT_VISIBLE_COLUMNS, getPropertyValue, matchesSearch, CRM_STATUS_LABELS, type PropertyDefinition } from '@/config/properties'
@@ -1221,11 +1221,6 @@ export default function Dialer() {
 
   // Barre locale enrichie (voicemail drop + next) ↔ barre globale basique
   const isInCall = cm.isDialing || cm.isConnected
-  const useLocalBar = isInCall && dialSession.isActive
-  useEffect(() => {
-    setHideGlobal(useLocalBar)
-    return () => setHideGlobal(false)
-  }, [useLocalBar, setHideGlobal])
   const [showAddProspect, setShowAddProspect] = useState(false)
   const [showDTMF, setShowDTMF] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
@@ -1270,6 +1265,11 @@ export default function Dialer() {
   })
   const queryClient = useQueryClient()
   const dialSession = useDialingSession()
+  const useLocalBar = isInCall && dialSession.isActive
+  useEffect(() => {
+    setHideGlobal(useLocalBar)
+    return () => setHideGlobal(false)
+  }, [useLocalBar, setHideGlobal])
   const startingRef = useRef(false)
   const duration = useTimer(cm.context.startedAt)
   useRealtimeProspects()

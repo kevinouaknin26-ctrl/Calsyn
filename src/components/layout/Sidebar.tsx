@@ -6,7 +6,7 @@ import { useState } from 'react'
 import { NavLink, useNavigate, useLocation } from 'react-router-dom'
 import { supabase } from '@/config/supabase'
 import { useAuth } from '@/hooks/useAuth'
-import { useSidebar } from './Layout'
+import { useSidebar } from './SidebarContext'
 import { useTheme } from '@/hooks/useTheme'
 
 const SETTINGS_SUBNAV = [
