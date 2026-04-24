@@ -1,10 +1,8 @@
-import { useState, createContext, useContext, type ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
 import Sidebar from './Sidebar'
 import CallBar from '@/components/call/CallBar'
 import { CallBarVisibilityContext } from './CallBarVisibilityContext'
-
-const SidebarContext = createContext({ expanded: false, setExpanded: (_: boolean) => {} })
-export const useSidebar = () => useContext(SidebarContext)
+import { SidebarContext } from './SidebarContext'
 
 export default function Layout({ children }: { children: ReactNode }) {
   const [expanded, setExpanded] = useState(false)
