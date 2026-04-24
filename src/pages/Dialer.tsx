@@ -1221,11 +1221,6 @@ export default function Dialer() {
 
   // Barre locale enrichie (voicemail drop + next) ↔ barre globale basique
   const isInCall = cm.isDialing || cm.isConnected
-  const useLocalBar = isInCall && dialSession.isActive
-  useEffect(() => {
-    setHideGlobal(useLocalBar)
-    return () => setHideGlobal(false)
-  }, [useLocalBar, setHideGlobal])
   const [showAddProspect, setShowAddProspect] = useState(false)
   const [showDTMF, setShowDTMF] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
@@ -1270,6 +1265,11 @@ export default function Dialer() {
   })
   const queryClient = useQueryClient()
   const dialSession = useDialingSession()
+  const useLocalBar = isInCall && dialSession.isActive
+  useEffect(() => {
+    setHideGlobal(useLocalBar)
+    return () => setHideGlobal(false)
+  }, [useLocalBar, setHideGlobal])
   const startingRef = useRef(false)
   const duration = useTimer(cm.context.startedAt)
   useRealtimeProspects()
