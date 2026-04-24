@@ -1258,6 +1258,7 @@ function DealSidebar({ prospect }: { prospect: Prospect }) {
   const reminderDate = localSnoozed ? new Date(localSnoozed) : null
   const [settingReminder, setSettingReminder] = useState(false)
   const [reminderDays, setReminderDays] = useState('7')
+  const [customReminderDate, setCustomReminderDate] = useState('')
   const [showRdvPicker, setShowRdvPicker] = useState(false)
   const [rdvDate, setRdvDate] = useState('')
   const [rdvTime, setRdvTime] = useState('10:00')
@@ -1314,12 +1315,20 @@ function DealSidebar({ prospect }: { prospect: Prospect }) {
   }
 
   const setReminder = async () => {
-    const d = new Date(); d.setDate(d.getDate() + parseInt(reminderDays))
+    // Priorite a la date custom si l'user en a choisi une dans le date picker,
+    // sinon on utilise le select "Dans N jours".
+    let d: Date
+    if (customReminderDate) {
+      d = new Date(customReminderDate)
+    } else {
+      d = new Date(); d.setDate(d.getDate() + parseInt(reminderDays))
+    }
     setLocalSnoozed(d.toISOString())
     await supabase.from('prospects').update({ snoozed_until: d.toISOString() }).eq('id', prospect.id)
     await supabase.from('activity_logs').insert({ prospect_id: prospect.id, action: 'snoozed', details: `Rappel programmé le ${d.toLocaleDateString('fr-FR')}` })
     invalidateSnooze()
     setSettingReminder(false)
+    setCustomReminderDate('')
   }
 
   const clearReminder = async () => {
@@ -1452,17 +1461,9 @@ function DealSidebar({ prospect }: { prospect: Prospect }) {
               <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
               Ou choisir une date :
               <input type="date" className="text-[11px] border border-gray-200 rounded px-1.5 py-0.5 outline-none"
+                value={customReminderDate}
                 min={new Date().toISOString().split('T')[0]}
-                onChange={async e => {
-                  if (e.target.value) {
-                    const d = new Date(e.target.value)
-                    await supabase.from('prospects').update({ snoozed_until: d.toISOString() }).eq('id', prospect.id)
-                    await supabase.from('activity_logs').insert({ prospect_id: prospect.id, action: 'snoozed', details: `Rappel programmé le ${d.toLocaleDateString('fr-FR')}` })
-                    setLocalSnoozed(d.toISOString())
-                    setSettingReminder(false)
-                    queryClient.invalidateQueries({ queryKey: ['prospects'] })
-                  }
-                }} />
+                onChange={e => setCustomReminderDate(e.target.value)} />
             </div>
           </div>
         ) : (
