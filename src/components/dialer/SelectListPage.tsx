@@ -852,8 +852,8 @@ export default function SelectListPage({ onSelect, onClose }: Props) {
         </div>
       </div>
 
-      {/* 4 colonnes (Minari frame 005) */}
-      <div className="grid grid-cols-4 gap-6 max-w-6xl mx-auto">
+      {/* 4 colonnes desktop, 1 colonne stack mobile (Minari frame 005) */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 max-w-6xl mx-auto">
 
         {/* ── Listes ── */}
         <div>

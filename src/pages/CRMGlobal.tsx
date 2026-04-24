@@ -522,12 +522,12 @@ export default function CRMGlobal() {
 
         {/* ── Header + Stats ── */}
         <div className="px-5 py-4 border-b border-gray-100">
-          <div className="flex items-center justify-between mb-3">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-3">
             <div>
               <h1 className="text-[18px] font-bold text-gray-800">Contacts</h1>
               <p className="text-[12px] text-gray-400 mt-0.5">{filtered.length} contact{filtered.length > 1 ? 's' : ''} sur {stats.total}</p>
             </div>
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-3 md:gap-4 flex-wrap">
               <div className="flex items-center gap-1.5 text-[11px]">
                 <span className="text-gray-400">Total</span><span className="font-bold text-gray-700">{stats.total}</span>
               </div>
