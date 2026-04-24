@@ -28,27 +28,39 @@ import {
   RECORDING_SID_RE,
 } from '../_shared/recording-signing.ts'
 
-async function fetchTwilioAudio(twilioUrl: string, cors: Record<string, string>): Promise<Response> {
+async function fetchTwilioAudio(
+  twilioUrl: string,
+  cors: Record<string, string>,
+  rangeHeader?: string | null,
+): Promise<Response> {
   const accountSid = Deno.env.get('TWILIO_ACCOUNT_SID') || ''
   const authToken = Deno.env.get('TWILIO_AUTH_TOKEN') || ''
 
-  const res = await fetch(twilioUrl, {
-    headers: { 'Authorization': 'Basic ' + btoa(`${accountSid}:${authToken}`) },
-  })
+  const upstreamHeaders: Record<string, string> = {
+    'Authorization': 'Basic ' + btoa(`${accountSid}:${authToken}`),
+  }
+  if (rangeHeader) upstreamHeaders['Range'] = rangeHeader
 
-  if (!res.ok) {
+  const res = await fetch(twilioUrl, { headers: upstreamHeaders })
+
+  if (!res.ok && res.status !== 206) {
     return new Response(`Twilio error: ${res.status}`, { status: res.status, headers: cors })
   }
 
+  const responseHeaders: Record<string, string> = {
+    ...cors,
+    'Content-Type': 'audio/mpeg',
+    'Content-Disposition': 'inline',
+    'Cache-Control': 'private, max-age=600',
+    'Accept-Ranges': 'bytes',
+  }
+  const contentLength = res.headers.get('content-length')
+  const contentRange = res.headers.get('content-range')
+  if (contentLength) responseHeaders['Content-Length'] = contentLength
+  if (contentRange) responseHeaders['Content-Range'] = contentRange
+
   const body = await res.arrayBuffer()
-  return new Response(body, {
-    headers: {
-      ...cors,
-      'Content-Type': 'audio/mpeg',
-      'Content-Disposition': 'inline',
-      'Cache-Control': 'private, max-age=600',
-    },
-  })
+  return new Response(body, { status: res.status, headers: responseHeaders })
 }
 
 serve(async (req) => {
@@ -86,7 +98,7 @@ serve(async (req) => {
 
       const accountSid = Deno.env.get('TWILIO_ACCOUNT_SID') || ''
       const twilioUrl = `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Recordings/${sid}.mp3`
-      return await fetchTwilioAudio(twilioUrl, cors)
+      return await fetchTwilioAudio(twilioUrl, cors, req.headers.get('range'))
     }
 
     // ── Mode 2 : legacy Bearer + ?url= ──
@@ -151,7 +163,7 @@ serve(async (req) => {
       }
     }
 
-    return await fetchTwilioAudio(recordingUrl, cors)
+    return await fetchTwilioAudio(recordingUrl, cors, req.headers.get('range'))
   } catch (err) {
     console.error('[recording-proxy] Error:', err)
     return new Response('Internal error', { status: 500, headers: cors })
