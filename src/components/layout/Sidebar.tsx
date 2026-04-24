@@ -35,6 +35,8 @@ export default function Sidebar() {
   const isSettingsActive = location.pathname.startsWith('/app/settings')
 
   const w = expanded ? 'w-[200px]' : 'w-[48px]'
+  const isStaging = import.meta.env.VITE_APP_ENV === 'staging'
+  const stagingOffset = isStaging ? 24 : 0
 
   function NavItem({ to, icon, label, green }: { to: string; icon: JSX.Element; label: string; green?: boolean }) {
     return (
@@ -50,7 +52,15 @@ export default function Sidebar() {
 
   return (
     <>
-      <aside className={`fixed left-0 top-0 ${w} h-screen flex flex-col py-3 z-50 transition-all duration-200`} style={{ background: 'var(--bg-sidebar)', borderRight: '1px solid var(--border)' }}>
+      <aside
+        className={`fixed left-0 ${w} flex flex-col py-3 z-50 transition-all duration-200`}
+        style={{
+          top: stagingOffset,
+          height: `calc(100vh - ${stagingOffset}px)`,
+          background: 'var(--bg-sidebar)',
+          borderRight: '1px solid var(--border)',
+        }}
+      >
 
         {/* Top : expand + logo */}
         <div className={`flex items-center ${expanded ? 'justify-between px-3' : 'justify-center'} mb-4`}>
