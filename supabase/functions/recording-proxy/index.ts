@@ -121,8 +121,8 @@ serve(async (req) => {
     }
 
     const recordingUrl = url.searchParams.get('url')
-    if (!recordingUrl || !recordingUrl.includes('twilio.com')) {
-      return new Response('Missing or invalid url param', { status: 400, headers: cors })
+    if (!recordingUrl) {
+      return new Response('Missing url param', { status: 400, headers: cors })
     }
 
     const match = recordingUrl.match(/\/Recordings\/(RE[a-f0-9]+)/i)
@@ -163,7 +163,9 @@ serve(async (req) => {
       }
     }
 
-    return await fetchTwilioAudio(recordingUrl, cors, req.headers.get('range'))
+    const accountSid = Deno.env.get('TWILIO_ACCOUNT_SID') || ''
+    const twilioUrl = `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Recordings/${recordingSid}.mp3`
+    return await fetchTwilioAudio(twilioUrl, cors, req.headers.get('range'))
   } catch (err) {
     console.error('[recording-proxy] Error:', err)
     return new Response('Internal error', { status: 500, headers: cors })
