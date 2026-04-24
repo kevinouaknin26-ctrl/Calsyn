@@ -2,6 +2,14 @@
  * UI/UX sweep — capture des 7 ecrans SDR critiques, screenshots +
  * console errors + network errors, desktop + mobile.
  *
+ * GARDE-FOUS (zero risque de vrai appel Twilio) :
+ *  1. AUDIT_BASE_URL DOIT etre une preview Vercel (*.vercel.app) sinon exit.
+ *  2. Tous les POST vers les endpoints d'appel (initiate-call, parallel-dial,
+ *     voicemail-drop, amd-callback, end-call) sont aborted cote navigateur
+ *     via page.route() — aucune requete reseau ne part vers Twilio.
+ *  3. Le script ne clique jamais sur les boutons "Appeler". Les interactions
+ *     se limitent a : login, ouvrir modals, scroller, screenshot.
+ *
  * Usage :
  *   # Installer Playwright (une fois)
  *   npm install --save-dev @playwright/test
@@ -30,6 +38,24 @@ if (!BASE_URL || !EMAIL || !PASSWORD) {
   console.error('Missing env: AUDIT_BASE_URL, AUDIT_EMAIL, AUDIT_PASSWORD')
   process.exit(1)
 }
+
+// Garde-fou 1 : refuse de tourner sur un domaine prod — cible DOIT etre
+// un preview Vercel (*.vercel.app).
+if (!/\.vercel\.app\b/.test(BASE_URL)) {
+  console.error(`[SAFETY] AUDIT_BASE_URL must be a *.vercel.app preview URL, got: ${BASE_URL}`)
+  console.error('[SAFETY] Refusing to run against a non-preview domain (prod protection).')
+  process.exit(1)
+}
+
+// Garde-fou 2 : endpoints d'appel Twilio bloques au niveau network.
+// Meme si une interaction clique par erreur sur "Appeler", la requete ne part pas.
+const CALL_ENDPOINTS_BLOCKLIST = [
+  '/functions/v1/initiate-call',
+  '/functions/v1/parallel-dial',
+  '/functions/v1/voicemail-drop',
+  '/functions/v1/amd-callback',
+  '/functions/v1/end-call',
+]
 
 const SCREENSHOTS_DIR = resolve(__dirname, 'screenshots')
 const REPORTS_DIR = resolve(__dirname, 'reports')
@@ -92,6 +118,19 @@ async function sweepScreen(context: BrowserContext, screen: Screen, viewport: Vi
   const page = await context.newPage()
   const consoleErrors: Finding['console_errors'] = []
   const networkErrors: Finding['network_errors'] = []
+
+  // Garde-fou 2 runtime : abort tout POST sur un endpoint d'appel.
+  // Meme si une interaction dans le sweep touche a un bouton appelant, la
+  // requete est interceptee cote navigateur avant de partir au reseau.
+  await page.route('**/*', (route) => {
+    const req = route.request()
+    const url = req.url()
+    if (req.method() === 'POST' && CALL_ENDPOINTS_BLOCKLIST.some((ep) => url.includes(ep))) {
+      console.warn(`[SAFETY] Blocked POST to call endpoint: ${url}`)
+      return route.abort('blockedbyclient')
+    }
+    return route.continue()
+  })
 
   page.on('console', (msg: ConsoleMessage) => {
     if (msg.type() === 'error' || msg.type() === 'warning') {
