@@ -15,9 +15,8 @@
 import JSZip from 'jszip'
 import { saveAs } from 'file-saver'
 import { supabase } from '@/config/supabase'
+import { getSignedRecordingUrl } from '@/services/recordingSignedUrl'
 import type { Prospect } from '@/types/prospect'
-
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL
 
 function sanitizeName(name: string): string {
   return name.replace(/[^a-zA-ZÀ-ÿ0-9\s_-]/g, '').replace(/\s+/g, '_').slice(0, 50)
@@ -167,13 +166,13 @@ export async function exportListWithAudios(
       // Audio (si recording disponible)
       if (call.recording_url) {
         try {
-          const proxyUrl = `${SUPABASE_URL}/functions/v1/recording-proxy?url=${encodeURIComponent(call.recording_url)}`
-          const audioRes = await fetch(proxyUrl, {
-            headers: { Authorization: `Bearer ${session.access_token}` },
-          })
-          if (audioRes.ok) {
-            const audioBlob = await audioRes.blob()
-            prospectFolder.file(`${prefix}.mp3`, audioBlob)
+          const signed = await getSignedRecordingUrl(call.recording_url)
+          if (signed) {
+            const audioRes = await fetch(signed)
+            if (audioRes.ok) {
+              const audioBlob = await audioRes.blob()
+              prospectFolder.file(`${prefix}.mp3`, audioBlob)
+            }
           }
         } catch {
           // Skip si l'audio ne peut pas être téléchargé

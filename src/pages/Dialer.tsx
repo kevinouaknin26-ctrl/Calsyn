@@ -7,7 +7,8 @@
 import { useState, useEffect, useCallback, useMemo, memo, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { useQueryClient, useQuery } from '@tanstack/react-query'
-import { useCallMachine } from '@/hooks/useCallMachine'
+import { useCall } from '@/contexts/CallContext'
+import { useCallBarVisibility } from '@/components/layout/Layout'
 import { useProspectLists, useProspects, useAddProspect, useCreateProspectField, useRdvToday, SMART_LIST_LABELS } from '@/hooks/useProspects'
 import { usePropertyDefinitions, useCustomFieldValues, groupProperties, updatePropertyValue, useCrmStatuses, type CrmStatusDef } from '@/hooks/useProperties'
 import { SYSTEM_PROPERTIES, DEFAULT_VISIBLE_COLUMNS, getPropertyValue, matchesSearch, CRM_STATUS_LABELS, type PropertyDefinition } from '@/config/properties'
@@ -1007,7 +1008,8 @@ export default function Dialer() {
   const { isAdmin, isManager, organisation, profile } = useAuth()
   const perms = usePermissions()
   const callLicense: 'parallel' | 'power' | 'none' = (profile?.call_license as 'parallel' | 'power' | 'none') || 'power'
-  const cm = useCallMachine()
+  const cm = useCall()
+  const { setHideGlobal } = useCallBarVisibility()
   const { data: lists } = useProspectLists()
 
   // ── Call Settings (montés ici pour être accessibles au call flow) ──
@@ -1216,6 +1218,14 @@ export default function Dialer() {
   const [renamingList, setRenamingList] = useState(false)
   const [renameValue, setRenameValue] = useState('')
   const [showShareDialog, setShowShareDialog] = useState(false)
+
+  // Barre locale enrichie (voicemail drop + next) ↔ barre globale basique
+  const isInCall = cm.isDialing || cm.isConnected
+  const useLocalBar = isInCall && dialSession.isActive
+  useEffect(() => {
+    setHideGlobal(useLocalBar)
+    return () => setHideGlobal(false)
+  }, [useLocalBar, setHideGlobal])
   const [showAddProspect, setShowAddProspect] = useState(false)
   const [showDTMF, setShowDTMF] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
@@ -1380,7 +1390,6 @@ export default function Dialer() {
     return () => window.removeEventListener('keydown', handler)
   }, [cm, dialSession, prospects, activeListId, handleCall, queryClient])
 
-  const isInCall = cm.isDialing || cm.isConnected
   const meetings = prospects?.filter(p => p.meeting_booked || p.crm_status === 'rdv_pris' || p.crm_status === 'rdv_fait').length || 0
   const connected = prospects?.filter(p => p.last_call_outcome === 'connected' && !p.meeting_booked && p.crm_status !== 'rdv_pris' && p.crm_status !== 'rdv_fait').length || 0
   const attempted = prospects?.filter(p => p.call_count > 0).length || 0
@@ -2281,8 +2290,11 @@ export default function Dialer() {
         />
       )}
 
-      {/* ── Barre d'appel noire flottante (Minari exact — frame 025) ── */}
-      {isInCall && (
+      {/* ── Barre d'appel noire flottante (Minari exact — frame 025)
+           Version enrichie pour power dialer (voicemail drop + hangup → suivant).
+           Rendue uniquement pendant une dialSession active ; sinon la CallBar globale
+           (Layout) prend le relais. ── */}
+      {useLocalBar && (
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-[#1c1c1c] text-white pl-6 pr-4 py-3.5 rounded-2xl flex items-center gap-6 z-50 shadow-2xl min-w-[480px] animate-slide-up">
           <div className="flex-1 min-w-0">
             <p className="font-semibold text-[14px] truncate">{cm.context.prospect?.name}</p>

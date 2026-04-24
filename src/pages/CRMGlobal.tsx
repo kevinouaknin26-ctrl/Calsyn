@@ -9,7 +9,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/config/supabase'
 import { useAuth } from '@/hooks/useAuth'
 import { usePermissions } from '@/hooks/usePermissions'
-import { useCallMachine } from '@/hooks/useCallMachine'
+import { useCall } from '@/contexts/CallContext'
 import { useCallsByProspect } from '@/hooks/useCalls'
 import { usePropertyDefinitions, useCustomFieldValues, useCrmStatuses, updatePropertyValue, groupProperties } from '@/hooks/useProperties'
 import { SYSTEM_PROPERTIES, DEFAULT_VISIBLE_COLUMNS, getPropertyValue, matchesSearch, CRM_STATUS_LABELS, type PropertyDefinition } from '@/config/properties'
@@ -215,7 +215,7 @@ export default function CRMGlobal() {
   const perms = usePermissions()
   const orgId = organisation?.id
   const queryClient = useQueryClient()
-  const cm = useCallMachine()
+  const cm = useCall()
 
   // State
   const [viewMode, setViewMode] = useState<'table' | 'board'>('table')

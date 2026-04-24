@@ -100,7 +100,7 @@ export function useRdvToday() {
   })
 }
 
-const PROSPECT_COLS = 'id, list_id, organisation_id, name, phone, phone2, phone3, phone4, phone5, email, company, title, sector, linkedin_url, website_url, status, crm_status, call_count, last_call_at, last_call_outcome, snoozed_until, rdv_date, do_not_call, meeting_booked, address, city, postal_code, country, created_at'
+const PROSPECT_COLS = 'id, list_id, organisation_id, name, phone, phone2, phone3, phone4, phone5, email, company, title, sector, linkedin_url, website_url, status, crm_status, call_count, last_call_at, last_call_outcome, snoozed_until, rdv_date, do_not_call, meeting_booked, address, city, postal_code, country, notes, created_at'
 
 export const SMART_LIST_IDS = [
   'smart:missed-calls',
@@ -254,11 +254,13 @@ export function useImportProspects() {
         return n
       }
 
-      // Dédupliquer cross-listes : récupérer TOUS les numéros de l'org
+      // Dédupliquer intra-liste uniquement : un même prospect peut apparaître dans
+      // plusieurs listes (ex. candidature inbound + liste dédiée SDR). On ne filtre
+      // que les doublons DANS la liste cible, pas contre toute l'org.
       const { data: existing } = await supabase
         .from('prospects')
         .select('phone')
-        .eq('organisation_id', organisation.id)
+        .eq('list_id', listId)
       const existingPhones = new Set((existing || []).map(p => normalizePhone(p.phone || '')).filter(Boolean))
 
       // Dédupliquer dans le CSV (garder le premier) + contre l'existant

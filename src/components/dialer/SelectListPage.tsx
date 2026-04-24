@@ -835,7 +835,7 @@ export default function SelectListPage({ onSelect, onClose }: Props) {
   }
 
   return (
-    <div className="min-h-screen bg-[#f5f3ff] p-8">
+    <div className="h-full overflow-y-auto bg-[#f5f3ff] p-8">
       {/* Header */}
       <div className="relative text-center mb-6">
         <button onClick={onClose} className="absolute left-0 top-0 z-10 text-gray-400 hover:text-gray-600 text-sm flex items-center gap-1">

@@ -57,6 +57,7 @@ export interface Prospect {
   city: string | null
   postal_code: string | null
   country: string | null
+  notes: string | null
   created_at: string
 }
 
