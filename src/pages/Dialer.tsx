@@ -1048,8 +1048,11 @@ export default function Dialer() {
   const attemptPeriod = org?.attempt_period || 'per_day'
   const setAttemptPeriod = (v: string) => updateOrg({ attempt_period: v })
   const [phoneField, setPhoneField] = useCallSetting('phone_field', 'phone')
-  const [localFromNumber, setLocalFromNumber] = useState(org?.from_number || '+33757905591')
-  useEffect(() => { if (org?.from_number) setLocalFromNumber(org.from_number) }, [org?.from_number])
+  // Priorité : profile.assigned_phone (SDR) > org.from_number > fallback hardcoded
+  // Évite que 2 SDR sur la même org écrasent le from_number l'un de l'autre via org.from_number.
+  // Refactor complet (retirer le dropdown) prévu weekend 25-26 avril.
+  const [localFromNumber, setLocalFromNumber] = useState(profile?.assigned_phone || org?.from_number || '+33757905591')
+  useEffect(() => { if (profile?.assigned_phone) setLocalFromNumber(profile.assigned_phone) }, [profile?.assigned_phone])
   const selectedFromNumber = localFromNumber
   const setSelectedFromNumber = (v: string) => { setLocalFromNumber(v); updateOrg({ from_number: v }) }
 
