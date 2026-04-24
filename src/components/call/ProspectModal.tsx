@@ -246,7 +246,7 @@ function AudioPlayer({ url, date, prospectName }: { url: string; date?: string; 
 function CallCard({ call, defaultOpen, onUpdate, onCelebrate }: { call: Call; defaultOpen: boolean; onUpdate: () => void; onCelebrate: () => void }) {
   const [open, setOpen] = useState(defaultOpen)
   const [showTranscript, setShowTranscript] = useState(false)
-  const signedAudioUrl = useRecordingSignedUrl(call.recording_url)
+  const signedAudioUrl = useRecordingSignedUrl(open ? call.recording_url : null)
 
   return (
     <div className={`border border-gray-100 rounded-xl mb-2 overflow-hidden transition-all ${open ? 'bg-white' : 'bg-gray-50/50'}`}>
