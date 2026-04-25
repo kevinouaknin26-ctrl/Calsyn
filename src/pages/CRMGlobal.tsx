@@ -861,51 +861,22 @@ export default function CRMGlobal() {
     <div className="h-screen bg-[#f5f3ff] p-4 pl-2 overflow-hidden flex flex-col">
       <div className="bg-white rounded-2xl shadow-sm border border-gray-200/50 flex-1 flex flex-col overflow-hidden">
 
-        {/* ── Header + Stats ── */}
-        <div className="px-5 py-4 border-b border-gray-100">
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-3">
-            <div>
-              <h1 className="text-[18px] font-bold text-gray-800">Contacts</h1>
-              <p className="text-[12px] text-gray-400 mt-0.5">{filtered.length} contact{filtered.length > 1 ? 's' : ''} sur {stats.total}</p>
-            </div>
-            <div className="flex items-center gap-3 md:gap-4 flex-wrap">
-              <div className="flex items-center gap-1.5 text-[11px]">
-                <span className="text-gray-400">Total</span><span className="font-bold text-gray-700">{stats.total}</span>
-              </div>
-              <div className="flex items-center gap-1.5 text-[11px]">
-                <span className="w-1.5 h-1.5 rounded-full bg-violet-500" /><span className="text-gray-400">Appelés</span><span className="font-bold text-violet-600">{stats.called}</span>
-              </div>
-              <div className="flex items-center gap-1.5 text-[11px]">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" /><span className="text-gray-400">Connectés</span><span className="font-bold text-emerald-600">{stats.connected}</span>
-              </div>
-              <div className="flex items-center gap-1.5 text-[11px]">
-                <span className="w-1.5 h-1.5 rounded-full bg-teal-500" /><span className="text-gray-400">RDV</span><span className="font-bold text-teal-600">{stats.rdv}</span>
-              </div>
-              {/* Toggle Table / Board */}
-              <div className="flex items-center bg-gray-100 rounded-lg p-0.5 ml-2">
-                <button onClick={() => setViewMode('table')}
-                  className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-all ${viewMode === 'table' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-400'}`}>
-                  <svg className="w-3.5 h-3.5 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" /></svg>
-                  Table
-                </button>
-                <button onClick={() => setViewMode('board')}
-                  className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-all ${viewMode === 'board' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-400'}`}>
-                  <svg className="w-3.5 h-3.5 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7" /></svg>
-                  Pipeline
-                </button>
-              </div>
-            </div>
+        {/* ── Header + Stats + Vues (1 seule ligne compacte) ── */}
+        <div className="px-5 py-2.5 border-b border-gray-100 flex items-center gap-3 flex-wrap">
+          <div className="flex items-baseline gap-2">
+            <h1 className="text-[16px] font-bold text-gray-800">Contacts</h1>
+            <span className="text-[11px] text-gray-400">{filtered.length}/{stats.total}</span>
           </div>
 
-          {/* View tabs */}
-          <div className="flex items-center gap-1 overflow-x-auto scrollbar-hide" style={{ scrollbarWidth: 'none' }}>
+          {/* Vues inline */}
+          <div className="flex items-center gap-1 overflow-x-auto scrollbar-hide flex-1 min-w-0" style={{ scrollbarWidth: 'none' }}>
             <button onClick={resetAllFilters}
-              className={`px-3 py-1 rounded-lg text-[12px] font-medium transition-colors whitespace-nowrap ${
+              className={`px-2.5 py-0.5 rounded-md text-[11px] font-medium transition-colors whitespace-nowrap ${
                 !activeViewId ? 'bg-indigo-50 text-indigo-600' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
               }`}>Tous</button>
             {savedViews.map(v => (
               <button key={v.id} onClick={() => loadView(v)}
-                className={`px-3 py-1 rounded-lg text-[12px] font-medium transition-colors whitespace-nowrap group flex items-center gap-1 ${
+                className={`px-2.5 py-0.5 rounded-md text-[11px] font-medium transition-colors whitespace-nowrap group flex items-center gap-1 ${
                   activeViewId === v.id ? 'bg-indigo-50 text-indigo-600' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
                 }`}>
                 {v.name}
@@ -917,13 +888,29 @@ export default function CRMGlobal() {
               <div className="flex items-center gap-1">
                 <input value={newViewName} onChange={e => setNewViewName(e.target.value)} autoFocus
                   onKeyDown={e => { if (e.key === 'Enter' && newViewName.trim()) saveCurrentView(newViewName.trim()); if (e.key === 'Escape') setSavingView(false) }}
-                  placeholder="Nom de la vue..." className="text-[12px] px-2 py-1 border border-indigo-200 rounded-lg outline-none w-32" />
+                  placeholder="Nom..." className="text-[11px] px-2 py-0.5 border border-indigo-200 rounded-md outline-none w-24" />
                 <button onClick={() => { if (newViewName.trim()) saveCurrentView(newViewName.trim()) }}
-                  className="text-[11px] text-indigo-500 font-medium">Sauver</button>
+                  className="text-[10px] text-indigo-500 font-medium">OK</button>
               </div>
             ) : (
-              <button onClick={() => setSavingView(true)} className="text-[11px] text-gray-400 hover:text-indigo-500">+ Vue</button>
+              <button onClick={() => setSavingView(true)} className="text-[10px] text-gray-400 hover:text-indigo-500 px-1">+ Vue</button>
             )}
+          </div>
+
+          {/* Stats compactes */}
+          <div className="flex items-center gap-2.5 text-[11px] flex-shrink-0">
+            <span className="text-gray-400">Total <span className="font-bold text-gray-700">{stats.total}</span></span>
+            <span className="text-gray-400 flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-violet-500" />Appelés <span className="font-bold text-violet-600">{stats.called}</span></span>
+            <span className="text-gray-400 flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />Conn. <span className="font-bold text-emerald-600">{stats.connected}</span></span>
+            <span className="text-gray-400 flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-teal-500" />RDV <span className="font-bold text-teal-600">{stats.rdv}</span></span>
+          </div>
+
+          {/* Toggle Table / Pipeline */}
+          <div className="flex items-center bg-gray-100 rounded-lg p-0.5 flex-shrink-0">
+            <button onClick={() => setViewMode('table')}
+              className={`px-2 py-0.5 rounded-md text-[11px] font-medium transition-all ${viewMode === 'table' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-400'}`}>Table</button>
+            <button onClick={() => setViewMode('board')}
+              className={`px-2 py-0.5 rounded-md text-[11px] font-medium transition-all ${viewMode === 'board' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-400'}`}>Pipeline</button>
           </div>
         </div>
 
