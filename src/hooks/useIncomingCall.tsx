@@ -118,18 +118,21 @@ export function TwilioDeviceProvider({ children }: { children: ReactNode }) {
           const sid = call.parameters.CallSid || ''
           console.log(`[TwilioDevice] INCOMING from ${fromNum} to ${toNum}`)
 
-          // Lookup prospect par numero (phone + phone2..5). Async, on set d'abord
-          // avec prospect=null puis on met a jour si trouve.
+          // Lookup prospect par numero (phone + phone2..5). On fait 5 queries
+          // paralleles .eq() plutot qu'un .or(). Raison : le `+` dans un numero
+          // E.164 dans le filter .or() est interprete comme un espace par
+          // PostgREST URL decode → match fail silencieusement. Les .eq()
+          // individuels sont encodes proprement par supabase-js.
           setIncoming({ from: fromNum, to: toNum, callSid: sid, _call: call, prospect: null })
           let matchedProspect: { id: string; name: string | null; phone: string; company: string | null } | null = null
           if (fromNum) {
-            const { data: matches } = await supabase
-              .from('prospects')
-              .select('id, name, phone, company')
-              .or(`phone.eq.${fromNum},phone2.eq.${fromNum},phone3.eq.${fromNum},phone4.eq.${fromNum},phone5.eq.${fromNum}`)
-              .limit(1)
-            if (matches && matches.length > 0) {
-              matchedProspect = matches[0]
+            const cols = ['phone', 'phone2', 'phone3', 'phone4', 'phone5'] as const
+            const results = await Promise.all(cols.map(col =>
+              supabase.from('prospects').select('id, name, phone, company').eq(col, fromNum).limit(1)
+            ))
+            const firstHit = results.flatMap(r => r.data || [])[0]
+            if (firstHit) {
+              matchedProspect = firstHit
               setIncoming(prev => prev && prev.callSid === sid ? { ...prev, prospect: matchedProspect } : prev)
             }
           }
@@ -229,9 +232,13 @@ export function TwilioDeviceProvider({ children }: { children: ReactNode }) {
       callRowRef.current.acceptedAt = Date.now()
     }
 
-    // Si prospect connu : ouvrir sa fiche.
+    // Si prospect connu : ouvrir sa fiche. Sinon, rediriger vers
+    // /app/history pour que le SDR voie au moins le call qu'il vient
+    // de prendre (et puisse l'assigner a un prospect si besoin).
     if (prospect?.id) {
       navigate('/app/contacts', { state: { openProspectId: prospect.id } })
+    } else {
+      navigate('/app/history')
     }
   }, [incoming, navigate])
 

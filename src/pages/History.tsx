@@ -257,7 +257,7 @@ function CallRow({ call }: { call: Call }) {
               {downloading ? 'Export en cours…' : 'Télécharger ZIP'}
             </button>
             {call.prospect_id && (
-              <button onClick={() => navigate(`/app/dialer?prospectId=${call.prospect_id}`)}
+              <button onClick={() => navigate('/app/contacts', { state: { openProspectId: call.prospect_id } })}
                 className="px-3 py-1.5 rounded-lg text-[11px] font-semibold bg-white border border-gray-200 text-gray-700 hover:bg-gray-100">
                 Fiche prospect →
               </button>
