@@ -6,6 +6,8 @@
 
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useQuery } from '@tanstack/react-query'
+import { supabase } from '@/config/supabase'
 import { useAuth } from '@/hooks/useAuth'
 import { useCalls } from '@/hooks/useCalls'
 import { useRealtimeCalls } from '@/hooks/useRealtime'
@@ -126,7 +128,7 @@ function ScoreChip({ label, value, big = false }: { label: string; value: number
   )
 }
 
-function CallRow({ call }: { call: Call }) {
+function CallRow({ call, sdrName }: { call: Call; sdrName?: string }) {
   const [expanded, setExpanded] = useState(false)
   const [downloading, setDownloading] = useState(false)
   const navigate = useNavigate()
@@ -161,6 +163,9 @@ function CallRow({ call }: { call: Call }) {
             <span className="font-semibold text-gray-800 text-sm truncate">{call.prospect_name || 'Inconnu'}</span>
             <CallDirectionBadge outcome={call.call_outcome} />
             {call.meeting_booked && <span className="text-[9px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded">📅 RDV</span>}
+            {sdrName && (
+              <span className="text-[9px] font-medium text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded" title="Commercial">{sdrName}</span>
+            )}
           </div>
           <div className="text-[11px] text-gray-400 font-mono">{call.prospect_phone}</div>
         </div>
@@ -318,11 +323,33 @@ function CallRow({ call }: { call: Call }) {
 }
 
 export default function History() {
-  const { isManager } = useAuth()
+  const { isManager, organisation } = useAuth()
   const { data: calls, isLoading } = useCalls()
   useRealtimeCalls()
   const [filter, setFilter] = useState('all')
   const [search, setSearch] = useState('')
+  const [sdrFilter, setSdrFilter] = useState<string>('all')
+
+  // Liste des commerciaux de l'org (uniquement pour managers/admins)
+  const { data: orgMembers } = useQuery({
+    queryKey: ['history-org-members', organisation?.id],
+    queryFn: async () => {
+      if (!organisation?.id) return []
+      const { data } = await supabase
+        .from('profiles')
+        .select('id, full_name, email, role')
+        .eq('organisation_id', organisation.id)
+        .order('full_name')
+      return data || []
+    },
+    enabled: !!organisation?.id && isManager,
+  })
+
+  const memberNameMap = useMemo(() => {
+    const m: Record<string, string> = {}
+    for (const u of orgMembers || []) m[u.id] = u.full_name || (u.email ? u.email.split('@')[0] : 'SDR')
+    return m
+  }, [orgMembers])
 
   const filtered = useMemo(() => {
     const s = search.trim().toLowerCase()
@@ -331,13 +358,14 @@ export default function History() {
         const base = (c.call_outcome || '').replace(/_incoming$/, '')
         if (c.call_outcome !== filter && base !== filter) return false
       }
+      if (sdrFilter !== 'all' && c.sdr_id !== sdrFilter) return false
       if (s) {
         const hay = [c.prospect_name, c.prospect_phone, c.note].filter(Boolean).join(' ').toLowerCase()
         if (!hay.includes(s)) return false
       }
       return true
     })
-  }, [calls, filter, search])
+  }, [calls, filter, sdrFilter, search])
 
   const stats = useMemo(() => {
     const total = filtered.length
@@ -363,6 +391,15 @@ export default function History() {
               <input type="text" placeholder="Nom, numéro, note…" value={search} onChange={e => setSearch(e.target.value)}
                 className="text-[12px] bg-transparent outline-none text-gray-700 placeholder:text-gray-400 w-40" />
             </div>
+            {isManager && orgMembers && orgMembers.length > 1 && (
+              <select value={sdrFilter} onChange={e => setSdrFilter(e.target.value)}
+                className="px-2.5 py-1.5 rounded-lg text-[11px] font-semibold border border-gray-200 bg-white text-gray-700 outline-none cursor-pointer hover:border-indigo-200">
+                <option value="all">Tous les commerciaux</option>
+                {orgMembers.map(u => (
+                  <option key={u.id} value={u.id}>{u.full_name || (u.email ? u.email.split('@')[0] : 'SDR')}</option>
+                ))}
+              </select>
+            )}
             {FILTERS.map(f => (
               <button key={f.key} onClick={() => setFilter(f.key)}
                 className={`px-3 py-1 rounded-lg text-[11px] font-semibold transition-colors ${
@@ -384,7 +421,7 @@ export default function History() {
 
         {filtered.length > 0 && (
           <div className="bg-white dark:bg-[#f0eaf5] rounded-xl border border-gray-200 dark:border-[#d4cade] overflow-hidden">
-            {filtered.map(c => <CallRow key={c.id} call={c} />)}
+            {filtered.map(c => <CallRow key={c.id} call={c} sdrName={isManager && c.sdr_id ? memberNameMap[c.sdr_id] : undefined} />)}
           </div>
         )}
       </div>
