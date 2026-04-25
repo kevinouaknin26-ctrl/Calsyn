@@ -896,9 +896,9 @@ export default function CRMGlobal() {
                 const rdvCount = stageProspects.filter(p => p.meeting_booked).length
                 const totalCalls = stageProspects.reduce((s, p) => s + (p.call_count || 0), 0)
                 return (
-                  <div key={stage.key} className="w-[280px] min-w-[280px] flex flex-col bg-gray-50/80 rounded-xl border border-gray-100">
-                    {/* Column header — coloré par stage */}
-                    <div className="px-3 py-2.5 border-b-2 flex flex-col gap-1.5"
+                  <div key={stage.key} className="w-[280px] min-w-[280px] flex flex-col bg-gray-50/80 rounded-xl border border-gray-100 overflow-y-auto">
+                    {/* Column header — sticky pour rester visible au scroll, coloré par stage */}
+                    <div className="px-3 py-2.5 border-b-2 flex flex-col gap-1.5 sticky top-0 z-10 bg-gray-50/95 backdrop-blur-sm"
                       style={{ borderColor: stage.color + '40' }}>
                       <div className="flex items-center gap-2">
                         <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: stage.color }} />
@@ -915,8 +915,8 @@ export default function CRMGlobal() {
                         </div>
                       )}
                     </div>
-                    {/* Cards container — drop zone */}
-                    <div className="flex-1 overflow-y-auto p-2 space-y-1.5 transition-colors rounded-b-xl"
+                    {/* Cards container — drop zone (le scroll vertical est sur la colonne entière pour que le header reste sticky) */}
+                    <div className="flex-1 p-2 space-y-1.5 transition-colors rounded-b-xl"
                       onDragOver={e => { e.preventDefault(); e.currentTarget.classList.add('bg-violet-100/40', 'ring-2', 'ring-violet-300', 'ring-inset') }}
                       onDragLeave={e => { e.currentTarget.classList.remove('bg-violet-100/40', 'ring-2', 'ring-violet-300', 'ring-inset') }}
                       onDrop={async e => {
