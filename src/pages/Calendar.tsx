@@ -585,7 +585,8 @@ function CalendarInner() {
                   const events = byDayMonth[k] || []
                   return (
                     <div key={i}
-                      className={`border-r border-b border-gray-100 last:border-r-0 p-1 overflow-hidden flex flex-col ${
+                      onClick={() => { setView('day'); setCurrentDate(d) }}
+                      className={`border-r border-b border-gray-100 last:border-r-0 p-1 overflow-hidden flex flex-col cursor-pointer hover:bg-violet-50/30 ${
                         !inMonth ? 'bg-gray-50/30' : isToday(d) ? 'bg-violet-50/40' : 'bg-white'
                       }`}>
                       <div className={`text-[11px] font-semibold ${
@@ -593,14 +594,14 @@ function CalendarInner() {
                       }`}>{d.getDate()}{isToday(d) && <span className="ml-1 text-[8px] font-bold uppercase">aujourd'hui</span>}</div>
                       <div className="flex-1 mt-1 space-y-0.5 overflow-hidden">
                         {events.slice(0, 3).map(e => (
-                          <button key={e.key} onClick={e.onClick}
+                          <button key={e.key} onClick={ev => { ev.stopPropagation(); e.onClick() }}
                             className="w-full text-left rounded px-1 py-0.5 text-[9px] truncate hover:opacity-80"
                             style={{ background: e.color + '18', color: e.color }}>
                             <span className="font-mono mr-1">{e.time}</span>{e.name}
                           </button>
                         ))}
                         {events.length > 3 && (
-                          <button onClick={() => { setView('day'); setCurrentDate(d) }}
+                          <button onClick={ev => { ev.stopPropagation(); setView('day'); setCurrentDate(d) }}
                             className="text-[9px] text-gray-400 hover:text-gray-600 px-1">
                             +{events.length - 3} autre{events.length - 3 > 1 ? 's' : ''}
                           </button>
@@ -613,17 +614,22 @@ function CalendarInner() {
             </div>
           )
         })()}
-        {view !== 'month' && (
+        {view !== 'month' && (() => {
+          // En mode 'day', on n'affiche que la date courante. En 'week', toute la semaine.
+          const renderDays = view === 'day' ? [currentDate] : weekDays
+          const cols = view === 'day' ? 'grid-cols-1' : 'grid-cols-7'
+          return (
           <>
         {/* Header jours */}
         <div className="flex border-b border-gray-100">
           <div className="w-14 flex-shrink-0" />
-          <div className="flex-1 grid grid-cols-7">
-          {weekDays.map((day, i) => {
+          <div className={`flex-1 grid ${cols}`}>
+          {renderDays.map((day, i) => {
             const dayRdvs = byDay[day.toISOString()] || []
+            const dayName = dayNames[(day.getDay() + 6) % 7]
             return (
               <div key={i} className={`py-3 text-center border-r border-gray-100 last:border-r-0 ${isToday(day) ? 'bg-violet-50' : ''}`}>
-                <p className="text-[10px] text-gray-400 uppercase">{dayNames[i]}</p>
+                <p className="text-[10px] text-gray-400 uppercase">{dayName}</p>
                 <p className={`text-[16px] font-bold ${isToday(day) ? 'text-violet-600' : 'text-gray-700'}`}>
                   {day.getDate()}
                 </p>
@@ -642,7 +648,7 @@ function CalendarInner() {
         <div className="flex-1 overflow-y-auto" id="calendar-grid">
           <div className="relative">
             {/* Ligne rouge "maintenant" */}
-            <NowLine weekDays={weekDays} />
+            <NowLine weekDays={renderDays} />
             {HOURS.map(hour => (
               <div key={hour} className="flex border-b border-gray-50" style={{ height: 80 }}>
                 {/* Heure à gauche */}
@@ -650,8 +656,8 @@ function CalendarInner() {
                   <span className="text-[10px] text-gray-300 font-mono">{hour}:00</span>
                 </div>
                 {/* Colonnes jours */}
-                <div className="flex-1 grid grid-cols-7">
-                {weekDays.map((day, di) => {
+                <div className={`flex-1 grid ${cols}`}>
+                {renderDays.map((day, di) => {
                   const dayKey = day.toISOString()
                   // Combiner TOUS les events de cette heure (DB + Google) en une seule liste
                   type CalEvent = { id: string; time: string; name: string; subtitle?: string; color: string; bg: string; onClick: () => void; minutes: number }
@@ -755,7 +761,8 @@ function CalendarInner() {
           </div>
         </div>
           </>
-        )}
+          )
+        })()}
       </div>
 
       {/* (RDV à venir : déplacé en haut via <UpcomingRdvBar /> au début du return) */}
