@@ -880,7 +880,12 @@ function EmailsTab({ prospect }: { prospect: Prospect }) {
           ← Retour à la liste
         </button>
         {threadMessages.map(m => {
-          const isMine = myEmail && (m.from || '').toLowerCase().includes(myEmail)
+          const fromLower = (m.from || '').toLowerCase()
+          // Heuristique : si le from contient l'un des emails du prospect, c'est le prospect.
+          // Sinon (autre adresse), c'est forcément l'utilisateur (le thread est filtré sur le prospect).
+          // Marche même quand le compte Gmail connecté ≠ l'email Supabase auth.
+          const isFromProspect = allEmails.some(e => fromLower.includes(e.toLowerCase()))
+          const isMine = !isFromProspect
           return (
             <div key={m.id}
               className={`rounded-xl border p-4 ${isMine ? 'bg-violet-50/70 border-violet-200' : 'bg-white border-gray-100'}`}>
