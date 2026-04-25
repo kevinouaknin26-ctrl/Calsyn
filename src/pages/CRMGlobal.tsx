@@ -397,25 +397,28 @@ export default function CRMGlobal() {
   // Fallback : si l'org n'a pas de crm_statuses configurés, dériver depuis les options enum
   // de system:crm_status (sinon le Kanban est vide même avec des prospects).
   const effectiveStatuses = useMemo(() => {
-    let stages
-    if (crmStatuses && crmStatuses.length > 0) {
-      stages = crmStatuses
-    } else {
-      const defaultKeys = (SYSTEM_PROPERTIES.find(p => p.key === 'crm_status')?.options) || []
-      const colorByKey: Record<string, string> = {
-        new: '#9ca3af', attempted_to_contact: '#f59e0b', connected: '#10b981',
-        in_progress: '#6366f1', callback: '#a78bfa', not_interested: '#6b7280',
-        mail_sent: '#3b82f6', rdv_pris: '#0d9488', rdv_fait: '#06b6d4',
-        en_attente_signature: '#f59e0b', signe: '#10b981',
-        en_attente_paiement: '#f59e0b', paye: '#22c55e',
-      }
-      stages = defaultKeys.map((key, i) => ({
-        key,
-        label: CRM_STATUS_LABELS[key] || key,
-        color: colorByKey[key] || '#6b7280',
-        priority: i,
-      }))
+    // Toujours commencer par les défauts puis overlay les rows DB par key.
+    // Évite que la création d'un seul stage custom efface tout le pipeline.
+    const defaultKeys = (SYSTEM_PROPERTIES.find(p => p.key === 'crm_status')?.options) || []
+    const colorByKey: Record<string, string> = {
+      new: '#9ca3af', attempted_to_contact: '#f59e0b', connected: '#10b981',
+      in_progress: '#6366f1', callback: '#a78bfa', not_interested: '#6b7280',
+      mail_sent: '#3b82f6', rdv_pris: '#0d9488', rdv_fait: '#06b6d4',
+      en_attente_signature: '#f59e0b', signe: '#10b981',
+      en_attente_paiement: '#f59e0b', paye: '#22c55e',
     }
+    const defaults = defaultKeys.map((key, i) => ({
+      key,
+      label: CRM_STATUS_LABELS[key] || key,
+      color: colorByKey[key] || '#6b7280',
+      priority: i,
+    }))
+    // Merge : on prend les défauts, puis on remplace par la version DB si elle existe
+    // (label custom, couleur custom). Et on ajoute les stages 100% custom (pas dans defaults).
+    const dbByKey = new Map((crmStatuses || []).map(s => [s.key, s]))
+    const merged = defaults.map(d => dbByKey.get(d.key) || d)
+    const customOnly = (crmStatuses || []).filter(s => !defaultKeys.includes(s.key))
+    let stages = [...merged, ...customOnly]
     // Applique l'ordre custom localStorage si défini, sinon ordre naturel
     if (stageOrder.length === 0) return stages
     const byKey = new Map(stages.map(s => [s.key, s]))
