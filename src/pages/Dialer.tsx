@@ -9,7 +9,7 @@ import { createPortal } from 'react-dom'
 import { useQueryClient, useQuery } from '@tanstack/react-query'
 import { useCall } from '@/contexts/CallContext'
 import { useCallBarVisibility } from '@/components/layout/CallBarVisibilityContext'
-import { useProspectLists, useProspects, useAddProspect, useCreateProspectField, useRdvToday, SMART_LIST_LABELS } from '@/hooks/useProspects'
+import { useProspectLists, useProspects, useAddProspect, useCreateProspectField, useRdvToday, SMART_LIST_LABELS, SMART_LIST_IDS } from '@/hooks/useProspects'
 import { usePropertyDefinitions, useCustomFieldValues, groupProperties, updatePropertyValue, useCrmStatuses, type CrmStatusDef } from '@/hooks/useProperties'
 import { SYSTEM_PROPERTIES, DEFAULT_VISIBLE_COLUMNS, getPropertyValue, matchesSearch, CRM_STATUS_LABELS, type PropertyDefinition } from '@/config/properties'
 import { useCallsByProspect } from '@/hooks/useCalls'
@@ -1240,6 +1240,20 @@ export default function Dialer() {
     try { return JSON.parse(localStorage.getItem('calsyn_open_tabs') || '[]') } catch { return [] }
   })
   const [showCallSettings, setShowCallSettings] = useState(false)
+  const [showHiddenListsMenu, setShowHiddenListsMenu] = useState(false)
+  const [hiddenListsMenuCoords, setHiddenListsMenuCoords] = useState<{ top: number; left: number } | null>(null)
+  const hiddenListsButtonRef = useRef<HTMLButtonElement>(null)
+  const hiddenListsMenuRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!showHiddenListsMenu) return
+    const handler = (e: MouseEvent) => {
+      const t = e.target as Node
+      if (hiddenListsMenuRef.current?.contains(t) || hiddenListsButtonRef.current?.contains(t)) return
+      setShowHiddenListsMenu(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [showHiddenListsMenu])
   const { data: prospects } = useProspects(activeListId)
   const { data: callHistory } = useCallsByProspect(selectedProspect?.id ?? null, selectedProspect?.phone)
 
@@ -1587,9 +1601,65 @@ export default function Dialer() {
             </div>
           )
         })}
-        {(lists?.length || 0) > 8 && (
-          <span className="px-2 py-2.5 text-[12px] text-gray-400 whitespace-nowrap flex-shrink-0">+{(lists?.length || 0) - 8} ▾</span>
-        )}
+        {(() => {
+          const closedUserLists = (lists || []).filter(l => !openTabIds.includes(l.id))
+          const closedSmartLists = SMART_LIST_IDS.filter(id => !openTabIds.includes(id))
+          const hiddenCount = closedUserLists.length + closedSmartLists.length
+          if (hiddenCount === 0) return null
+          return (
+            <>
+              <button
+                ref={hiddenListsButtonRef}
+                onClick={() => {
+                  if (showHiddenListsMenu) { setShowHiddenListsMenu(false); return }
+                  const r = hiddenListsButtonRef.current?.getBoundingClientRect()
+                  if (r) setHiddenListsMenuCoords({ top: r.bottom + 4, left: r.left })
+                  setShowHiddenListsMenu(true)
+                }}
+                className="px-2 py-2.5 text-[12px] text-gray-500 hover:text-violet-600 whitespace-nowrap transition-colors flex-shrink-0">
+                +{hiddenCount} ▾
+              </button>
+              {showHiddenListsMenu && hiddenListsMenuCoords && createPortal(
+                <div ref={hiddenListsMenuRef}
+                  style={{ position: 'fixed', top: hiddenListsMenuCoords.top, left: hiddenListsMenuCoords.left, zIndex: 9999 }}
+                  className="bg-white rounded-xl shadow-xl border border-gray-200 py-1 min-w-[240px] max-h-[320px] overflow-y-auto animate-slide-down">
+                  {closedSmartLists.length > 0 && (
+                    <>
+                      <div className="px-3 py-1.5 text-[10px] font-bold text-gray-400 uppercase tracking-wider">Vues intelligentes</div>
+                      {closedSmartLists.map(sid => (
+                        <button key={sid} onClick={() => {
+                          setOpenTabIds(prev => [...prev, sid])
+                          setActiveListId(sid)
+                          localStorage.setItem('calsyn_active_list', sid)
+                          setShowHiddenListsMenu(false)
+                        }} className="w-full text-left px-3 py-1.5 text-[12px] italic text-gray-600 hover:bg-violet-50 hover:text-violet-600 transition-colors">
+                          {SMART_LIST_LABELS[sid] || sid}
+                        </button>
+                      ))}
+                      {closedUserLists.length > 0 && <div className="border-t border-gray-100 my-1" />}
+                    </>
+                  )}
+                  {closedUserLists.length > 0 && (
+                    <>
+                      <div className="px-3 py-1.5 text-[10px] font-bold text-gray-400 uppercase tracking-wider">Listes</div>
+                      {closedUserLists.map(l => (
+                        <button key={l.id} onClick={() => {
+                          setOpenTabIds(prev => [...prev, l.id])
+                          setActiveListId(l.id)
+                          localStorage.setItem('calsyn_active_list', l.id)
+                          setShowHiddenListsMenu(false)
+                        }} className="w-full text-left px-3 py-1.5 text-[12px] text-gray-700 hover:bg-violet-50 hover:text-violet-600 transition-colors truncate">
+                          {l.name}
+                        </button>
+                      ))}
+                    </>
+                  )}
+                </div>,
+                document.body
+              )}
+            </>
+          )
+        })()}
       </div>
 
       {/* ── List header ── */}
@@ -2437,11 +2507,29 @@ export default function Dialer() {
         variant="danger"
         onCancel={() => setConfirmDeleteProspects(false)}
         onConfirm={async () => {
-          // Soft-delete (archive) : plus de hard DELETE, trigger DB bloque de toute façon
-          await supabase.rpc('archive_prospects', { p_ids: Array.from(selectedIds) })
+          // Soft-delete via UPDATE direct (la RPC archive_prospects n'existe pas en DB)
+          const ids = Array.from(selectedIds)
+          console.log('[bulk-delete-prospects] requesting', ids.length, 'ids')
+          const { data, error, count } = await supabase
+            .from('prospects')
+            .update({ deleted_at: new Date().toISOString() }, { count: 'exact' })
+            .in('id', ids)
+            .select('id')
+          console.log('[bulk-delete-prospects] result', { error, count, returned: data?.length, requested: ids.length })
+          if (error) {
+            console.error('[bulk-delete-prospects]', error)
+            alert(`Erreur suppression : ${error.message}`)
+            return
+          }
+          if ((data?.length || 0) === 0) {
+            alert(`0 contact supprimé sur ${ids.length} demandé(s) — RLS bloque (probablement liste non assignée). Vérifie que tu es bien super_admin/admin sur cette org.`)
+            return
+          }
           setSelectedIds(new Set())
           setConfirmDeleteProspects(false)
-          queryClient.invalidateQueries({ queryKey: ['prospects', activeListId] })
+          await queryClient.invalidateQueries({ queryKey: ['prospects', activeListId] })
+          await queryClient.invalidateQueries({ queryKey: ['all-prospects'] })
+          await queryClient.invalidateQueries({ queryKey: ['prospect-lists'] })
         }}
       />
     </div>
