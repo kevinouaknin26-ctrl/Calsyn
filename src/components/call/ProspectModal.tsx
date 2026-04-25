@@ -681,7 +681,7 @@ function MiniDropdown({ value, options, onChange, className }: {
 // ── Onglet Notes : zone pour ajouter + liste des notes (appels + IA) ─
 // ── Onglet Tâches (RDV + rappels avec actions) ──────────────────────
 function TasksTab({ prospect, onUpdate }: { prospect: Prospect; onUpdate: () => void }) {
-  const { connected: gcalConnected, getEvent: gcalGetEvent, deleteEvent: gcalDeleteEvent } = useGoogleCalendar()
+  const { connected: gcalConnected, getEvent: gcalGetEvent, deleteEvent: gcalDeleteEvent, listEvents: gcalListEvents } = useGoogleCalendar()
   const motifLabels: Record<string, string> = {
     rappel: 'Rappel',
     retour_demande: 'Retour sur demande',
@@ -737,13 +737,43 @@ function TasksTab({ prospect, onUpdate }: { prospect: Prospect; onUpdate: () => 
     needsAction: { text: '⏳ En attente', color: 'text-gray-600', bg: 'bg-gray-100' },
   }
 
+  // Si pas d'event_id stocké (RDV créé avant que Calsyn ne le track), on le retrouve
+  // dans le calendar Google par date+nom du prospect.
+  const findGcalEventByDate = async (datetime: Date): Promise<{ id: string; hasAttendees: boolean } | null> => {
+    if (!gcalConnected) return null
+    const timeMin = new Date(datetime.getTime() - 60 * 60 * 1000).toISOString()
+    const timeMax = new Date(datetime.getTime() + 60 * 60 * 1000).toISOString()
+    const list = await gcalListEvents(timeMin, timeMax)
+    const events = list?.items || []
+    const nameLower = (prospect.name || '').toLowerCase()
+    const match = events.find((e: { id: string; summary?: string; attendees?: Array<{ email?: string }>; start?: { dateTime?: string } }) => {
+      // Match par nom dans le summary OU email du prospect dans attendees
+      if (nameLower && e.summary?.toLowerCase().includes(nameLower)) return true
+      if (e.attendees?.some(a => a.email && allProspectEmails.includes(a.email.toLowerCase()))) return true
+      return false
+    })
+    if (!match?.id) return null
+    return { id: match.id, hasAttendees: !!match.attendees?.length }
+  }
+
   const cancel = async (kind: 'rdv' | 'reminder') => {
     const msg = kind === 'rdv'
       ? `Annuler ce RDV ?${wasInvited ? ' L\'invitation Google sera supprimée et le client sera notifié.' : ''}`
       : 'Supprimer ce rappel ?'
     if (!confirm(msg)) return
-    if (gcalConnected && eventId) {
-      await gcalDeleteEvent(eventId, wasInvited ? 'all' : 'none').catch(err => console.warn('[TasksTab] GCal delete failed', err))
+
+    // Tentative de delete event Google
+    if (gcalConnected) {
+      let idToDelete = eventId
+      let notifyClient = wasInvited
+      // Fallback : si pas d'event_id stocké, retrouve par date + nom
+      if (!idToDelete && kind === 'rdv' && prospect.rdv_date) {
+        const found = await findGcalEventByDate(new Date(prospect.rdv_date))
+        if (found) { idToDelete = found.id; notifyClient = found.hasAttendees }
+      }
+      if (idToDelete) {
+        await gcalDeleteEvent(idToDelete, notifyClient ? 'all' : 'none').catch(err => console.warn('[TasksTab] GCal delete failed', err))
+      }
     }
     const update: Record<string, unknown> = { next_action_type: null, next_action_gcal_event_id: null, next_action_invited_client: false }
     if (kind === 'rdv') { update.rdv_date = null; update.meeting_booked = false } else { update.snoozed_until = null }
@@ -2000,7 +2030,7 @@ const FALLBACK_STAGES: Array<{ key: string; label: string; color: string }> = [
 function DealSidebar({ prospect }: { prospect: Prospect }) {
   const queryClient = useQueryClient()
   const { data: dbStatuses } = useCrmStatuses()
-  const { connected: gcalConnected, createEvent: gcalCreateEvent, deleteEvent: gcalDeleteEvent } = useGoogleCalendar()
+  const { connected: gcalConnected, createEvent: gcalCreateEvent, deleteEvent: gcalDeleteEvent, listEvents: gcalListEvents } = useGoogleCalendar()
 
   // Google Meet link — cherche dans les events Calendar autour du rdv_date
   const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL
@@ -2214,9 +2244,35 @@ function DealSidebar({ prospect }: { prospect: Prospect }) {
     if (!confirm(kind === 'rdv' ? 'Annuler ce RDV ? L\'invitation Google sera supprimée pour vous et le client.' : 'Supprimer ce rappel ?')) return
     const eventId = (prospect as Prospect & { next_action_gcal_event_id?: string }).next_action_gcal_event_id
     const wasInvited = (prospect as Prospect & { next_action_invited_client?: boolean }).next_action_invited_client
-    // Delete Google event si on a un id
-    if (gcalConnected && eventId) {
-      await gcalDeleteEvent(eventId, wasInvited ? 'all' : 'none').catch(err => console.warn('[cancelTask] GCal delete failed', err))
+    // Delete Google event : utilise event_id stocké, sinon fallback recherche par date+nom
+    if (gcalConnected) {
+      let idToDelete = eventId
+      let notifyClient = wasInvited
+      if (!idToDelete && kind === 'rdv' && prospect.rdv_date) {
+        const datetime = new Date(prospect.rdv_date)
+        const timeMin = new Date(datetime.getTime() - 60 * 60 * 1000).toISOString()
+        const timeMax = new Date(datetime.getTime() + 60 * 60 * 1000).toISOString()
+        try {
+          const list = await gcalListEvents(timeMin, timeMax)
+          const events = list?.items || []
+          const nameLower = (prospect.name || '').toLowerCase()
+          const emails = [prospect.email, prospect.email2, prospect.email3].filter(Boolean).map(e => e!.toLowerCase())
+          const match = events.find((e: { id: string; summary?: string; attendees?: Array<{ email?: string }> }) => {
+            if (nameLower && e.summary?.toLowerCase().includes(nameLower)) return true
+            if (e.attendees?.some(a => a.email && emails.includes(a.email.toLowerCase()))) return true
+            return false
+          })
+          if (match?.id) {
+            idToDelete = match.id
+            notifyClient = !!match.attendees?.length
+          }
+        } catch (err) {
+          console.warn('[cancelTask] GCal search fallback failed', err)
+        }
+      }
+      if (idToDelete) {
+        await gcalDeleteEvent(idToDelete, notifyClient ? 'all' : 'none').catch(err => console.warn('[cancelTask] GCal delete failed', err))
+      }
     }
     const update: Record<string, unknown> = {
       next_action_type: null,
