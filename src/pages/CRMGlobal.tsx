@@ -179,7 +179,36 @@ function FilterBuilder({ filters, setFilters, allProperties, crmStatuses }: {
 function CrmColumnPicker({ visible, setVisible, allProperties, open, onToggle }: {
   visible: string[]; setVisible: (v: string[]) => void; allProperties: PropertyDefinition[]; open: boolean; onToggle: () => void
 }) {
-  const grouped = groupProperties(allProperties.filter(p => p.id !== 'system:name'))
+  const [search, setSearch] = useState('')
+  const [dragId, setDragId] = useState<string | null>(null)
+
+  const editableProps = allProperties.filter(p => p.id !== 'system:name')
+  const visibleProps = visible
+    .map(id => editableProps.find(p => p.id === id))
+    .filter(Boolean) as PropertyDefinition[]
+  const availableProps = editableProps.filter(p => !visible.includes(p.id))
+
+  const lower = search.trim().toLowerCase()
+  const matches = (p: PropertyDefinition) => !lower || p.name.toLowerCase().includes(lower)
+
+  const visibleFiltered = visibleProps.filter(matches)
+  const availableGrouped = groupProperties(availableProps.filter(matches))
+
+  const toggle = (id: string) => {
+    setVisible(visible.includes(id) ? visible.filter(c => c !== id) : [...visible, id])
+  }
+
+  const resetDefaults = () => setVisible([...DEFAULT_VISIBLE_COLUMNS, 'system:call_count'])
+
+  const reorder = (fromId: string, toId: string) => {
+    const from = visible.indexOf(fromId)
+    const to = visible.indexOf(toId)
+    if (from === -1 || to === -1 || from === to) return
+    const next = [...visible]
+    next.splice(from, 1)
+    next.splice(to, 0, fromId)
+    setVisible(next)
+  }
 
   return (
     <div className="relative">
@@ -191,20 +220,65 @@ function CrmColumnPicker({ visible, setVisible, allProperties, open, onToggle }:
       {open && (
         <>
           <div className="fixed inset-0 z-40" onClick={onToggle} />
-          <div className="absolute right-0 top-10 w-[280px] bg-white rounded-xl shadow-lg border border-gray-200 z-50 py-2 max-h-[400px] overflow-y-auto animate-slide-down">
-            {grouped.map(group => (
-              <div key={group.key}>
-                <p className={`px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider ${group.key === 'custom' ? 'text-violet-400' : 'text-gray-400'}`}>{group.label}</p>
-                {group.properties.map(prop => (
-                  <label key={prop.id} className="flex items-center gap-2.5 px-3 py-1.5 hover:bg-gray-50 cursor-pointer">
-                    <input type="checkbox" checked={visible.includes(prop.id)}
-                      onChange={() => setVisible(visible.includes(prop.id) ? visible.filter(c => c !== prop.id) : [...visible, prop.id])}
-                      className="w-3.5 h-3.5 rounded border-gray-300 accent-indigo-600" />
-                    <span className={`text-[12px] ${prop.type === 'custom' ? 'text-violet-700' : 'text-gray-700'}`}>{prop.name}</span>
-                  </label>
-                ))}
+          <div className="absolute right-0 top-10 w-[340px] bg-white rounded-xl shadow-xl border border-gray-200 z-50 max-h-[500px] flex flex-col animate-slide-down">
+            {/* Search + reset */}
+            <div className="p-3 border-b border-gray-100 flex items-center gap-2 flex-shrink-0">
+              <div className="flex-1 relative">
+                <svg className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+                <input type="text" autoFocus value={search} onChange={e => setSearch(e.target.value)}
+                  placeholder="Rechercher une colonne..."
+                  className="w-full text-[12px] pl-7 pr-2 py-1.5 border border-gray-200 rounded-lg outline-none focus:border-indigo-300" />
               </div>
-            ))}
+              <button onClick={resetDefaults}
+                title="Réinitialiser aux colonnes par défaut"
+                className="text-[10px] text-gray-400 hover:text-indigo-600 px-2 py-1 rounded hover:bg-indigo-50 transition-colors flex-shrink-0">
+                Défaut
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto">
+              {/* Colonnes visibles (avec ordre + drag) */}
+              {visibleFiltered.length > 0 && (
+                <div className="border-b border-gray-100">
+                  <p className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-gray-400 bg-gray-50/50">
+                    Visibles ({visibleFiltered.length})
+                  </p>
+                  {visibleFiltered.map(prop => (
+                    <div key={prop.id}
+                      draggable
+                      onDragStart={() => setDragId(prop.id)}
+                      onDragOver={e => { e.preventDefault() }}
+                      onDrop={() => { if (dragId && dragId !== prop.id) reorder(dragId, prop.id); setDragId(null) }}
+                      onDragEnd={() => setDragId(null)}
+                      className={`flex items-center gap-2.5 px-3 py-1.5 hover:bg-gray-50 cursor-grab active:cursor-grabbing select-none ${dragId === prop.id ? 'opacity-40' : ''}`}>
+                      <svg className="w-3 h-3 text-gray-300 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" /></svg>
+                      <span className={`text-[12px] flex-1 truncate ${prop.type === 'custom' ? 'text-violet-700' : 'text-gray-700'}`}>{prop.name}</span>
+                      <button onClick={() => toggle(prop.id)}
+                        title="Masquer"
+                        className="text-gray-300 hover:text-red-500 text-[14px] flex-shrink-0 leading-none">×</button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Colonnes disponibles, par groupe */}
+              {availableGrouped.map(group => group.properties.length === 0 ? null : (
+                <div key={group.key}>
+                  <p className={`px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider bg-gray-50/50 ${group.key === 'custom' ? 'text-violet-400' : 'text-gray-400'}`}>{group.label}</p>
+                  {group.properties.map(prop => (
+                    <button key={prop.id} onClick={() => toggle(prop.id)}
+                      className="w-full flex items-center gap-2.5 px-3 py-1.5 hover:bg-indigo-50/40 transition-colors text-left">
+                      <svg className="w-3 h-3 text-gray-300 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+                      <span className={`text-[12px] flex-1 truncate ${prop.type === 'custom' ? 'text-violet-700' : 'text-gray-600'}`}>{prop.name}</span>
+                    </button>
+                  ))}
+                </div>
+              ))}
+
+              {visibleFiltered.length === 0 && availableGrouped.every(g => g.properties.length === 0) && (
+                <div className="px-3 py-6 text-[12px] text-gray-400 text-center italic">Aucune colonne ne correspond</div>
+              )}
+            </div>
           </div>
         </>
       )}
