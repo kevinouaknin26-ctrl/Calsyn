@@ -7,6 +7,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
 import { useAuth } from '@/hooks/useAuth'
+import { useGoogleCalendar } from '@/hooks/useGoogleCalendar'
 import { useCrmStatuses, useCreateCrmStatus, useDeleteCrmStatus } from '@/hooks/useProperties'
 import { supabase } from '@/config/supabase'
 import { SYSTEM_PROPERTIES } from '@/config/properties'
@@ -717,6 +718,7 @@ function AiSummary() {
 // ══════════════════════════════════════════════════════════════════
 function IntegrationsSection() {
   const { data: gcalStatus } = useGoogleCalendarStatus()
+  const { connect: gcalConnect, disconnect: gcalDisconnect } = useGoogleCalendar()
 
   const integrations = [
     {
@@ -745,9 +747,21 @@ function IntegrationsSection() {
             {integ.soon ? (
               <span className="text-[10px] font-bold px-2 py-1 rounded bg-gray-100 text-gray-400">BIENTÔT</span>
             ) : integ.connected ? (
-              <span className="text-[10px] font-bold px-2 py-1 rounded bg-emerald-50 text-emerald-600 border border-emerald-200">CONNECTÉ</span>
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-bold px-2 py-1 rounded bg-emerald-50 text-emerald-600 border border-emerald-200">CONNECTÉ</span>
+                {integ.name === 'Google Calendar' && (
+                  <button onClick={async () => { await gcalDisconnect(); }}
+                    className="text-[11px] font-medium px-2 py-1 rounded text-gray-500 hover:text-red-500 hover:bg-red-50">
+                    Déconnecter
+                  </button>
+                )}
+              </div>
             ) : (
-              <button className="text-[11px] font-medium px-3 py-1.5 rounded-lg bg-violet-50 text-violet-600 border border-violet-200 hover:bg-violet-100">
+              <button
+                onClick={() => {
+                  if (integ.name === 'Google Calendar') gcalConnect()
+                }}
+                className="text-[11px] font-medium px-3 py-1.5 rounded-lg bg-violet-50 text-violet-600 border border-violet-200 hover:bg-violet-100">
                 Connecter
               </button>
             )}
