@@ -771,6 +771,44 @@ export default function CRMGlobal() {
           )}
         </div>
 
+        {/* ── Filtres actifs (chips ambrés, style Dialer) ── */}
+        {filters.length > 0 && (
+          <div className="px-5 py-1.5 bg-amber-50 border-b border-amber-100 flex items-center gap-2 flex-wrap">
+            <span className="text-[11px] text-amber-600 font-medium">Filtres :</span>
+            {filters.map(f => {
+              const prop = allProperties.find(p => p.id === f.propertyId)
+              const opLabel: Record<string, string> = { eq: '=', neq: '≠', contains: '∋', not_contains: '∌', starts: '→', empty: 'vide', not_empty: '≠ vide', gt: '>', lt: '<', in: '∈', true: 'Oui', false: 'Non' }
+              const dv = columnDistinctValues[f.propertyId]
+              const enumOpts = (prop?.fieldType === 'enum' && prop.options) ? prop.options : null
+              return (
+                <div key={f.id} className="flex items-center gap-1 bg-white rounded-lg border border-amber-200 px-2 py-0.5">
+                  <span className="text-[11px] text-gray-600 font-medium">{prop?.name || '?'}</span>
+                  <span className="text-[10px] text-amber-500">{opLabel[f.op] || f.op}</span>
+                  {!['empty', 'not_empty', 'true', 'false'].includes(f.op) && (
+                    (dv || enumOpts) ? (
+                      <MultiSelectFilter
+                        options={(dv || enumOpts || []) as string[]}
+                        value={f.op === 'in' ? f.value : (f.value || '')}
+                        labelize={(v) => crmLabels[v] || CRM_STATUS_LABELS[v] || v}
+                        onChange={(newVal) => setFilters(prev => prev.map(pf => pf.id === f.id ? { ...pf, op: 'in', value: newVal } : pf))}
+                      />
+                    ) : (
+                      <input value={f.value} onChange={e => setFilters(prev => prev.map(pf => pf.id === f.id ? { ...pf, value: e.target.value } : pf))}
+                        placeholder="..." className="text-[11px] bg-transparent border-0 outline-none text-gray-700 font-medium w-24" />
+                    )
+                  )}
+                  <button onClick={() => setFilters(prev => prev.filter(pf => pf.id !== f.id))}
+                    className="text-amber-400 hover:text-red-500 ml-0.5">
+                    <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                  </button>
+                </div>
+              )
+            })}
+            <button onClick={() => setFilters([])}
+              className="text-[10px] text-amber-500 hover:text-red-500 ml-1">Effacer filtres</button>
+          </div>
+        )}
+
         {/* ── Board (Pipeline Kanban) ── */}
         {viewMode === 'board' && !isLoading && (
           <div ref={boardRef}
