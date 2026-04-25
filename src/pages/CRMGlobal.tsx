@@ -329,6 +329,34 @@ export default function CRMGlobal() {
     return m
   }, [lists])
 
+  // Build map listId → SDR user_ids (assigned_to)
+  const listSdrsMap = useMemo(() => {
+    const m: Record<string, string[]> = {}
+    for (const l of (lists || [])) m[l.id] = (l.assigned_to as string[] | null | undefined) || []
+    return m
+  }, [lists])
+
+  // Charger les membres de l'org pour avoir nom + role
+  const { data: orgMembers } = useQuery({
+    queryKey: ['org-members', orgId],
+    queryFn: async () => {
+      if (!orgId) return []
+      const { data } = await supabase
+        .from('profiles')
+        .select('id, full_name, email, role')
+        .eq('organisation_id', orgId)
+        .is('deactivated_at', null)
+      return data || []
+    },
+    enabled: !!orgId,
+  })
+
+  const memberNameMap = useMemo(() => {
+    const m: Record<string, string> = {}
+    for (const u of orgMembers || []) m[u.id] = u.full_name || (u.email ? u.email.split('@')[0] : 'SDR')
+    return m
+  }, [orgMembers])
+
   // ── Query ALL prospects ──
   const { data: allProspects, isLoading } = useQuery({
     queryKey: ['all-prospects', orgId],
@@ -745,7 +773,7 @@ export default function CRMGlobal() {
           </div>
         ) : (
           <div className="flex-1 min-h-0 overflow-auto">
-            <table className="border-collapse" style={{ tableLayout: 'fixed', width: '100%' }}>
+            <table className="border-collapse" style={{ tableLayout: 'fixed', width: 'max-content', minWidth: '100%' }}>
               <thead className="sticky top-0 z-20">
                 <tr className="border-b border-gray-100 bg-gray-50/95 backdrop-blur-sm">
                   {/* Checkbox */}
@@ -761,6 +789,8 @@ export default function CRMGlobal() {
                   </th>
                   {/* Lists */}
                   <th className="py-2.5 px-3 text-left text-[10px] font-bold text-gray-400 uppercase tracking-wider border-r border-gray-100" style={{ width: 140 }}>Listes</th>
+                  {/* Commerciaux qui ont le contact dans leurs listes */}
+                  <th className="py-2.5 px-3 text-left text-[10px] font-bold text-gray-400 uppercase tracking-wider border-r border-gray-100" style={{ width: 160 }}>Commerciaux</th>
                   {/* Dynamic columns */}
                   {activeColumns.map(col => (
                     <th key={col.id} onClick={() => toggleSort(col.id)}
@@ -798,6 +828,22 @@ export default function CRMGlobal() {
                         ))}
                         {p.listNames.length > 2 && <span className="text-[9px] text-gray-400">+{p.listNames.length - 2}</span>}
                       </div>
+                    </td>
+                    <td className="py-2 px-3 border-r border-gray-100" onClick={() => setSelectedProspect(p)}>
+                      {(() => {
+                        const sdrIds = Array.from(new Set(p.listIds.flatMap(lid => listSdrsMap[lid] || [])))
+                        if (sdrIds.length === 0) return <span className="text-[10px] text-gray-300">—</span>
+                        return (
+                          <div className="flex flex-wrap gap-0.5">
+                            {sdrIds.slice(0, 2).map(uid => (
+                              <span key={uid} className="px-1.5 py-0.5 rounded text-[9px] font-medium bg-amber-50 text-amber-700 border border-amber-100 whitespace-nowrap truncate max-w-[80px]" title={memberNameMap[uid] || 'SDR'}>
+                                {memberNameMap[uid] || 'SDR'}
+                              </span>
+                            ))}
+                            {sdrIds.length > 2 && <span className="text-[9px] text-gray-400">+{sdrIds.length - 2}</span>}
+                          </div>
+                        )
+                      })()}
                     </td>
                     {activeColumns.map(col => (
                       <td key={col.id} className="py-2 px-3 border-r border-gray-100 cursor-pointer" onClick={() => setSelectedProspect(p)}>
