@@ -310,6 +310,8 @@ export default function CRMGlobal() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [showColumnPicker, setShowColumnPicker] = useState(false)
   const [dragColId, setDragColId] = useState<string | null>(null)
+  const [quickAdd, setQuickAdd] = useState<{ stageKey: string; stageLabel: string; name: string; phone: string; listId: string } | null>(null)
+  const [quickAddSaving, setQuickAddSaving] = useState(false)
 
   // Saved views (localStorage)
   const [savedViews, setSavedViews] = useState<SavedView[]>(() => {
@@ -922,6 +924,13 @@ export default function CRMGlobal() {
                       <div className="flex items-center gap-2">
                         <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: stage.color }} />
                         <span className="text-[12px] font-semibold text-gray-700 flex-1 truncate">{stage.label}</span>
+                        <button onClick={e => {
+                          e.stopPropagation()
+                          setQuickAdd({ stageKey: stage.key, stageLabel: stage.label, name: '', phone: '', listId: lists?.[0]?.id || '' })
+                        }} title={`Ajouter un contact dans "${stage.label}"`}
+                          className="w-5 h-5 rounded-md text-gray-300 hover:text-violet-600 hover:bg-violet-100 flex items-center justify-center transition-colors flex-shrink-0">
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" /></svg>
+                        </button>
                         <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full" style={{ background: stage.color + '20', color: stage.color }}>
                           {stageProspects.length}
                         </span>
@@ -1154,6 +1163,67 @@ export default function CRMGlobal() {
           </div>
         ))}
       </div>
+
+      {/* ── Quick-add popup depuis Kanban (header colonne +) ── */}
+      {quickAdd && (
+        <div className="fixed inset-0 bg-black/30 z-50 flex items-center justify-center" onClick={() => !quickAddSaving && setQuickAdd(null)}>
+          <div onClick={e => e.stopPropagation()}
+            className="bg-white rounded-2xl shadow-xl w-[420px] p-5 animate-fade-in-scale">
+            <h3 className="text-[15px] font-bold text-gray-800 mb-1">Ajouter un contact</h3>
+            <p className="text-[11px] text-gray-400 mb-4">Stage : <span className="font-semibold text-gray-600">{quickAdd.stageLabel}</span></p>
+            <div className="space-y-3">
+              <div>
+                <label className="text-[11px] font-bold text-gray-400 uppercase">Liste *</label>
+                <select value={quickAdd.listId} onChange={e => setQuickAdd(q => q ? { ...q, listId: e.target.value } : null)}
+                  className="w-full mt-1 text-[13px] px-2.5 py-2 border border-gray-200 rounded-lg outline-none focus:border-indigo-300">
+                  {(lists || []).map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
+                  {(!lists || lists.length === 0) && <option value="">Aucune liste accessible</option>}
+                </select>
+              </div>
+              <div>
+                <label className="text-[11px] font-bold text-gray-400 uppercase">Nom *</label>
+                <input autoFocus type="text" value={quickAdd.name}
+                  onChange={e => setQuickAdd(q => q ? { ...q, name: e.target.value } : null)}
+                  className="w-full mt-1 text-[13px] px-2.5 py-2 border border-gray-200 rounded-lg outline-none focus:border-indigo-300" />
+              </div>
+              <div>
+                <label className="text-[11px] font-bold text-gray-400 uppercase">Téléphone *</label>
+                <input type="tel" value={quickAdd.phone}
+                  onChange={e => setQuickAdd(q => q ? { ...q, phone: e.target.value } : null)}
+                  placeholder="+33 6 12 34 56 78"
+                  className="w-full mt-1 text-[13px] px-2.5 py-2 border border-gray-200 rounded-lg outline-none focus:border-indigo-300 font-mono" />
+              </div>
+            </div>
+            <div className="flex gap-2 mt-5">
+              <button onClick={() => setQuickAdd(null)} disabled={quickAddSaving}
+                className="flex-1 px-4 py-2 text-[13px] font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-xl transition-colors">
+                Annuler
+              </button>
+              <button onClick={async () => {
+                if (!quickAdd.name.trim() || !quickAdd.phone.trim() || !quickAdd.listId || !orgId) {
+                  alert('Nom, téléphone et liste sont requis')
+                  return
+                }
+                setQuickAddSaving(true)
+                const { error } = await supabase.from('prospects').insert({
+                  list_id: quickAdd.listId,
+                  organisation_id: orgId,
+                  name: quickAdd.name.trim(),
+                  phone: quickAdd.phone.trim(),
+                  crm_status: quickAdd.stageKey,
+                })
+                setQuickAddSaving(false)
+                if (error) { alert(`Erreur : ${error.message}`); return }
+                await queryClient.invalidateQueries({ queryKey: ['all-prospects'] })
+                setQuickAdd(null)
+              }} disabled={quickAddSaving || !quickAdd.name.trim() || !quickAdd.phone.trim()}
+                className="flex-1 px-4 py-2 text-[13px] font-medium text-white bg-violet-600 hover:bg-violet-700 disabled:opacity-50 rounded-xl transition-colors">
+                {quickAddSaving ? 'Ajout...' : 'Ajouter'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── ProspectModal (interactif — peut appeler) ── */}
       {selectedProspect && (
