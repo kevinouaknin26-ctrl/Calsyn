@@ -27,7 +27,7 @@ const SECTIONS: Section[] = [
   { id: 'phone-numbers', label: 'Numéros de téléphone', icon: '📱', group: 'Dialer' },
   { id: 'phone-fields', label: 'Champs téléphone', icon: '📳', group: 'Dialer' },
   { id: 'incoming-calls', label: 'Appels entrants', icon: '📲', group: 'Dialer' },
-  { id: 'lead-statuses', label: 'Statuts prospect', icon: '🏷', group: 'CRM' },
+  { id: 'lead-statuses', label: 'Stages du pipeline', icon: '🏷', group: 'CRM' },
   { id: 'contact-fields', label: 'Champs contact', icon: '📋', group: 'CRM' },
   { id: 'dispositions', label: 'Dispositions appel', icon: '✅', group: 'CRM' },
   { id: 'field-mapping', label: 'Mapping champs', icon: '🔀', group: 'CRM' },
@@ -589,7 +589,7 @@ function LeadStatuses() {
 
   return (
     <div className="space-y-4">
-      <h2 className="text-[15px] font-bold text-gray-800">Statuts CRM (Pipeline)</h2>
+      <h2 className="text-[15px] font-bold text-gray-800">Stages du pipeline</h2>
       <p className="text-[11px] text-gray-400">Définissez les étapes de votre pipeline commercial. Les statuts système ne peuvent pas être supprimés.</p>
 
       <div className="space-y-1.5">

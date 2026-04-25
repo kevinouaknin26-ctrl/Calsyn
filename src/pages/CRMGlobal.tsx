@@ -404,8 +404,9 @@ export default function CRMGlobal() {
   // Fallback : si l'org n'a pas de crm_statuses configurés, dériver depuis les options enum
   // de system:crm_status (sinon le Kanban est vide même avec des prospects).
   const effectiveStatuses = useMemo(() => {
-    // Toujours commencer par les défauts puis overlay les rows DB par key.
-    // Évite que la création d'un seul stage custom efface tout le pipeline.
+    // Source de vérité = crmStatuses en DB (les rows soft-deleted sont déjà
+    // filtrées par useCrmStatuses). Si l'org n'a aucun stage (cas seul d'une
+    // org pas encore seedée), fallback sur les défauts du code.
     const defaultKeys = (SYSTEM_PROPERTIES.find(p => p.key === 'crm_status')?.options) || []
     const colorByKey: Record<string, string> = {
       new: '#9ca3af', attempted_to_contact: '#f59e0b', connected: '#10b981',
@@ -414,18 +415,17 @@ export default function CRMGlobal() {
       en_attente_signature: '#f59e0b', signe: '#10b981',
       en_attente_paiement: '#f59e0b', paye: '#22c55e',
     }
-    const defaults = defaultKeys.map((key, i) => ({
-      key,
-      label: CRM_STATUS_LABELS[key] || key,
-      color: colorByKey[key] || '#6b7280',
-      priority: i,
-    }))
-    // Merge : on prend les défauts, puis on remplace par la version DB si elle existe
-    // (label custom, couleur custom). Et on ajoute les stages 100% custom (pas dans defaults).
-    const dbByKey = new Map((crmStatuses || []).map(s => [s.key, s]))
-    const merged = defaults.map(d => dbByKey.get(d.key) || d)
-    const customOnly = (crmStatuses || []).filter(s => !defaultKeys.includes(s.key))
-    let stages = [...merged, ...customOnly]
+    let stages
+    if (crmStatuses && crmStatuses.length > 0) {
+      stages = crmStatuses
+    } else {
+      stages = defaultKeys.map((key, i) => ({
+        key,
+        label: CRM_STATUS_LABELS[key] || key,
+        color: colorByKey[key] || '#6b7280',
+        priority: i,
+      }))
+    }
     // Applique l'ordre custom localStorage si défini, sinon ordre naturel
     if (stageOrder.length === 0) return stages
     const byKey = new Map(stages.map(s => [s.key, s]))
