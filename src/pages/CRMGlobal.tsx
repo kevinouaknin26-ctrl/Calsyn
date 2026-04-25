@@ -893,47 +893,112 @@ export default function CRMGlobal() {
             <div className="flex gap-3 h-full">
               {(crmStatuses || []).map(stage => {
                 const stageProspects = filtered.filter(p => (p.crm_status || 'new') === stage.key)
+                const rdvCount = stageProspects.filter(p => p.meeting_booked).length
+                const totalCalls = stageProspects.reduce((s, p) => s + (p.call_count || 0), 0)
                 return (
-                  <div key={stage.key} className="w-[260px] min-w-[260px] flex flex-col bg-gray-50/80 rounded-xl border border-gray-100">
-                    {/* Column header */}
-                    <div className="px-3 py-2.5 border-b border-gray-100 flex items-center gap-2">
-                      <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: stage.color }} />
-                      <span className="text-[12px] font-semibold text-gray-700 flex-1 truncate">{stage.label}</span>
-                      <span className="text-[10px] font-bold text-gray-400 bg-gray-200/60 px-1.5 py-0.5 rounded-full">{stageProspects.length}</span>
+                  <div key={stage.key} className="w-[280px] min-w-[280px] flex flex-col bg-gray-50/80 rounded-xl border border-gray-100">
+                    {/* Column header — coloré par stage */}
+                    <div className="px-3 py-2.5 border-b-2 flex flex-col gap-1.5"
+                      style={{ borderColor: stage.color + '40' }}>
+                      <div className="flex items-center gap-2">
+                        <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: stage.color }} />
+                        <span className="text-[12px] font-semibold text-gray-700 flex-1 truncate">{stage.label}</span>
+                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full" style={{ background: stage.color + '20', color: stage.color }}>
+                          {stageProspects.length}
+                        </span>
+                      </div>
+                      {/* Métriques compactes */}
+                      {stageProspects.length > 0 && (
+                        <div className="flex items-center gap-2 text-[9px] text-gray-400 pl-4">
+                          {rdvCount > 0 && <span className="text-teal-500 font-medium">{rdvCount} RDV</span>}
+                          {totalCalls > 0 && <span>{totalCalls} appel{totalCalls > 1 ? 's' : ''}</span>}
+                        </div>
+                      )}
                     </div>
-                    {/* Cards */}
-                    <div className="flex-1 overflow-y-auto p-2 space-y-1.5"
-                      onDragOver={e => { e.preventDefault(); e.currentTarget.classList.add('bg-violet-50/50') }}
-                      onDragLeave={e => { e.currentTarget.classList.remove('bg-violet-50/50') }}
+                    {/* Cards container — drop zone */}
+                    <div className="flex-1 overflow-y-auto p-2 space-y-1.5 transition-colors rounded-b-xl"
+                      onDragOver={e => { e.preventDefault(); e.currentTarget.classList.add('bg-violet-100/40', 'ring-2', 'ring-violet-300', 'ring-inset') }}
+                      onDragLeave={e => { e.currentTarget.classList.remove('bg-violet-100/40', 'ring-2', 'ring-violet-300', 'ring-inset') }}
                       onDrop={async e => {
-                        e.currentTarget.classList.remove('bg-violet-50/50')
+                        e.currentTarget.classList.remove('bg-violet-100/40', 'ring-2', 'ring-violet-300', 'ring-inset')
                         const prospectId = e.dataTransfer.getData('prospectId')
                         if (prospectId) {
                           await supabase.from('prospects').update({ crm_status: stage.key }).eq('id', prospectId)
                           queryClient.invalidateQueries({ queryKey: ['all-prospects'] })
                         }
                       }}>
-                      {stageProspects.map(p => (
-                        <div key={p.id} draggable
-                          onDragStart={e => e.dataTransfer.setData('prospectId', p.id)}
-                          onClick={() => setSelectedProspect(p)}
-                          className="bg-white rounded-lg border border-gray-200 p-2.5 cursor-pointer hover:shadow-md hover:border-violet-200 transition-all active:scale-[0.98]">
-                          <div className="flex items-center gap-2 mb-1">
-                            <div className="w-6 h-6 rounded-full bg-violet-100 text-violet-600 flex items-center justify-center text-[9px] font-bold flex-shrink-0">
-                              {(p.name || '?')[0].toUpperCase()}
+                      {stageProspects.map(p => {
+                        const sdrIds = Array.from(new Set(p.listIds.flatMap(lid => listSdrsMap[lid] || [])))
+                        const isSnoozed = !!p.snoozed_until && new Date(p.snoozed_until) > new Date()
+                        const lastCallDate = p.last_call_at ? new Date(p.last_call_at) : null
+                        const daysSinceCall = lastCallDate ? Math.floor((Date.now() - lastCallDate.getTime()) / 86400000) : null
+                        return (
+                          <div key={p.id} draggable
+                            onDragStart={e => e.dataTransfer.setData('prospectId', p.id)}
+                            onClick={() => setSelectedProspect(p)}
+                            className="bg-white rounded-lg border border-gray-200 p-2.5 cursor-pointer hover:shadow-md hover:border-violet-300 transition-all active:scale-[0.98] group">
+                            {/* Header card : avatar + nom + actions */}
+                            <div className="flex items-start gap-2 mb-1.5">
+                              <div className="w-7 h-7 rounded-full bg-gradient-to-br from-violet-400 to-indigo-500 text-white flex items-center justify-center text-[10px] font-bold flex-shrink-0">
+                                {(p.name || '?')[0].toUpperCase()}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-[12px] font-semibold text-gray-800 truncate">{p.name}</p>
+                                {p.company && <p className="text-[10px] text-gray-400 truncate">{p.company}</p>}
+                              </div>
+                              {/* Quick action : Appeler — visible au hover */}
+                              {p.phone && !p.do_not_call && (
+                                <button onClick={e => { e.stopPropagation(); cm.startOutbound(p, [p]) }}
+                                  title={`Appeler ${p.phone}`}
+                                  className="opacity-0 group-hover:opacity-100 transition-opacity w-6 h-6 rounded-full bg-violet-500 text-white flex items-center justify-center hover:bg-violet-600 flex-shrink-0">
+                                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" /></svg>
+                                </button>
+                              )}
                             </div>
-                            <p className="text-[12px] font-medium text-gray-800 truncate flex-1">{p.name}</p>
+
+                            {/* Listes (badges) */}
+                            {p.listNames.length > 0 && (
+                              <div className="flex flex-wrap gap-0.5 mb-1">
+                                {p.listNames.slice(0, 2).map((name, i) => (
+                                  <span key={i} className="px-1.5 py-0.5 rounded text-[8px] font-medium bg-indigo-50 text-indigo-600 border border-indigo-100 truncate max-w-[80px]">{name}</span>
+                                ))}
+                                {p.listNames.length > 2 && <span className="text-[9px] text-gray-400">+{p.listNames.length - 2}</span>}
+                              </div>
+                            )}
+
+                            {/* SDR assignés (badges ambrés) */}
+                            {sdrIds.length > 0 && (
+                              <div className="flex flex-wrap gap-0.5 mb-1">
+                                {sdrIds.slice(0, 2).map(uid => (
+                                  <span key={uid} className="px-1.5 py-0.5 rounded text-[8px] font-medium bg-amber-50 text-amber-700 border border-amber-100 truncate max-w-[80px]" title={memberNameMap[uid] || 'SDR'}>
+                                    {memberNameMap[uid] || 'SDR'}
+                                  </span>
+                                ))}
+                                {sdrIds.length > 2 && <span className="text-[9px] text-gray-400">+{sdrIds.length - 2}</span>}
+                              </div>
+                            )}
+
+                            {/* Footer : indicateurs d'état */}
+                            <div className="flex items-center gap-1.5 text-[9px] text-gray-400 flex-wrap">
+                              {p.meeting_booked && <span className="px-1.5 py-0.5 rounded bg-teal-50 text-teal-600 font-semibold">RDV</span>}
+                              {p.do_not_call && <span className="px-1.5 py-0.5 rounded bg-red-50 text-red-500 font-semibold">DNC</span>}
+                              {isSnoozed && <span className="px-1.5 py-0.5 rounded bg-amber-50 text-amber-600 font-semibold" title={`Rappel le ${new Date(p.snoozed_until!).toLocaleDateString('fr-FR')}`}>Snooze</span>}
+                              {p.call_count > 0 && (
+                                <span title={`${p.call_count} appel${p.call_count > 1 ? 's' : ''} passé${p.call_count > 1 ? 's' : ''}`}>
+                                  📞 {p.call_count}
+                                </span>
+                              )}
+                              {daysSinceCall !== null && daysSinceCall <= 30 && (
+                                <span className={daysSinceCall <= 7 ? 'text-emerald-500' : 'text-gray-400'} title={`Dernier appel il y a ${daysSinceCall} jour${daysSinceCall > 1 ? 's' : ''}`}>
+                                  {daysSinceCall === 0 ? "aujourd'hui" : daysSinceCall === 1 ? 'hier' : `il y a ${daysSinceCall}j`}
+                                </span>
+                              )}
+                            </div>
                           </div>
-                          {p.company && <p className="text-[10px] text-gray-400 truncate mb-1">{p.company}</p>}
-                          <div className="flex items-center gap-2 text-[10px] text-gray-400">
-                            {p.phone && <span className="font-mono">{p.phone.slice(-4)}</span>}
-                            {p.call_count > 0 && <span>{p.call_count} appel{p.call_count > 1 ? 's' : ''}</span>}
-                            {p.rdv_date && <span className="text-teal-500">RDV</span>}
-                          </div>
-                        </div>
-                      ))}
+                        )
+                      })}
                       {stageProspects.length === 0 && (
-                        <p className="text-[11px] text-gray-300 text-center py-4 italic">Aucun contact</p>
+                        <p className="text-[11px] text-gray-300 text-center py-4 italic">Glissez un contact ici</p>
                       )}
                     </div>
                   </div>
