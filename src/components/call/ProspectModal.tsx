@@ -17,6 +17,7 @@ import { useAuth } from '@/hooks/useAuth'
 import { useGoogleCalendar } from '@/hooks/useGoogleCalendar'
 import { useGmail, type GmailThread, type GmailMessage } from '@/hooks/useGmail'
 import { useSmsForProspect, useSendSms } from '@/hooks/useSms'
+import { useEmailTemplates, useSaveEmailTemplate, useDeleteEmailTemplate } from '@/hooks/useEmailTemplates'
 import { CallDirectionBadge, getCallDirection } from '@/pages/History'
 import type { Prospect, CrmStatus } from '@/types/prospect'
 import type { Disposition, Call } from '@/types/call'
@@ -783,6 +784,10 @@ function EmailsTab({ prospect }: { prospect: Prospect }) {
   const [suggesting, setSuggesting] = useState(false)
   const [attachments, setAttachments] = useState<Array<{ filename: string; mimeType: string; base64: string; sizeKB: number }>>([])
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const [showTemplatesMenu, setShowTemplatesMenu] = useState(false)
+  const { data: templates } = useEmailTemplates()
+  const saveTemplate = useSaveEmailTemplate()
+  const deleteTemplate = useDeleteEmailTemplate()
 
   const suggestReply = async () => {
     if (!threadMessages || threadMessages.length === 0) return
@@ -903,7 +908,59 @@ function EmailsTab({ prospect }: { prospect: Prospect }) {
       <div className="bg-indigo-50/40 border border-indigo-100 rounded-xl p-4 space-y-3">
         <div className="flex items-center justify-between">
           <h3 className="text-[13px] font-semibold text-gray-700">Nouveau message</h3>
-          <button onClick={() => setComposing(false)} className="text-gray-400 hover:text-red-500 text-[13px]">×</button>
+          <div className="flex items-center gap-2">
+            {/* Modèles dropdown */}
+            <div className="relative">
+              <button onClick={() => setShowTemplatesMenu(v => !v)}
+                className="text-[11px] font-medium text-indigo-600 hover:text-indigo-700 flex items-center gap-1">
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>
+                Modèles
+                <svg className="w-3 h-3 opacity-60" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+              </button>
+              {showTemplatesMenu && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setShowTemplatesMenu(false)} />
+                  <div className="absolute right-0 top-6 w-[280px] bg-white rounded-xl shadow-xl border border-gray-200 z-50 py-1 max-h-[320px] overflow-y-auto">
+                    {(templates || []).length === 0 && (
+                      <p className="px-3 py-3 text-[11px] text-gray-400 italic text-center">Aucun modèle enregistré</p>
+                    )}
+                    {(templates || []).map(t => (
+                      <div key={t.id} className="flex items-center gap-1 px-2 hover:bg-gray-50">
+                        <button onClick={() => {
+                          if (t.subject) setDraftSubject(t.subject)
+                          setDraftBody((t.body || '') + (signature ? '\n\n' + signature : ''))
+                          setShowTemplatesMenu(false)
+                        }} className="flex-1 text-left py-1.5 text-[12px] text-gray-700">
+                          <p className="font-medium truncate">{t.name}</p>
+                          {t.subject && <p className="text-[10px] text-gray-400 truncate">{t.subject}</p>}
+                        </button>
+                        <button onClick={async () => {
+                          if (confirm(`Supprimer le modèle "${t.name}" ?`)) await deleteTemplate.mutateAsync(t.id)
+                        }} title="Supprimer"
+                          className="text-gray-300 hover:text-red-500 px-1">×</button>
+                      </div>
+                    ))}
+                    <div className="border-t border-gray-100 mt-1">
+                      <button onClick={async () => {
+                        const name = prompt('Nom du modèle (ex: Premier contact)')
+                        if (!name?.trim()) return
+                        const sigStripped = signature ? draftBody.replace('\n\n' + signature, '') : draftBody
+                        try {
+                          await saveTemplate.mutateAsync({ name: name.trim(), subject: draftSubject, body: sigStripped })
+                          setShowTemplatesMenu(false)
+                        } catch (e) {
+                          alert(`Erreur : ${(e as Error).message}`)
+                        }
+                      }} className="w-full text-left px-3 py-2 text-[11px] font-medium text-violet-600 hover:bg-violet-50">
+                        + Enregistrer le mail courant comme modèle
+                      </button>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+            <button onClick={() => setComposing(false)} className="text-gray-400 hover:text-red-500 text-[13px]">×</button>
+          </div>
         </div>
         <div>
           <label className="text-[10px] font-bold text-gray-400 uppercase">À</label>
@@ -958,6 +1015,14 @@ function EmailsTab({ prospect }: { prospect: Prospect }) {
             Ajouter un fichier
           </button>
         </div>
+
+        {/* Aperçu signature image (sera ajoutée auto en HTML au send) */}
+        {signatureImageUrl && (
+          <div className="border-t border-indigo-100 pt-2">
+            <p className="text-[10px] font-bold text-gray-400 uppercase mb-1">Signature (ajoutée automatiquement)</p>
+            <img src={signatureImageUrl} alt="signature" className="max-h-20 max-w-full rounded border border-gray-200 bg-white" />
+          </div>
+        )}
 
         <div className="flex gap-2">
           <button onClick={handleSend} disabled={sending || !draftSubject.trim() || !draftBody.trim()}
