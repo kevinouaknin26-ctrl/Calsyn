@@ -37,7 +37,18 @@ interface MergedProspect extends Prospect {
 
 type FilterOp = 'eq' | 'neq' | 'contains' | 'not_contains' | 'starts' | 'empty' | 'not_empty' | 'gt' | 'lt' | 'in' | 'true' | 'false'
 type Filter = { id: string; propertyId: string; op: FilterOp; value: string }
-type SavedView = { id: string; name: string; columns: string[]; filters: Filter[]; sortBy: string; sortDir: 'asc' | 'desc' }
+type SavedView = {
+  id: string
+  name: string
+  columns: string[]
+  filters: Filter[]
+  sortBy: string
+  sortDir: 'asc' | 'desc'
+  // Filtres pipeline (optionnels — null/undefined = pas de filtre)
+  hiddenStageKeys?: string[]
+  listFilterId?: string | null
+  viewAsUserId?: string | null
+}
 
 // ══════════════════════════════════════════════════════════════════
 // FILTER EVALUATION (reusable)
@@ -736,7 +747,17 @@ export default function CRMGlobal() {
 
   // Views
   const saveCurrentView = (name: string) => {
-    const view: SavedView = { id: crypto.randomUUID(), name, columns: visibleColumnIds, filters, sortBy, sortDir }
+    const view: SavedView = {
+      id: crypto.randomUUID(),
+      name,
+      columns: visibleColumnIds,
+      filters,
+      sortBy,
+      sortDir,
+      hiddenStageKeys,
+      listFilterId,
+      viewAsUserId,
+    }
     persistViews([...savedViews, view])
     setActiveViewId(view.id)
     setSavingView(false)
@@ -748,7 +769,20 @@ export default function CRMGlobal() {
     setFilters(view.filters || [])
     setSortBy(view.sortBy)
     setSortDir(view.sortDir)
+    // Pipeline filters (avec défauts si vue ancienne sans ces champs)
+    setHiddenStageKeys(view.hiddenStageKeys || [])
+    setListFilterId(view.listFilterId ?? null)
+    setViewAsUserId(view.viewAsUserId ?? null)
     setActiveViewId(view.id)
+  }
+
+  const resetAllFilters = () => {
+    setActiveViewId(null)
+    setFilters([])
+    setHiddenStageKeys([])
+    setListFilterId(null)
+    setViewAsUserId(null)
+    setSearch('')
   }
 
   // Call from CRM
@@ -865,7 +899,7 @@ export default function CRMGlobal() {
 
           {/* View tabs */}
           <div className="flex items-center gap-1 overflow-x-auto scrollbar-hide" style={{ scrollbarWidth: 'none' }}>
-            <button onClick={() => { setActiveViewId(null); setFilters([]) }}
+            <button onClick={resetAllFilters}
               className={`px-3 py-1 rounded-lg text-[12px] font-medium transition-colors whitespace-nowrap ${
                 !activeViewId ? 'bg-indigo-50 text-indigo-600' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
               }`}>Tous</button>
