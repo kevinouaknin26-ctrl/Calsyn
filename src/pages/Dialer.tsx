@@ -1241,11 +1241,15 @@ export default function Dialer() {
   })
   const [showCallSettings, setShowCallSettings] = useState(false)
   const [showHiddenListsMenu, setShowHiddenListsMenu] = useState(false)
+  const [hiddenListsMenuCoords, setHiddenListsMenuCoords] = useState<{ top: number; left: number } | null>(null)
+  const hiddenListsButtonRef = useRef<HTMLButtonElement>(null)
   const hiddenListsMenuRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
     if (!showHiddenListsMenu) return
     const handler = (e: MouseEvent) => {
-      if (hiddenListsMenuRef.current && !hiddenListsMenuRef.current.contains(e.target as Node)) setShowHiddenListsMenu(false)
+      const t = e.target as Node
+      if (hiddenListsMenuRef.current?.contains(t) || hiddenListsButtonRef.current?.contains(t)) return
+      setShowHiddenListsMenu(false)
     }
     document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
@@ -1603,13 +1607,22 @@ export default function Dialer() {
           const hiddenCount = closedUserLists.length + closedSmartLists.length
           if (hiddenCount === 0) return null
           return (
-            <div className="relative flex-shrink-0" ref={hiddenListsMenuRef}>
-              <button onClick={() => setShowHiddenListsMenu(v => !v)}
-                className="px-2 py-2.5 text-[12px] text-gray-500 hover:text-violet-600 whitespace-nowrap transition-colors">
+            <>
+              <button
+                ref={hiddenListsButtonRef}
+                onClick={() => {
+                  if (showHiddenListsMenu) { setShowHiddenListsMenu(false); return }
+                  const r = hiddenListsButtonRef.current?.getBoundingClientRect()
+                  if (r) setHiddenListsMenuCoords({ top: r.bottom + 4, left: r.left })
+                  setShowHiddenListsMenu(true)
+                }}
+                className="px-2 py-2.5 text-[12px] text-gray-500 hover:text-violet-600 whitespace-nowrap transition-colors flex-shrink-0">
                 +{hiddenCount} ▾
               </button>
-              {showHiddenListsMenu && (
-                <div className="absolute top-full left-0 mt-1 bg-white rounded-xl shadow-xl border border-gray-200 z-50 py-1 min-w-[240px] max-h-[320px] overflow-y-auto animate-slide-down">
+              {showHiddenListsMenu && hiddenListsMenuCoords && createPortal(
+                <div ref={hiddenListsMenuRef}
+                  style={{ position: 'fixed', top: hiddenListsMenuCoords.top, left: hiddenListsMenuCoords.left, zIndex: 9999 }}
+                  className="bg-white rounded-xl shadow-xl border border-gray-200 py-1 min-w-[240px] max-h-[320px] overflow-y-auto animate-slide-down">
                   {closedSmartLists.length > 0 && (
                     <>
                       <div className="px-3 py-1.5 text-[10px] font-bold text-gray-400 uppercase tracking-wider">Vues intelligentes</div>
@@ -1641,9 +1654,10 @@ export default function Dialer() {
                       ))}
                     </>
                   )}
-                </div>
+                </div>,
+                document.body
               )}
-            </div>
+            </>
           )
         })()}
       </div>
