@@ -780,6 +780,29 @@ export default function CRMGlobal() {
     setSelectedIds(new Set())
   }
 
+  // Crée une nouvelle liste à partir des prospects sélectionnés
+  const bulkCreateList = async () => {
+    const ids = Array.from(selectedIds)
+    if (ids.length === 0 || !orgId || !profile?.id) return
+    const name = prompt(`Nom de la nouvelle liste (${ids.length} contact${ids.length > 1 ? 's' : ''}) ?`)?.trim()
+    if (!name) return
+    const { data: list, error } = await supabase.from('prospect_lists').insert({
+      organisation_id: orgId,
+      name,
+      created_by: profile.id,
+      assigned_to: [profile.id],
+    }).select('id').single()
+    if (error || !list) { alert(`Erreur création liste : ${error?.message || 'inconnue'}`); return }
+    const memberships = ids.map(pid => ({ prospect_id: pid, list_id: list.id, organisation_id: orgId }))
+    const { error: mErr } = await supabase.from('prospect_list_memberships').upsert(memberships, { onConflict: 'prospect_id,list_id', ignoreDuplicates: true })
+    if (mErr) { alert(`Liste créée mais memberships partiels : ${mErr.message}`); }
+    await queryClient.invalidateQueries({ queryKey: ['prospect-lists'] })
+    await queryClient.invalidateQueries({ queryKey: ['prospect-list-memberships'] })
+    await queryClient.invalidateQueries({ queryKey: ['all-prospects'] })
+    setSelectedIds(new Set())
+    alert(`Liste "${name}" créée avec ${ids.length} contact${ids.length > 1 ? 's' : ''}.`)
+  }
+
   // Views
   const saveCurrentView = (name: string) => {
     const view: SavedView = {
@@ -1105,6 +1128,8 @@ export default function CRMGlobal() {
                 <option value="">Changer statut...</option>
                 {(crmStatuses || []).map(s => <option key={s.key} value={s.key}>{s.label}</option>)}
               </select>
+              <button onClick={bulkCreateList} title="Créer une liste avec ces contacts"
+                className="text-[11px] text-indigo-600 hover:text-indigo-800 font-medium">+ Liste</button>
               {perms.canDeleteContacts && (
                 <button onClick={bulkDelete} className="text-[11px] text-red-500 hover:text-red-700 font-medium">Supprimer</button>
               )}
