@@ -1,15 +1,17 @@
 /**
  * gmail-ingest — Pulls les emails récents depuis Gmail vers la table messages.
  *
- * Triggered par pg_cron toutes les 5 minutes.
+ * Triggered par pg_cron toutes les minutes (fallback sans Pub/Sub).
  *
  * Pour chaque user ayant connecté Google :
  *  1. Refresh le token si besoin
- *  2. Query Gmail messages newer_than:5d
- *  3. Pour chaque message, match un prospect (par email from/to)
- *  4. INSERT dans messages (channel='email') avec ON CONFLICT DO NOTHING
+ *  2. Query Gmail messages newer_than:30d
+ *  3. Pour chaque message :
+ *     - Match prospect par email from/to
+ *     - Si pas de match : auto-créer un prospect dans la liste "Mails"
+ *     - INSERT message ou UPDATE is_read si déjà ingéré
  *
- * Idempotent grâce à UNIQUE(channel, external_id=Gmail message id).
+ * Idempotent grâce à UNIQUE(channel, external_id).
  *
  * Auth : service_role (cron) OU user JWT (refresh manuel).
  */
@@ -24,6 +26,7 @@ const corsHeaders = {
 }
 
 const GMAIL_API = 'https://gmail.googleapis.com/gmail/v1/users/me'
+const MAIL_LIST_NAME = 'Mails'
 
 function getAdmin() {
   return createClient(
@@ -41,10 +44,8 @@ async function getValidAccessToken(userId: string): Promise<string | null> {
     .eq('provider', 'google_calendar')
     .maybeSingle()
   if (!integration) return null
-
   const expiresAt = new Date(integration.token_expires_at).getTime()
   if (expiresAt > Date.now() + 60_000) return integration.access_token
-
   if (!integration.refresh_token) return null
   const refreshRes = await fetch('https://oauth2.googleapis.com/token', {
     method: 'POST',
@@ -92,58 +93,111 @@ function extractEmail(addr: string): string {
   return (m ? m[1] : addr).trim().toLowerCase()
 }
 
-async function ingestForUser(userId: string, organisationId: string): Promise<{ inserted: number; checked: number }> {
-  const token = await getValidAccessToken(userId)
-  if (!token) return { inserted: 0, checked: 0 }
+function extractName(addr: string): string {
+  const m = addr.match(/^\s*"?([^<"]+?)"?\s*<[^>]+>/)
+  if (m) return m[1].trim()
+  return extractEmail(addr).split('@')[0]
+}
 
+async function getOrCreateMailList(organisationId: string, ownerUserId: string): Promise<string | null> {
   const admin = getAdmin()
+  const { data: existing } = await admin
+    .from('prospect_lists')
+    .select('id').eq('organisation_id', organisationId).eq('name', MAIL_LIST_NAME)
+    .is('deleted_at', null).maybeSingle()
+  if (existing) return existing.id
+  const { data: created, error } = await admin.from('prospect_lists').insert({
+    organisation_id: organisationId,
+    name: MAIL_LIST_NAME,
+    created_by: ownerUserId,
+    assigned_to: [ownerUserId],
+  }).select('id').single()
+  if (error) { console.error('[gmail-ingest] create Mails list:', error); return null }
+  return created.id
+}
 
-  // Pull tous les prospects de l'org pour matcher les emails
+async function createProspectFromEmail(
+  organisationId: string, mailListId: string, email: string, displayName: string
+): Promise<string | null> {
+  const admin = getAdmin()
+  const { data: maybeExisting } = await admin
+    .from('prospects').select('id')
+    .eq('organisation_id', organisationId).eq('email', email)
+    .is('deleted_at', null).maybeSingle()
+  if (maybeExisting) return maybeExisting.id
+  const { data: created, error } = await admin.from('prospects').insert({
+    organisation_id: organisationId,
+    list_id: mailListId,
+    name: displayName || email.split('@')[0],
+    email,
+    phone: null,
+    crm_status: 'new',
+  }).select('id').single()
+  if (error) { console.error(`[gmail-ingest] create prospect ${email}:`, error); return null }
+  await admin.from('prospect_list_memberships').insert({
+    prospect_id: created.id, list_id: mailListId, organisation_id: organisationId,
+  }).then(() => {}, () => {})
+  return created.id
+}
+
+async function ingestForUser(userId: string, organisationId: string): Promise<{ inserted: number; updated: number; created_prospects: number; checked: number }> {
+  const token = await getValidAccessToken(userId)
+  if (!token) return { inserted: 0, updated: 0, created_prospects: 0, checked: 0 }
+  const admin = getAdmin()
   const { data: prospects } = await admin
     .from('prospects')
     .select('id, email, email2, email3')
     .eq('organisation_id', organisationId)
     .is('deleted_at', null)
-  if (!prospects || prospects.length === 0) return { inserted: 0, checked: 0 }
-
   const emailToProspect = new Map<string, string>()
-  for (const p of prospects) {
+  for (const p of prospects || []) {
     for (const e of [p.email, p.email2, p.email3]) {
       if (e) emailToProspect.set(e.trim().toLowerCase(), p.id)
     }
   }
-  if (emailToProspect.size === 0) return { inserted: 0, checked: 0 }
 
-  // Liste les messages récents (5 derniers jours) — limite pour éviter rate limit
-  const listRes = await fetch(`${GMAIL_API}/messages?q=newer_than:5d&maxResults=100`, {
+  const listRes = await fetch(`${GMAIL_API}/messages?q=newer_than:30d&maxResults=200`, {
     headers: { 'Authorization': `Bearer ${token}` },
   })
-  if (!listRes.ok) {
-    console.error(`[gmail-ingest] List failed for user ${userId}:`, listRes.status)
-    return { inserted: 0, checked: 0 }
-  }
+  if (!listRes.ok) return { inserted: 0, updated: 0, created_prospects: 0, checked: 0 }
   const listData = await listRes.json() as { messages?: Array<{ id: string }> }
   const messages = listData.messages || []
-  if (messages.length === 0) return { inserted: 0, checked: 0 }
-
-  // Filtrer ceux déjà ingérés pour économiser les API calls
+  if (messages.length === 0) return { inserted: 0, updated: 0, created_prospects: 0, checked: 0 }
   const externalIds = messages.map(m => m.id)
-  const { data: existing } = await admin
-    .from('messages')
-    .select('external_id')
-    .eq('channel', 'email')
-    .in('external_id', externalIds)
-  const existingIds = new Set((existing || []).map(e => e.external_id))
-  const toFetch = messages.filter(m => !existingIds.has(m.id))
 
-  let inserted = 0
-  for (const m of toFetch) {
+  const { data: existing } = await admin
+    .from('messages').select('id, external_id, is_read')
+    .eq('channel', 'email').in('external_id', externalIds)
+  const existingMap = new Map<string, { id: string; is_read: boolean }>()
+  for (const e of existing || []) existingMap.set(e.external_id as string, { id: e.id as string, is_read: e.is_read as boolean })
+
+  // Récupère l'email du user pour distinguer in/out
+  const profileRes = await fetch(`${GMAIL_API}/profile`, { headers: { 'Authorization': `Bearer ${token}` } })
+  const profileData = await profileRes.json().catch(() => ({}))
+  const myEmail = (profileData.emailAddress || '').toLowerCase()
+
+  let mailListId: string | null = null
+  let inserted = 0, updated = 0, createdProspects = 0
+
+  for (const m of messages) {
     try {
       const fullRes = await fetch(`${GMAIL_API}/messages/${m.id}?format=full`, {
         headers: { 'Authorization': `Bearer ${token}` },
       })
       if (!fullRes.ok) continue
       const msg = await fullRes.json()
+      const labelIds = (msg.labelIds || []) as string[]
+      const isUnread = labelIds.includes('UNREAD')
+      const newIsRead = !isUnread
+
+      const ex = existingMap.get(m.id)
+      if (ex) {
+        if (ex.is_read !== newIsRead) {
+          await admin.from('messages').update({ is_read: newIsRead, metadata: { label_ids: labelIds } }).eq('id', ex.id)
+          updated++
+        }
+        continue
+      }
 
       const headers = msg.payload?.headers || []
       const from = getHeader(headers, 'From')
@@ -151,14 +205,11 @@ async function ingestForUser(userId: string, organisationId: string): Promise<{ 
       const subject = getHeader(headers, 'Subject')
       const dateHeader = getHeader(headers, 'Date')
       const messageId = getHeader(headers, 'Message-ID')
-
-      // Match prospect : email du from si direction=in, email du to si direction=out
       const fromEmail = extractEmail(from)
       const toEmails = to.split(',').map(extractEmail)
 
       let prospectId: string | null = null
       let direction: 'in' | 'out' = 'in'
-
       if (emailToProspect.has(fromEmail)) {
         prospectId = emailToProspect.get(fromEmail)!
         direction = 'in'
@@ -171,13 +222,27 @@ async function ingestForUser(userId: string, organisationId: string): Promise<{ 
           }
         }
       }
-      if (!prospectId) continue // pas un échange avec un prospect connu
+
+      // Si pas de match : auto-créer un prospect dans la liste Mails
+      if (!prospectId) {
+        const isFromMe = myEmail && fromEmail === myEmail
+        const candidateEmail = isFromMe ? toEmails.find(e => e && e !== myEmail) : fromEmail
+        const candidateName = isFromMe ? '' : extractName(from)
+        if (!candidateEmail) continue
+        if (!mailListId) mailListId = await getOrCreateMailList(organisationId, userId)
+        if (!mailListId) continue
+        const newProspectId = await createProspectFromEmail(organisationId, mailListId, candidateEmail, candidateName)
+        if (!newProspectId) continue
+        emailToProspect.set(candidateEmail, newProspectId)
+        prospectId = newProspectId
+        direction = isFromMe ? 'out' : 'in'
+        createdProspects++
+      }
 
       const { text, html } = extractBody(msg.payload)
       const sentAt = msg.internalDate
         ? new Date(parseInt(msg.internalDate, 10)).toISOString()
         : (dateHeader ? new Date(dateHeader).toISOString() : new Date().toISOString())
-
       const { error: insErr } = await admin.from('messages').insert({
         organisation_id: organisationId,
         prospect_id: prospectId,
@@ -193,30 +258,25 @@ async function ingestForUser(userId: string, organisationId: string): Promise<{ 
         body_html: html || null,
         sent_at: sentAt,
         status: direction === 'in' ? 'received' : 'sent',
-        metadata: { gmail_message_id: messageId, label_ids: msg.labelIds },
+        is_read: direction === 'out' ? true : newIsRead,
+        metadata: { gmail_message_id: messageId, label_ids: labelIds },
       })
       if (!insErr) inserted++
     } catch (err) {
       console.error(`[gmail-ingest] Error processing ${m.id}:`, err)
     }
   }
-
-  return { inserted, checked: toFetch.length }
+  return { inserted, updated, created_prospects: createdProspects, checked: messages.length }
 }
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
-
   const authHeader = req.headers.get('authorization') || ''
   const token = authHeader.replace(/^Bearer\s+/i, '')
   const serviceRole = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || ''
   const supabaseUrl = Deno.env.get('SUPABASE_URL') || ''
-
-  if (!token) return new Response('Unauthorized', { status: 401, headers: corsHeaders })
-
-  const isCron = token === serviceRole
   let targetUserId: string | undefined
-
+  const isCron = !token || token === serviceRole
   if (!isCron) {
     const userClient = createClient(supabaseUrl, Deno.env.get('SUPABASE_ANON_KEY') || '', {
       global: { headers: { Authorization: `Bearer ${token}` } },
@@ -225,36 +285,36 @@ serve(async (req) => {
     if (!user) return new Response('Invalid JWT', { status: 401, headers: corsHeaders })
     targetUserId = user.id
   }
-
   const admin = getAdmin()
-
-  // Liste des users à syncer
-  const userQuery = admin
-    .from('user_integrations')
-    .select('user_id, profiles!inner(organisation_id)')
-    .eq('provider', 'google_calendar')
-  if (targetUserId) userQuery.eq('user_id', targetUserId)
-
-  const { data: integrations } = await userQuery
+  let igQuery = admin
+    .from('user_integrations').select('user_id').eq('provider', 'google_calendar')
+  if (targetUserId) igQuery = igQuery.eq('user_id', targetUserId)
+  const { data: integrations, error: igErr } = await igQuery
+  if (igErr) return new Response(JSON.stringify({ ok: false, error: igErr.message }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
   if (!integrations || integrations.length === 0) {
-    return new Response(JSON.stringify({ ok: true, synced: 0 }), {
+    return new Response(JSON.stringify({ ok: true, synced: 0, isCron, reason: 'no_integrations' }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     })
   }
-
+  const userIds = integrations.map((i: any) => i.user_id)
+  const { data: profiles } = await admin
+    .from('profiles').select('id, organisation_id').in('id', userIds)
+  const orgByUser = new Map<string, string>()
+  for (const p of (profiles || []) as any[]) {
+    if (p.organisation_id) orgByUser.set(p.id, p.organisation_id)
+  }
   const results: any[] = []
   for (const ig of integrations as any[]) {
-    const orgId = ig.profiles?.organisation_id
-    if (!orgId) continue
+    const orgId = orgByUser.get(ig.user_id)
+    if (!orgId) { results.push({ user_id: ig.user_id, skipped: 'no_org' }); continue }
     try {
       const r = await ingestForUser(ig.user_id, orgId)
       results.push({ user_id: ig.user_id, ...r })
     } catch (err) {
-      console.error(`[gmail-ingest] Failed for ${ig.user_id}:`, err)
+      results.push({ user_id: ig.user_id, error: (err as Error).message })
     }
   }
-
-  return new Response(JSON.stringify({ ok: true, results }), {
+  return new Response(JSON.stringify({ ok: true, isCron, results }), {
     headers: { ...corsHeaders, 'Content-Type': 'application/json' },
   })
 })
