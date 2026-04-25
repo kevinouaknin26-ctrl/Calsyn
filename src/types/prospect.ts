@@ -41,6 +41,9 @@ export interface Prospect {
   email: string | null
   email2: string | null
   email3: string | null
+  next_action_gcal_event_id?: string | null
+  next_action_invited_client?: boolean | null
+  next_action_type?: string | null
   company: string | null
   title: string | null
   sector: string | null

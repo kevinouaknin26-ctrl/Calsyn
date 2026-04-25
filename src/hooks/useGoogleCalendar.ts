@@ -61,10 +61,13 @@ export function useGoogleCalendar() {
     return res.json()
   }, [])
 
-  const createEvent = useCallback(async (event: Record<string, unknown>) => {
+  const createEvent = useCallback(async (event: Record<string, unknown>, sendUpdates?: 'all' | 'externalOnly' | 'none') => {
     const { data: { session } } = await supabase.auth.getSession()
     if (!session) return null
-    const res = await fetch(`${SUPABASE_URL}/functions/v1/google-calendar?action=create`, {
+    const url = new URL(`${SUPABASE_URL}/functions/v1/google-calendar`)
+    url.searchParams.set('action', 'create')
+    if (sendUpdates) url.searchParams.set('sendUpdates', sendUpdates)
+    const res = await fetch(url.toString(), {
       method: 'POST',
       headers: { Authorization: `Bearer ${session.access_token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ event }),
@@ -73,5 +76,20 @@ export function useGoogleCalendar() {
     return res.json()
   }, [])
 
-  return { connected: status?.connected || false, connect, disconnect, listEvents, createEvent }
+  const deleteEvent = useCallback(async (eventId: string, sendUpdates?: 'all' | 'externalOnly' | 'none') => {
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session) return null
+    const url = new URL(`${SUPABASE_URL}/functions/v1/google-calendar`)
+    url.searchParams.set('action', 'delete')
+    url.searchParams.set('eventId', eventId)
+    if (sendUpdates) url.searchParams.set('sendUpdates', sendUpdates)
+    const res = await fetch(url.toString(), {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${session.access_token}` },
+    })
+    if (!res.ok) return null
+    return res.json()
+  }, [])
+
+  return { connected: status?.connected || false, connect, disconnect, listEvents, createEvent, deleteEvent }
 }

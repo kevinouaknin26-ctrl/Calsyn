@@ -679,6 +679,98 @@ function MiniDropdown({ value, options, onChange, className }: {
 }
 
 // ── Onglet Notes : zone pour ajouter + liste des notes (appels + IA) ─
+// ── Onglet Tâches (RDV + rappels avec actions) ──────────────────────
+function TasksTab({ prospect, onUpdate }: { prospect: Prospect; onUpdate: () => void }) {
+  const { connected: gcalConnected, deleteEvent: gcalDeleteEvent } = useGoogleCalendar()
+  const motifLabels: Record<string, string> = {
+    rappel: 'Rappel',
+    retour_demande: 'Retour sur demande',
+    rdv: 'RDV',
+    rdv_2: 'RDV n°2',
+    rdv_3: 'RDV n°3',
+  }
+
+  const hasRdv = !!prospect.rdv_date
+  const hasReminder = !!prospect.snoozed_until && new Date(prospect.snoozed_until) > new Date()
+  const eventId = (prospect as Prospect & { next_action_gcal_event_id?: string }).next_action_gcal_event_id
+  const wasInvited = (prospect as Prospect & { next_action_invited_client?: boolean }).next_action_invited_client
+  const motif = (prospect as Prospect & { next_action_type?: string }).next_action_type
+
+  const cancel = async (kind: 'rdv' | 'reminder') => {
+    const msg = kind === 'rdv'
+      ? `Annuler ce RDV ?${wasInvited ? ' L\'invitation Google sera supprimée et le client sera notifié.' : ''}`
+      : 'Supprimer ce rappel ?'
+    if (!confirm(msg)) return
+    if (gcalConnected && eventId) {
+      await gcalDeleteEvent(eventId, wasInvited ? 'all' : 'none').catch(err => console.warn('[TasksTab] GCal delete failed', err))
+    }
+    const update: Record<string, unknown> = { next_action_type: null, next_action_gcal_event_id: null, next_action_invited_client: false }
+    if (kind === 'rdv') { update.rdv_date = null; update.meeting_booked = false } else { update.snoozed_until = null }
+    await supabase.from('prospects').update(update).eq('id', prospect.id)
+    await supabase.from('activity_logs').insert({
+      prospect_id: prospect.id,
+      action: kind === 'rdv' ? 'rdv_cancelled' : 'snooze_removed',
+      details: kind === 'rdv' ? `RDV annulé${wasInvited ? ' (notification client)' : ''}` : 'Rappel supprimé',
+    })
+    onUpdate()
+  }
+
+  if (!hasRdv && !hasReminder) {
+    return (
+      <div className="text-center py-10">
+        <svg className="w-8 h-8 text-gray-300 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" /></svg>
+        <p className="text-[13px] text-gray-400">Aucune tâche</p>
+        <p className="text-[11px] text-gray-300 mt-1">Les RDV et rappels apparaîtront ici.</p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-2">
+      {hasRdv && (
+        <div className="bg-teal-50 border border-teal-200 rounded-xl p-3">
+          <div className="flex items-start gap-2.5">
+            <svg className="w-4 h-4 text-teal-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+            <div className="flex-1">
+              <p className="text-[13px] font-semibold text-teal-800">{motif && motifLabels[motif] ? motifLabels[motif] : 'RDV'}</p>
+              <p className="text-[11px] text-teal-600 mt-0.5">
+                {new Date(prospect.rdv_date!).toLocaleDateString('fr-FR', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' })}
+                {' à '}
+                {new Date(prospect.rdv_date!).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+              </p>
+              {wasInvited && <p className="text-[10px] text-teal-500 mt-0.5">✉ Client invité par email</p>}
+              {!wasInvited && eventId && <p className="text-[10px] text-teal-500 mt-0.5">📌 Bloqué sur ton Google Calendar</p>}
+            </div>
+            <button onClick={() => cancel('rdv')} title="Annuler le RDV"
+              className="text-[11px] font-medium text-red-500 hover:text-red-700 px-2 py-1 rounded hover:bg-red-50">
+              Annuler
+            </button>
+          </div>
+        </div>
+      )}
+      {hasReminder && (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-3">
+          <div className="flex items-start gap-2.5">
+            <svg className="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+            <div className="flex-1">
+              <p className="text-[13px] font-semibold text-amber-800">{motif && motifLabels[motif] ? motifLabels[motif] : 'Rappel'}</p>
+              <p className="text-[11px] text-amber-600 mt-0.5">
+                {new Date(prospect.snoozed_until!).toLocaleDateString('fr-FR', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' })}
+                {' · dans '}
+                {Math.ceil((new Date(prospect.snoozed_until!).getTime() - Date.now()) / 86400000)} jour(s)
+              </p>
+            </div>
+            <button onClick={() => cancel('reminder')} title="Supprimer le rappel"
+              className="text-[11px] font-medium text-red-500 hover:text-red-700 px-2 py-1 rounded hover:bg-red-50">
+              Supprimer
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── Onglet SMS (Twilio intégré) ──────────────────────────────────────
 function SmsTab({ prospect }: { prospect: Prospect }) {
   const phoneNumbers = [prospect.phone, prospect.phone2, prospect.phone3, prospect.phone4, prospect.phone5].filter(Boolean) as string[]
@@ -1707,36 +1799,10 @@ export default function ProspectModal({
                 />
               )}
 
-              {/* ── Onglet Tâches : affiche les rappels actifs ── */}
-              {activeTab === 'taches' && (() => {
-                const hasActiveReminder = prospect.snoozed_until && new Date(prospect.snoozed_until) > new Date()
-                const reminderDateObj = prospect.snoozed_until ? new Date(prospect.snoozed_until) : null
-                if (!hasActiveReminder) {
-                  return (
-                    <div className="text-center py-10">
-                      <svg className="w-8 h-8 text-gray-300 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" /></svg>
-                      <p className="text-[13px] text-gray-400">Aucune tâche</p>
-                      <p className="text-[11px] text-gray-300 mt-1">Les rappels programmés apparaîtront ici.</p>
-                    </div>
-                  )
-                }
-                const daysUntil = Math.ceil((reminderDateObj!.getTime() - Date.now()) / 86400000)
-                return (
-                  <div className="space-y-2">
-                    <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 flex items-start gap-2.5">
-                      <svg className="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                      <div className="flex-1">
-                        <p className="text-[13px] font-semibold text-amber-800">Rappeler ce prospect</p>
-                        <p className="text-[11px] text-amber-600 mt-0.5">
-                          {reminderDateObj!.toLocaleDateString('fr-FR', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' })}
-                          {' · '}
-                          dans {daysUntil} jour{daysUntil > 1 ? 's' : ''}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                )
-              })()}
+              {/* ── Onglet Tâches : affiche RDV + rappels avec actions ── */}
+              {activeTab === 'taches' && (
+                <TasksTab prospect={prospect} onUpdate={() => { queryClient.invalidateQueries({ queryKey: ['prospects'] }); queryClient.invalidateQueries({ queryKey: ['all-prospects'] }); queryClient.invalidateQueries({ queryKey: ['rdv-upcoming-bar'] }); queryClient.invalidateQueries({ queryKey: ['rdv-calendar'] }) }} />
+              )}
 
               {/* ── Onglet Emails (Gmail) ── */}
               {activeTab === 'emails' && (
@@ -1853,7 +1919,7 @@ const FALLBACK_STAGES: Array<{ key: string; label: string; color: string }> = [
 function DealSidebar({ prospect }: { prospect: Prospect }) {
   const queryClient = useQueryClient()
   const { data: dbStatuses } = useCrmStatuses()
-  const { connected: gcalConnected, createEvent: gcalCreateEvent } = useGoogleCalendar()
+  const { connected: gcalConnected, createEvent: gcalCreateEvent, deleteEvent: gcalDeleteEvent } = useGoogleCalendar()
 
   // Google Meet link — cherche dans les events Calendar autour du rdv_date
   const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL
@@ -1903,6 +1969,7 @@ function DealSidebar({ prospect }: { prospect: Prospect }) {
   const [settingReminder, setSettingReminder] = useState(false)
   const [reminderDays, setReminderDays] = useState('7')
   const [reminderMotif, setReminderMotif] = useState<'rappel' | 'retour_demande' | 'rdv' | 'rdv_2' | 'rdv_3'>('rappel')
+  const [inviteClient, setInviteClient] = useState(false)
   const [customReminderDate, setCustomReminderDate] = useState('')
   const [showRdvPicker, setShowRdvPicker] = useState(false)
   const [rdvDate, setRdvDate] = useState('')
@@ -1979,7 +2046,7 @@ function DealSidebar({ prospect }: { prospect: Prospect }) {
     if (!customReminderDate) return
     const isRdv = reminderMotif === 'rdv' || reminderMotif === 'rdv_2' || reminderMotif === 'rdv_3'
     const datetime = isRdv ? new Date(`${customReminderDate}T${rdvTime}:00`) : new Date(customReminderDate)
-    const update: Record<string, unknown> = { next_action_type: reminderMotif }
+    const update: Record<string, unknown> = { next_action_type: reminderMotif, next_action_invited_client: inviteClient }
     if (isRdv) {
       update.rdv_date = datetime.toISOString()
       update.meeting_booked = true
@@ -1993,32 +2060,44 @@ function DealSidebar({ prospect }: { prospect: Prospect }) {
       setLocalStatus('callback' as any)
       setLocalSnoozed(datetime.toISOString())
     }
-    await supabase.from('prospects').update(update).eq('id', prospect.id)
-    await supabase.from('activity_logs').insert({
-      prospect_id: prospect.id,
-      action: isRdv ? 'rdv_planned' : 'snoozed',
-      details: `${motifLabel[reminderMotif]} programmé(e) le ${datetime.toLocaleDateString('fr-FR')}${isRdv ? ` à ${datetime.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}` : ''}`,
-    })
 
-    // Sync Google Calendar (si connecté) — bloque les chevauchements
-    // transparency: 'opaque' + status: 'confirmed' = créneau marqué occupé
-    // dans Google Appointment Schedules / "Find a time" et donc invisible
-    // pour les outils de booking externes (Calendly, etc.)
+    // Sync Google Calendar — créer l'event AVANT l'UPDATE pour stocker l'event_id
+    let gcalEventId: string | null = null
     if (gcalConnected) {
       const endTime = new Date(datetime.getTime() + (isRdv ? 30 : 15) * 60 * 1000)
       const phoneInfo = prospect.phone ? `\nTéléphone : ${prospect.phone}` : ''
       const emailInfo = prospect.email ? `\nEmail : ${prospect.email}` : ''
       const companyInfo = prospect.company ? `\nSociété : ${prospect.company}` : ''
-      gcalCreateEvent({
+      const eventBody: Record<string, unknown> = {
         summary: `${motifLabel[reminderMotif]} — ${prospect.name}`,
         description: `${motifLabel[reminderMotif]} planifié depuis Calsyn.${phoneInfo}${emailInfo}${companyInfo}`,
         start: { dateTime: datetime.toISOString() },
         end: { dateTime: endTime.toISOString() },
-        transparency: 'opaque',  // bloque le créneau dans Google
+        transparency: 'opaque',
         status: 'confirmed',
-        colorId: isRdv ? '10' : '5',  // 10 = vert basilic (RDV), 5 = jaune banane (rappel)
-      }).catch(err => console.warn('[saveTask] GCal create failed', err))
+        colorId: isRdv ? '10' : '5',
+      }
+      if (inviteClient && prospect.email) {
+        // Mode invitation : ajoute le prospect en attendee, Google envoie l'invite par email
+        eventBody.attendees = [{ email: prospect.email, displayName: prospect.name }]
+        eventBody.guestsCanModify = false
+        eventBody.guestsCanInviteOthers = false
+      }
+      try {
+        const ev = await gcalCreateEvent(eventBody, inviteClient ? 'all' : 'none')
+        if (ev?.id) gcalEventId = ev.id
+      } catch (err) {
+        console.warn('[saveTask] GCal create failed', err)
+      }
     }
+    if (gcalEventId) update.next_action_gcal_event_id = gcalEventId
+
+    await supabase.from('prospects').update(update).eq('id', prospect.id)
+    await supabase.from('activity_logs').insert({
+      prospect_id: prospect.id,
+      action: isRdv ? 'rdv_planned' : 'snoozed',
+      details: `${motifLabel[reminderMotif]} programmé(e) le ${datetime.toLocaleDateString('fr-FR')}${isRdv ? ` à ${datetime.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}` : ''}${inviteClient ? ' (invitation envoyée au client)' : ''}`,
+    })
 
     await invalidateSnooze()
     queryClient.invalidateQueries({ queryKey: ['rdv-upcoming-bar'] })
@@ -2028,6 +2107,7 @@ function DealSidebar({ prospect }: { prospect: Prospect }) {
     setSettingReminder(false)
     setCustomReminderDate('')
     setReminderMotif('rappel')
+    setInviteClient(false)
   }
 
   const clearReminder = async () => {
@@ -2035,6 +2115,39 @@ function DealSidebar({ prospect }: { prospect: Prospect }) {
     await supabase.from('prospects').update({ snoozed_until: null }).eq('id', prospect.id)
     await supabase.from('activity_logs').insert({ prospect_id: prospect.id, action: 'snooze_removed', details: 'Rappel supprimé' })
     await invalidateSnooze()
+  }
+
+  // Annule la tâche courante : supprime l'event Google + nettoie la fiche
+  const cancelTask = async (kind: 'rdv' | 'reminder') => {
+    if (!confirm(kind === 'rdv' ? 'Annuler ce RDV ? L\'invitation Google sera supprimée pour vous et le client.' : 'Supprimer ce rappel ?')) return
+    const eventId = (prospect as Prospect & { next_action_gcal_event_id?: string }).next_action_gcal_event_id
+    const wasInvited = (prospect as Prospect & { next_action_invited_client?: boolean }).next_action_invited_client
+    // Delete Google event si on a un id
+    if (gcalConnected && eventId) {
+      await gcalDeleteEvent(eventId, wasInvited ? 'all' : 'none').catch(err => console.warn('[cancelTask] GCal delete failed', err))
+    }
+    const update: Record<string, unknown> = {
+      next_action_type: null,
+      next_action_gcal_event_id: null,
+      next_action_invited_client: false,
+    }
+    if (kind === 'rdv') {
+      update.rdv_date = null
+      update.meeting_booked = false
+    } else {
+      update.snoozed_until = null
+      setLocalSnoozed(null)
+    }
+    await supabase.from('prospects').update(update).eq('id', prospect.id)
+    await supabase.from('activity_logs').insert({
+      prospect_id: prospect.id,
+      action: kind === 'rdv' ? 'rdv_cancelled' : 'snooze_removed',
+      details: kind === 'rdv' ? `RDV annulé${wasInvited ? ' (notification envoyée au client)' : ''}` : 'Rappel supprimé',
+    })
+    await invalidateSnooze()
+    queryClient.invalidateQueries({ queryKey: ['rdv-upcoming-bar'] })
+    queryClient.invalidateQueries({ queryKey: ['rdv-upcoming'] })
+    queryClient.invalidateQueries({ queryKey: ['rdv-calendar'] })
   }
 
   return (
@@ -2151,8 +2264,22 @@ function DealSidebar({ prospect }: { prospect: Prospect }) {
               onChange={e => setCustomReminderDate(e.target.value)}
               className="w-full min-w-0 text-[12px] border border-amber-200 rounded-lg px-2 py-1.5 outline-none bg-white" />
             {(reminderMotif === 'rdv' || reminderMotif === 'rdv_2' || reminderMotif === 'rdv_3') && (
-              <input type="time" value={rdvTime} onChange={e => setRdvTime(e.target.value)}
-                className="w-full min-w-0 text-[12px] border border-amber-200 rounded-lg px-2 py-1.5 outline-none bg-white" />
+              <>
+                <input type="time" value={rdvTime} onChange={e => setRdvTime(e.target.value)}
+                  className="w-full min-w-0 text-[12px] border border-amber-200 rounded-lg px-2 py-1.5 outline-none bg-white" />
+                {/* Inviter le client : ajoute le prospect en attendee Google + envoie l'invite par email */}
+                <label className={`flex items-start gap-2 px-2 py-1.5 text-[11px] rounded-lg border ${prospect.email ? 'border-amber-200 bg-white cursor-pointer' : 'border-gray-100 bg-gray-50 opacity-60 cursor-not-allowed'}`}>
+                  <input type="checkbox" checked={inviteClient && !!prospect.email}
+                    disabled={!prospect.email}
+                    onChange={e => setInviteClient(e.target.checked)}
+                    className="w-3.5 h-3.5 mt-0.5 rounded border-gray-300 accent-amber-600" />
+                  <span className="flex-1 leading-tight">
+                    Inviter le client par email
+                    {!prospect.email && <span className="block text-[10px] text-gray-400">(pas d'email)</span>}
+                    {prospect.email && <span className="block text-[10px] text-gray-400 truncate">{prospect.email}</span>}
+                  </span>
+                </label>
+              </>
             )}
             <div className="flex gap-1.5">
               <button onClick={saveTask} disabled={!customReminderDate}

@@ -192,8 +192,15 @@ serve(async (req) => {
         })
       }
 
+      // sendUpdates: 'all' | 'externalOnly' | 'none' — pour notifier les attendees
+      // Quand on ajoute un attendee externe (le prospect), il faut sendUpdates=all sinon
+      // l'invitation Google ne lui est pas envoyée par email.
+      const sendUpdates = url.searchParams.get('sendUpdates') || 'none'
+      const conferenceDataVersion = body.event.conferenceData ? '1' : '0'
+      const params = new URLSearchParams({ sendUpdates, conferenceDataVersion })
+
       const calRes = await fetch(
-        `${CALENDAR_API}/calendars/${encodeURIComponent(calendarId)}/events`,
+        `${CALENDAR_API}/calendars/${encodeURIComponent(calendarId)}/events?${params}`,
         {
           method: 'POST',
           headers: {
@@ -218,7 +225,35 @@ serve(async (req) => {
       })
     }
 
-    return new Response(JSON.stringify({ error: 'Unknown action. Use: list, create' }), {
+    // ── ACTION: delete ───────────────────────────────────────────────
+    if (action === 'delete') {
+      const eventId = url.searchParams.get('eventId') || ''
+      const calendarId = url.searchParams.get('calendarId') || 'primary'
+      const sendUpdates = url.searchParams.get('sendUpdates') || 'none'
+      if (!eventId) {
+        return new Response(JSON.stringify({ error: 'Missing eventId' }), {
+          status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        })
+      }
+      const params = new URLSearchParams({ sendUpdates })
+      const calRes = await fetch(
+        `${CALENDAR_API}/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(eventId)}?${params}`,
+        { method: 'DELETE', headers: { Authorization: `Bearer ${accessToken}` } }
+      )
+      // Google retourne 204 No Content si OK, ou 404/410 si déjà supprimé
+      if (calRes.ok || calRes.status === 410 || calRes.status === 404) {
+        return new Response(JSON.stringify({ ok: true }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        })
+      }
+      const calData = await calRes.json().catch(() => ({}))
+      console.error('[google-calendar] Delete event failed:', calRes.status, calData)
+      return new Response(JSON.stringify({ error: 'Failed to delete event', details: calData }), {
+        status: calRes.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
+    return new Response(JSON.stringify({ error: 'Unknown action. Use: list, create, delete' }), {
       status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     })
 
