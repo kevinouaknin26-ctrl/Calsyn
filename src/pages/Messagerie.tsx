@@ -10,6 +10,7 @@
  */
 
 import { useState, useMemo, useEffect, useRef } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useConversations, useConversation } from '@/hooks/useMessaging'
 import { useChatDock } from '@/contexts/ChatDockContext'
 import { CHANNELS, ENABLED_CHANNELS, getChannel, type ChannelId, type UnifiedMessage } from '@/services/channels'
@@ -134,6 +135,7 @@ export default function Messagerie() {
 
 function ConversationView({ prospectId }: { prospectId: string }) {
   const { openChat } = useChatDock()
+  const navigate = useNavigate()
   const { messages, send, sending, defaultReplyChannel, markAsRead } = useConversation(prospectId)
   const [draft, setDraft] = useState('')
   const [draftSubject, setDraftSubject] = useState('')
@@ -196,16 +198,20 @@ function ConversationView({ prospectId }: { prospectId: string }) {
     <>
       {/* Header */}
       <div className="px-5 py-3 border-b border-gray-200 bg-white dark:bg-[#f0eaf5] flex items-center gap-3">
-        <div className="w-9 h-9 rounded-full bg-gradient-to-br from-indigo-400 to-violet-500 flex items-center justify-center text-white font-bold text-sm">
+        <button onClick={() => navigate('/app/contacts', { state: { openProspectId: prospectId } })}
+          title="Ouvrir la fiche prospect"
+          className="w-9 h-9 rounded-full bg-gradient-to-br from-indigo-400 to-violet-500 flex items-center justify-center text-white font-bold text-sm hover:scale-105 transition-transform">
           {(prospect?.name || '?')[0].toUpperCase()}
-        </div>
-        <div className="flex-1 min-w-0">
-          <div className="text-[14px] font-bold text-gray-800 truncate">{prospect?.name || 'Inconnu'}</div>
+        </button>
+        <button onClick={() => navigate('/app/contacts', { state: { openProspectId: prospectId } })}
+          title="Ouvrir la fiche prospect"
+          className="flex-1 min-w-0 text-left hover:opacity-80 transition-opacity">
+          <div className="text-[14px] font-bold text-gray-800 truncate hover:text-indigo-600">{prospect?.name || 'Inconnu'}</div>
           <div className="text-[11px] text-gray-400 flex items-center gap-2">
             {prospect?.phone && <span>{prospect.phone}</span>}
             {prospect?.email && <span className="truncate">{prospect.email}</span>}
           </div>
-        </div>
+        </button>
         <button onClick={() => openChat(prospectId)} title="Ouvrir en bulle flottante (suit la navigation)"
           className="text-gray-400 hover:text-indigo-600 p-1.5 rounded-lg hover:bg-indigo-50">
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
