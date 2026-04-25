@@ -2460,49 +2460,63 @@ function DealSidebar({ prospect }: { prospect: Prospect }) {
               <>
                 <input type="time" value={rdvTime} onChange={e => setRdvTime(e.target.value)}
                   className="w-full min-w-0 text-[12px] border border-amber-200 rounded-lg px-2 py-1.5 outline-none bg-white" />
-                {/* Picker de créneaux dispo (configurable depuis Settings) */}
+                {/* Picker de créneaux dispo (config Settings : périodes par jour) */}
                 {customReminderDate && gcalConnected && (() => {
                   const dur = profile?.slot_duration_min || 30
                   const buf = profile?.slot_buffer_min || 0
                   const step = dur + buf
-                  // work hours from profile (HH:MM:SS), défaut 09:00 → 18:00
-                  const parseH = (s: string | null | undefined) => {
-                    if (!s) return null
+                  const parseHM = (s: string) => {
                     const m = s.match(/^(\d{1,2}):(\d{2})/)
-                    return m ? parseInt(m[1]) * 60 + parseInt(m[2]) : null
+                    return m ? parseInt(m[1]) * 60 + parseInt(m[2]) : 0
                   }
-                  const startMin = parseH(profile?.work_hours_start) ?? 9 * 60
-                  const endMin = parseH(profile?.work_hours_end) ?? 18 * 60
+                  // Récupère les périodes du jour de la semaine sélectionné
+                  const dayOfWeek = new Date(`${customReminderDate}T12:00:00`).getDay() // 0=dim..6=sam
+                  const schedule = (profile?.availability_schedule as Record<string, Array<{ start: string; end: string }>> | null) || {}
+                  let periods = schedule[String(dayOfWeek)]
+                  // Fallback : si pas de schedule du tout, défaut Lun-Ven 9h-18h
+                  if (!profile?.availability_schedule) {
+                    if (dayOfWeek >= 1 && dayOfWeek <= 5) periods = [{ start: '09:00', end: '18:00' }]
+                  }
                   const slots: Array<{ time: string; busy: boolean }> = []
-                  for (let cur = startMin; cur + dur <= endMin; cur += step) {
-                    const h = Math.floor(cur / 60), m = cur % 60
-                    const slotStart = new Date(`${customReminderDate}T${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:00`).getTime()
-                    const slotEnd = slotStart + dur * 60 * 1000
-                    const busy = busySlots.some(b => b.start < slotEnd && b.end > slotStart)
-                    slots.push({ time: `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`, busy })
+                  for (const p of (periods || [])) {
+                    const startMin = parseHM(p.start)
+                    const endMin = parseHM(p.end)
+                    for (let cur = startMin; cur + dur <= endMin; cur += step) {
+                      const h = Math.floor(cur / 60), m = cur % 60
+                      const slotStart = new Date(`${customReminderDate}T${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:00`).getTime()
+                      const slotEnd = slotStart + dur * 60 * 1000
+                      const busy = busySlots.some(b => b.start < slotEnd && b.end > slotStart)
+                      slots.push({ time: `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`, busy })
+                    }
                   }
                   return (
                     <div className="bg-white border border-amber-200 rounded-lg p-2">
                       <p className="text-[10px] font-bold text-gray-400 uppercase mb-1.5">Créneaux du jour</p>
-                      <div className="grid grid-cols-4 gap-1 max-h-[160px] overflow-y-auto">
-                        {slots.map(s => {
-                          const selected = rdvTime === s.time
-                          return (
-                            <button key={s.time} type="button"
-                              disabled={s.busy}
-                              onClick={() => setRdvTime(s.time)}
-                              title={s.busy ? 'Occupé' : 'Disponible'}
-                              className={`text-[11px] font-mono py-1 rounded transition-colors ${
-                                selected ? 'bg-amber-500 text-white font-bold' :
-                                s.busy ? 'bg-gray-100 text-gray-300 line-through cursor-not-allowed' :
-                                'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200'
-                              }`}>
-                              {s.time}
-                            </button>
-                          )
-                        })}
-                      </div>
-                      <p className="text-[9px] text-gray-400 mt-1">Vert = libre · Gris = occupé</p>
+                      {slots.length === 0 ? (
+                        <p className="text-[11px] text-gray-400 italic text-center py-2">Indisponible ce jour (cf. Settings → Disponibilités RDV)</p>
+                      ) : (
+                        <>
+                          <div className="grid grid-cols-4 gap-1 max-h-[160px] overflow-y-auto">
+                            {slots.map(s => {
+                              const selected = rdvTime === s.time
+                              return (
+                                <button key={s.time} type="button"
+                                  disabled={s.busy}
+                                  onClick={() => setRdvTime(s.time)}
+                                  title={s.busy ? 'Occupé' : 'Disponible'}
+                                  className={`text-[11px] font-mono py-1 rounded transition-colors ${
+                                    selected ? 'bg-amber-500 text-white font-bold' :
+                                    s.busy ? 'bg-gray-100 text-gray-300 line-through cursor-not-allowed' :
+                                    'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200'
+                                  }`}>
+                                  {s.time}
+                                </button>
+                              )
+                            })}
+                          </div>
+                          <p className="text-[9px] text-gray-400 mt-1">Vert = libre · Gris = occupé</p>
+                        </>
+                      )}
                     </div>
                   )
                 })()}

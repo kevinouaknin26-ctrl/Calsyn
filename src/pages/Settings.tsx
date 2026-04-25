@@ -244,21 +244,31 @@ function CallSettings({ org, save }: { org: any; save: (u: Record<string, unknow
   )
 }
 
+type Period = { start: string; end: string }
+type Schedule = Record<string, Period[]>
+const DAY_LABELS = ['Dim.', 'Lun.', 'Mar.', 'Mer.', 'Jeu.', 'Ven.', 'Sam.']
+
+const DEFAULT_SCHEDULE: Schedule = {
+  '1': [{ start: '09:00', end: '12:30' }, { start: '14:00', end: '18:00' }],
+  '2': [{ start: '09:00', end: '12:30' }, { start: '14:00', end: '18:00' }],
+  '3': [{ start: '09:00', end: '12:30' }, { start: '14:00', end: '18:00' }],
+  '4': [{ start: '09:00', end: '12:30' }, { start: '14:00', end: '18:00' }],
+  '5': [{ start: '09:00', end: '12:30' }, { start: '14:00', end: '18:00' }],
+}
+
 function SlotConfigEditor() {
   const { profile, refreshProfile } = useAuth()
   const [duration, setDuration] = useState(profile?.slot_duration_min || 30)
   const [buffer, setBuffer] = useState(profile?.slot_buffer_min || 0)
-  const [hStart, setHStart] = useState((profile?.work_hours_start || '09:00:00').slice(0, 5))
-  const [hEnd, setHEnd] = useState((profile?.work_hours_end || '18:00:00').slice(0, 5))
+  const [schedule, setSchedule] = useState<Schedule>((profile?.availability_schedule as Schedule | null) || DEFAULT_SCHEDULE)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
 
   useEffect(() => {
     setDuration(profile?.slot_duration_min || 30)
     setBuffer(profile?.slot_buffer_min || 0)
-    setHStart((profile?.work_hours_start || '09:00:00').slice(0, 5))
-    setHEnd((profile?.work_hours_end || '18:00:00').slice(0, 5))
-  }, [profile?.slot_duration_min, profile?.slot_buffer_min, profile?.work_hours_start, profile?.work_hours_end])
+    setSchedule((profile?.availability_schedule as Schedule | null) || DEFAULT_SCHEDULE)
+  }, [profile?.slot_duration_min, profile?.slot_buffer_min, profile?.availability_schedule])
 
   const save = async () => {
     if (!profile?.id) return
@@ -266,13 +276,38 @@ function SlotConfigEditor() {
     const { error } = await supabase.from('profiles').update({
       slot_duration_min: duration,
       slot_buffer_min: buffer,
-      work_hours_start: hStart + ':00',
-      work_hours_end: hEnd + ':00',
+      availability_schedule: schedule,
     }).eq('id', profile.id)
     setSaving(false)
     if (error) { alert(`Erreur : ${error.message}`); return }
     setSaved(true); setTimeout(() => setSaved(false), 2000)
     if (refreshProfile) refreshProfile()
+  }
+
+  const updateDay = (dayKey: string, periods: Period[]) => {
+    const next = { ...schedule }
+    if (periods.length === 0) delete next[dayKey]
+    else next[dayKey] = periods
+    setSchedule(next)
+  }
+
+  const addPeriod = (dayKey: string) => {
+    const current = schedule[dayKey] || []
+    updateDay(dayKey, [...current, { start: '14:00', end: '18:00' }])
+  }
+  const removePeriod = (dayKey: string, idx: number) => {
+    const current = schedule[dayKey] || []
+    updateDay(dayKey, current.filter((_, i) => i !== idx))
+  }
+  const setPeriodAt = (dayKey: string, idx: number, field: 'start' | 'end', val: string) => {
+    const current = schedule[dayKey] || []
+    updateDay(dayKey, current.map((p, i) => i === idx ? { ...p, [field]: val } : p))
+  }
+  const copyToAll = (sourceDayKey: string) => {
+    const source = schedule[sourceDayKey] || []
+    const next: Schedule = {}
+    for (let i = 1; i <= 5; i++) next[String(i)] = source.map(p => ({ ...p })) // Lun-Ven uniquement
+    setSchedule(next)
   }
 
   return (
@@ -281,8 +316,9 @@ function SlotConfigEditor() {
         <label className="text-xs font-semibold text-gray-600">Disponibilités RDV</label>
         {saved && <span className="text-[11px] text-emerald-500 font-medium">Enregistré ✓</span>}
       </div>
-      <p className="text-[11px] text-gray-400 mb-3">Définit les créneaux proposés dans le picker quand tu programmes un RDV.</p>
-      <div className="grid grid-cols-2 gap-2">
+      <p className="text-[11px] text-gray-400 mb-3">Plusieurs périodes par jour possibles (matin + après-midi).</p>
+
+      <div className="grid grid-cols-2 gap-2 mb-3">
         <div>
           <label className="text-[10px] font-bold text-gray-400 uppercase">Durée d'un RDV</label>
           <select value={duration} onChange={e => setDuration(parseInt(e.target.value))}
@@ -297,20 +333,49 @@ function SlotConfigEditor() {
             {[0, 5, 10, 15, 20, 30].map(v => <option key={v} value={v}>{v === 0 ? 'Aucune' : `${v} min`}</option>)}
           </select>
         </div>
-        <div>
-          <label className="text-[10px] font-bold text-gray-400 uppercase">Début</label>
-          <input type="time" value={hStart} onChange={e => setHStart(e.target.value)}
-            className="w-full mt-1 text-[12px] px-2 py-1.5 border border-gray-200 rounded-lg outline-none focus:border-indigo-300" />
-        </div>
-        <div>
-          <label className="text-[10px] font-bold text-gray-400 uppercase">Fin</label>
-          <input type="time" value={hEnd} onChange={e => setHEnd(e.target.value)}
-            className="w-full mt-1 text-[12px] px-2 py-1.5 border border-gray-200 rounded-lg outline-none focus:border-indigo-300" />
-        </div>
       </div>
+
+      <div className="space-y-1.5 border border-gray-200 rounded-lg p-2">
+        {[1, 2, 3, 4, 5, 6, 0].map(day => {
+          const key = String(day)
+          const periods = schedule[key] || []
+          const isAvailable = periods.length > 0
+          return (
+            <div key={key} className="flex items-start gap-2 text-[12px]">
+              <button onClick={() => isAvailable ? updateDay(key, []) : updateDay(key, [{ start: '09:00', end: '18:00' }])}
+                className={`w-12 flex-shrink-0 text-left mt-1 ${isAvailable ? 'text-gray-700 font-medium' : 'text-gray-300'}`}>
+                {DAY_LABELS[day]}
+              </button>
+              <div className="flex-1 space-y-1">
+                {!isAvailable && <span className="text-[11px] text-gray-300 italic">Indisponible</span>}
+                {periods.map((p, idx) => (
+                  <div key={idx} className="flex items-center gap-1">
+                    <input type="time" value={p.start} onChange={e => setPeriodAt(key, idx, 'start', e.target.value)}
+                      className="text-[11px] px-1.5 py-0.5 border border-gray-200 rounded outline-none w-[80px]" />
+                    <span className="text-gray-400">–</span>
+                    <input type="time" value={p.end} onChange={e => setPeriodAt(key, idx, 'end', e.target.value)}
+                      className="text-[11px] px-1.5 py-0.5 border border-gray-200 rounded outline-none w-[80px]" />
+                    <button onClick={() => removePeriod(key, idx)} title="Retirer cette période"
+                      className="text-gray-300 hover:text-red-500 ml-1">×</button>
+                  </div>
+                ))}
+              </div>
+              <div className="flex flex-col gap-0.5 mt-1">
+                <button onClick={() => addPeriod(key)} title="Ajouter une période"
+                  className="text-gray-300 hover:text-indigo-500 text-[14px] leading-none">+</button>
+                {isAvailable && (
+                  <button onClick={() => copyToAll(key)} title="Copier sur Lun→Ven"
+                    className="text-gray-300 hover:text-indigo-500 text-[10px]">⎘</button>
+                )}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+
       <button onClick={save} disabled={saving}
         className="mt-3 px-3 py-1.5 text-[12px] font-medium text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 rounded-lg">
-        {saving ? 'Enregistrement...' : 'Enregistrer'}
+        {saving ? 'Enregistrement...' : 'Enregistrer les disponibilités'}
       </button>
     </div>
   )

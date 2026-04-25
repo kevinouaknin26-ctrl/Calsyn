@@ -91,6 +91,8 @@ export interface Profile {
   slot_duration_min: number | null
   /** Pause entre 2 RDV en minutes (défaut 0). */
   slot_buffer_min: number | null
+  /** Horaires disponibles par jour de semaine (0=dim..6=sam) → liste de périodes. */
+  availability_schedule: Record<string, Array<{ start: string; end: string }>> | null
   created_at: string
 }
 
