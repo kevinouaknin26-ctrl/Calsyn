@@ -1160,11 +1160,20 @@ export default function SelectListPage({ onSelect, onClose }: Props) {
         onCancel={() => setConfirmDelete(null)}
         onConfirm={async () => {
           if (!confirmDelete) return
-          // Soft-delete via RPC qui archive la liste + tous ses prospects en une transaction serveur
-          const { error } = await supabase.rpc('archive_prospect_list', { p_list_id: confirmDelete.id })
-          if (error) { alert(`Erreur archivage : ${error.message}`); return }
-          queryClient.invalidateQueries({ queryKey: ['prospect-lists'] })
-          queryClient.invalidateQueries({ queryKey: ['prospects'] })
+          // Soft-delete : la RPC archive_prospect_list n'existe pas en DB.
+          // On fait 2 UPDATE en parallèle (la liste + tous ses prospects).
+          const now = new Date().toISOString()
+          console.log('[archive-list] requesting', confirmDelete.id)
+          const [listRes, prospectsRes] = await Promise.all([
+            supabase.from('prospect_lists').update({ deleted_at: now }).eq('id', confirmDelete.id).select('id'),
+            supabase.from('prospects').update({ deleted_at: now }).eq('list_id', confirmDelete.id).select('id'),
+          ])
+          console.log('[archive-list] result', { list: listRes, prospects: { count: prospectsRes.data?.length, error: prospectsRes.error } })
+          if (listRes.error) { alert(`Erreur archivage liste : ${listRes.error.message}`); return }
+          if (prospectsRes.error) { alert(`Erreur archivage contacts : ${prospectsRes.error.message}`); return }
+          await queryClient.invalidateQueries({ queryKey: ['prospect-lists'] })
+          await queryClient.invalidateQueries({ queryKey: ['prospects'] })
+          await queryClient.invalidateQueries({ queryKey: ['all-prospects'] })
           setConfirmDelete(null)
         }}
       />
