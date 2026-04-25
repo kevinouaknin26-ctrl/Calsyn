@@ -1202,14 +1202,36 @@ export default function ProspectModal({
                 />
               )}
 
-              {/* ── Onglet Tâches ── */}
-              {activeTab === 'taches' && (
-                <div className="text-center py-10">
-                  <svg className="w-8 h-8 text-gray-300 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" /></svg>
-                  <p className="text-[13px] text-gray-400">Aucune tâche</p>
-                  <p className="text-[11px] text-gray-300 mt-1">Les tâches seront disponibles prochainement</p>
-                </div>
-              )}
+              {/* ── Onglet Tâches : affiche les rappels actifs ── */}
+              {activeTab === 'taches' && (() => {
+                const hasActiveReminder = prospect.snoozed_until && new Date(prospect.snoozed_until) > new Date()
+                const reminderDateObj = prospect.snoozed_until ? new Date(prospect.snoozed_until) : null
+                if (!hasActiveReminder) {
+                  return (
+                    <div className="text-center py-10">
+                      <svg className="w-8 h-8 text-gray-300 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" /></svg>
+                      <p className="text-[13px] text-gray-400">Aucune tâche</p>
+                      <p className="text-[11px] text-gray-300 mt-1">Les rappels programmés apparaîtront ici.</p>
+                    </div>
+                  )
+                }
+                const daysUntil = Math.ceil((reminderDateObj!.getTime() - Date.now()) / 86400000)
+                return (
+                  <div className="space-y-2">
+                    <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 flex items-start gap-2.5">
+                      <svg className="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                      <div className="flex-1">
+                        <p className="text-[13px] font-semibold text-amber-800">Rappeler ce prospect</p>
+                        <p className="text-[11px] text-amber-600 mt-0.5">
+                          {reminderDateObj!.toLocaleDateString('fr-FR', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' })}
+                          {' · '}
+                          dans {daysUntil} jour{daysUntil > 1 ? 's' : ''}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )
+              })()}
 
               {/* ── Onglet Emails ── */}
               {activeTab === 'emails' && (
@@ -1240,26 +1262,70 @@ export default function ProspectModal({
                 </div>
               )}
 
-              {/* ── Onglet Historique ── */}
-              {activeTab === 'historique' && (
-                <div>
-                  {activityLogs && activityLogs.length > 0 ? (
-                    <div className="space-y-1">
-                      {activityLogs.map((log: { id: string; action: string; details: string; created_at: string }) => (
-                        <div key={log.id} className="flex items-start gap-2 text-[12px] py-2 border-b border-gray-50">
-                          <svg className="w-3.5 h-3.5 text-gray-300 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                          <div className="flex-1">
-                            <p className="text-gray-600">{log.details}</p>
-                            <p className="text-[10px] text-gray-300 mt-0.5">{formatDate(log.created_at)}</p>
-                          </div>
+              {/* ── Onglet Historique : timeline unifiée (logs + calls + notes) ── */}
+              {activeTab === 'historique' && (() => {
+                type TimelineItem = {
+                  id: string
+                  kind: 'activity' | 'call'
+                  created_at: string
+                  icon_color: string
+                  title: string
+                  subtitle?: string
+                }
+                const items: TimelineItem[] = []
+                if (activityLogs) {
+                  for (const log of activityLogs as Array<{ id: string; action: string; details: string; created_at: string }>) {
+                    items.push({
+                      id: `log-${log.id}`,
+                      kind: 'activity',
+                      created_at: log.created_at,
+                      icon_color: 'text-gray-300',
+                      title: log.details,
+                    })
+                  }
+                }
+                for (const c of callHistory) {
+                  const outcome = c.call_outcome || 'appel'
+                  const hasNote = !!c.note
+                  const hasAI = !!c.ai_summary
+                  const duration = c.call_duration ? ` · ${formatDuration(c.call_duration)}` : ''
+                  let title = `Appel ${outcome}${duration}`
+                  if (c.provider === 'manual') title = 'Note ajoutée'
+                  items.push({
+                    id: `call-${c.id}`,
+                    kind: 'call',
+                    created_at: c.created_at,
+                    icon_color: hasAI ? 'text-violet-400' : (hasNote ? 'text-indigo-400' : 'text-sky-400'),
+                    title,
+                    subtitle: c.note || (hasAI ? '[Résumé IA disponible]' : undefined),
+                  })
+                }
+                items.sort((a, b) => b.created_at.localeCompare(a.created_at))
+
+                if (items.length === 0) {
+                  return <p className="text-[13px] text-gray-400 text-center py-10">Aucune activité enregistrée</p>
+                }
+                return (
+                  <div className="space-y-1">
+                    {items.map(item => (
+                      <div key={item.id} className="flex items-start gap-2 text-[12px] py-2 border-b border-gray-50">
+                        <svg className={`w-3.5 h-3.5 flex-shrink-0 mt-0.5 ${item.icon_color}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          {item.kind === 'call' ? (
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                          ) : (
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          )}
+                        </svg>
+                        <div className="flex-1">
+                          <p className="text-gray-600">{item.title}</p>
+                          {item.subtitle && <p className="text-[11px] text-gray-500 mt-0.5 italic">{item.subtitle}</p>}
+                          <p className="text-[10px] text-gray-300 mt-0.5">{formatDate(item.created_at)}</p>
                         </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="text-[13px] text-gray-400 text-center py-10">Aucune modification enregistrée</p>
-                  )}
-                </div>
-              )}
+                      </div>
+                    ))}
+                  </div>
+                )
+              })()}
             </div>
           </div>
 
