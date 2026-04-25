@@ -33,6 +33,7 @@ export function useCrmStatuses() {
         .from('crm_statuses')
         .select('*')
         .eq('organisation_id', orgId)
+        .is('deleted_at', null)
         .order('priority')
       if (error) throw error
       return (data || []) as CrmStatusDef[]
@@ -74,12 +75,22 @@ export function useDeleteCrmStatus() {
 
   return useMutation({
     mutationFn: async (id: string) => {
-      // Soft-delete (archive) : trigger DB refuse hard DELETE
-      const { error } = await supabase.from('crm_statuses').update({ deleted_at: new Date().toISOString() }).eq('id', id).eq('is_system', false)
+      // Soft-delete : on autorise la suppression de tous les stages (système ou custom).
+      // Les stages système peuvent être recréés en seedant à nouveau si besoin.
+      const { data, error } = await supabase
+        .from('crm_statuses')
+        .update({ deleted_at: new Date().toISOString() })
+        .eq('id', id)
+        .select('id')
       if (error) throw error
+      if (!data || data.length === 0) throw new Error('Suppression refusée (RLS ou row introuvable)')
+      return data
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['crm-statuses'] })
+    },
+    onError: (e: Error) => {
+      alert(`Erreur suppression : ${e.message}`)
     },
   })
 }
