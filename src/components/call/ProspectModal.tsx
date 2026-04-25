@@ -14,6 +14,7 @@ import SocialLinks, { PlatformIcon } from './SocialLinks'
 import { supabase } from '@/config/supabase'
 import { useRecordingSignedUrl } from '@/hooks/useRecordingSignedUrl'
 import { useAuth } from '@/hooks/useAuth'
+import { useGoogleCalendar } from '@/hooks/useGoogleCalendar'
 import { CallDirectionBadge, getCallDirection } from '@/pages/History'
 import type { Prospect, CrmStatus } from '@/types/prospect'
 import type { Disposition, Call } from '@/types/call'
@@ -1398,6 +1399,7 @@ const FALLBACK_STAGES: Array<{ key: string; label: string; color: string }> = [
 function DealSidebar({ prospect }: { prospect: Prospect }) {
   const queryClient = useQueryClient()
   const { data: dbStatuses } = useCrmStatuses()
+  const { connected: gcalConnected, createEvent: gcalCreateEvent } = useGoogleCalendar()
 
   // Google Meet link — cherche dans les events Calendar autour du rdv_date
   const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL
@@ -1543,9 +1545,26 @@ function DealSidebar({ prospect }: { prospect: Prospect }) {
       action: isRdv ? 'rdv_planned' : 'snoozed',
       details: `${motifLabel[reminderMotif]} programmé(e) le ${datetime.toLocaleDateString('fr-FR')}${isRdv ? ` à ${datetime.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}` : ''}`,
     })
+
+    // Sync Google Calendar (si connecté) — bloque les chevauchements futurs
+    if (gcalConnected) {
+      const endTime = new Date(datetime.getTime() + (isRdv ? 30 : 15) * 60 * 1000)
+      const phoneInfo = prospect.phone ? `\nTéléphone : ${prospect.phone}` : ''
+      const emailInfo = prospect.email ? `\nEmail : ${prospect.email}` : ''
+      const companyInfo = prospect.company ? `\nSociété : ${prospect.company}` : ''
+      gcalCreateEvent({
+        summary: `${motifLabel[reminderMotif]} — ${prospect.name}`,
+        description: `${motifLabel[reminderMotif]} planifié depuis Calsyn.${phoneInfo}${emailInfo}${companyInfo}`,
+        start: { dateTime: datetime.toISOString() },
+        end: { dateTime: endTime.toISOString() },
+      }).catch(err => console.warn('[saveTask] GCal create failed', err))
+    }
+
     await invalidateSnooze()
     queryClient.invalidateQueries({ queryKey: ['rdv-upcoming-bar'] })
     queryClient.invalidateQueries({ queryKey: ['rdv-upcoming'] })
+    queryClient.invalidateQueries({ queryKey: ['rdv-calendar'] })
+    queryClient.invalidateQueries({ queryKey: ['gcal-events'] })
     setSettingReminder(false)
     setCustomReminderDate('')
     setReminderMotif('rappel')

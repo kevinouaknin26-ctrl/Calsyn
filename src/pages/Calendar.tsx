@@ -14,79 +14,10 @@ import { useCallsByProspect } from '@/hooks/useCalls'
 import { useProspectLists } from '@/hooks/useProspects'
 import ProspectModal from '@/components/call/ProspectModal'
 import UpcomingRdvBar from '@/components/ui/UpcomingRdvBar'
+import { useGoogleCalendar } from '@/hooks/useGoogleCalendar'
 import type { Prospect } from '@/types/prospect'
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL
-
-// Hook pour gérer la connexion Google Calendar
-function useGoogleCalendar() {
-  const { data: status, refetch } = useQuery({
-    queryKey: ['google-calendar-status'],
-    queryFn: async () => {
-      const { data: { session } } = await supabase.auth.getSession()
-      if (!session) return { connected: false }
-      const res = await fetch(`${SUPABASE_URL}/functions/v1/google-auth?action=status`, {
-        headers: { Authorization: `Bearer ${session.access_token}` },
-      })
-      return res.json()
-    },
-  })
-
-  const connect = useCallback(async () => {
-    const { data: { session } } = await supabase.auth.getSession()
-    if (!session) return
-    const res = await fetch(`${SUPABASE_URL}/functions/v1/google-auth?action=authorize`, {
-      headers: { Authorization: `Bearer ${session.access_token}` },
-    })
-    const data = await res.json()
-    if (data.url) {
-      // Ouvrir dans un popup
-      const popup = window.open(data.url, 'google-auth', 'width=500,height=600,left=200,top=100')
-      // Écouter le message de retour
-      const handler = (e: MessageEvent) => {
-        if (e.data?.type === 'google-calendar-connected') {
-          refetch()
-          window.removeEventListener('message', handler)
-        }
-      }
-      window.addEventListener('message', handler)
-    }
-  }, [refetch])
-
-  const disconnect = useCallback(async () => {
-    const { data: { session } } = await supabase.auth.getSession()
-    if (!session) return
-    await fetch(`${SUPABASE_URL}/functions/v1/google-auth?action=disconnect`, {
-      headers: { Authorization: `Bearer ${session.access_token}` },
-    })
-    refetch()
-  }, [refetch])
-
-  const listEvents = useCallback(async (timeMin: string, timeMax: string) => {
-    const { data: { session } } = await supabase.auth.getSession()
-    if (!session) return null
-    const params = new URLSearchParams({ action: 'list', timeMin, timeMax })
-    const res = await fetch(`${SUPABASE_URL}/functions/v1/google-calendar?${params}`, {
-      headers: { Authorization: `Bearer ${session.access_token}` },
-    })
-    if (!res.ok) return null
-    return res.json()
-  }, [])
-
-  const createEvent = useCallback(async (event: Record<string, unknown>) => {
-    const { data: { session } } = await supabase.auth.getSession()
-    if (!session) return null
-    const res = await fetch(`${SUPABASE_URL}/functions/v1/google-calendar?action=create`, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${session.access_token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ event }),
-    })
-    if (!res.ok) return null
-    return res.json()
-  }, [])
-
-  return { connected: status?.connected || false, connect, disconnect, listEvents, createEvent }
-}
 
 function getDayStart(d: Date) { return new Date(d.getFullYear(), d.getMonth(), d.getDate()) }
 function getDayEnd(d: Date) { return new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1) }
@@ -627,16 +558,26 @@ function CalendarInner() {
                     })
                   }
 
-                  // Rappels (snoozed_until) — affichés à 9h par défaut
-                  if (hour === 9 && weekReminders) {
+                  // Rappels (snoozed_until) — affichés à l'heure stockée (ou 9h par défaut si minuit)
+                  if (weekReminders) {
                     const dayReminders = weekReminders.filter(p => {
                       if (!p.snoozed_until) return false
-                      return getDayStart(new Date(p.snoozed_until)).getTime() === day.getTime()
+                      const d = new Date(p.snoozed_until)
+                      if (getDayStart(d).getTime() !== day.getTime()) return false
+                      const h = d.getHours()
+                      // Si heure non précisée (minuit), affiche à 9h
+                      const targetHour = (h === 0 && d.getMinutes() === 0) ? 9 : h
+                      return targetHour === hour
                     })
                     for (const p of dayReminders) {
+                      const d = new Date(p.snoozed_until!)
+                      const minutes = d.getHours() === 0 && d.getMinutes() === 0 ? 0 : d.getMinutes()
+                      const time = (d.getHours() === 0 && d.getMinutes() === 0)
+                        ? '09:00'
+                        : `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
                       cellEvents.push({
-                        id: 'rem-' + p.id, minutes: 0,
-                        time: '09:00',
+                        id: 'rem-' + p.id, minutes,
+                        time,
                         name: '🔔 ' + p.name, color: '#d97706', bg: '#fef3c720',
                         onClick: () => setSelectedProspect(p as Prospect),
                       })
