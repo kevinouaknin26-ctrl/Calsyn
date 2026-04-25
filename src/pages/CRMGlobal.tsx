@@ -315,6 +315,11 @@ export default function CRMGlobal() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [showColumnPicker, setShowColumnPicker] = useState(false)
   const [dragColId, setDragColId] = useState<string | null>(null)
+  const [dragStageKey, setDragStageKey] = useState<string | null>(null)
+  const [stageOrder, setStageOrder] = useState<string[]>(() => {
+    try { return JSON.parse(localStorage.getItem('calsyn_crm_stage_order') || '[]') } catch { return [] }
+  })
+  useEffect(() => { localStorage.setItem('calsyn_crm_stage_order', JSON.stringify(stageOrder)) }, [stageOrder])
   const [quickAdd, setQuickAdd] = useState<{ stageKey: string; stageLabel: string; name: string; phone: string; listId: string } | null>(null)
   const [quickAddSaving, setQuickAddSaving] = useState(false)
   // viewAsUserId : null = tous les contacts (toute l'org), 'me' = mes contacts, sinon = user_id d'un SDR (admin only)
@@ -392,22 +397,38 @@ export default function CRMGlobal() {
   // Fallback : si l'org n'a pas de crm_statuses configurés, dériver depuis les options enum
   // de system:crm_status (sinon le Kanban est vide même avec des prospects).
   const effectiveStatuses = useMemo(() => {
-    if (crmStatuses && crmStatuses.length > 0) return crmStatuses
-    const defaultKeys = (SYSTEM_PROPERTIES.find(p => p.key === 'crm_status')?.options) || []
-    const colorByKey: Record<string, string> = {
-      new: '#9ca3af', attempted_to_contact: '#f59e0b', connected: '#10b981',
-      in_progress: '#6366f1', callback: '#a78bfa', not_interested: '#6b7280',
-      mail_sent: '#3b82f6', rdv_pris: '#0d9488', rdv_fait: '#06b6d4',
-      en_attente_signature: '#f59e0b', signe: '#10b981',
-      en_attente_paiement: '#f59e0b', paye: '#22c55e',
+    let stages
+    if (crmStatuses && crmStatuses.length > 0) {
+      stages = crmStatuses
+    } else {
+      const defaultKeys = (SYSTEM_PROPERTIES.find(p => p.key === 'crm_status')?.options) || []
+      const colorByKey: Record<string, string> = {
+        new: '#9ca3af', attempted_to_contact: '#f59e0b', connected: '#10b981',
+        in_progress: '#6366f1', callback: '#a78bfa', not_interested: '#6b7280',
+        mail_sent: '#3b82f6', rdv_pris: '#0d9488', rdv_fait: '#06b6d4',
+        en_attente_signature: '#f59e0b', signe: '#10b981',
+        en_attente_paiement: '#f59e0b', paye: '#22c55e',
+      }
+      stages = defaultKeys.map((key, i) => ({
+        key,
+        label: CRM_STATUS_LABELS[key] || key,
+        color: colorByKey[key] || '#6b7280',
+        priority: i,
+      }))
     }
-    return defaultKeys.map((key, i) => ({
-      key,
-      label: CRM_STATUS_LABELS[key] || key,
-      color: colorByKey[key] || '#6b7280',
-      priority: i,
-    }))
-  }, [crmStatuses])
+    // Applique l'ordre custom localStorage si défini, sinon ordre naturel
+    if (stageOrder.length === 0) return stages
+    const byKey = new Map(stages.map(s => [s.key, s]))
+    const ordered: typeof stages = []
+    // 1) stages dans stageOrder (et qui existent encore)
+    for (const k of stageOrder) {
+      const s = byKey.get(k)
+      if (s) { ordered.push(s); byKey.delete(k) }
+    }
+    // 2) nouveaux stages pas encore ordonnés
+    for (const s of byKey.values()) ordered.push(s)
+    return ordered
+  }, [crmStatuses, stageOrder])
   const { data: lists } = useProspectLists()
 
   const crmLabels = useMemo(() => {
@@ -1040,7 +1061,11 @@ export default function CRMGlobal() {
             onDrop={stopAutoScroll}
             className="flex-1 min-h-0 overflow-x-auto p-4">
             <div className="flex gap-3 h-full">
-              {effectiveStatuses.map(stage => {
+              {(() => {
+                // Si recherche active, on n'affiche que les colonnes avec au moins un résultat
+                if (!search.trim()) return effectiveStatuses
+                return effectiveStatuses.filter(s => filtered.some(p => (p.crm_status || 'new') === s.key))
+              })().map(stage => {
                 // Tri intelligent SDR : à appeler en haut (jamais appelé, snooze expiré),
                 // puis déjà appelés (par dernier appel le plus ancien), puis snoozés futurs, puis DNC en bas.
                 const callPriority = (p: MergedProspect): number => {
@@ -1064,11 +1089,35 @@ export default function CRMGlobal() {
                 const rdvCount = stageProspects.filter(p => p.meeting_booked).length
                 const totalCalls = stageProspects.reduce((s, p) => s + (p.call_count || 0), 0)
                 return (
-                  <div key={stage.key} className="w-[280px] min-w-[280px] flex flex-col bg-gray-50/80 rounded-xl border border-gray-100 h-full">
-                    {/* Column header — coloré par stage (toujours visible : hors zone scroll) */}
-                    <div className="px-3 py-2.5 border-b-2 flex flex-col gap-1.5 flex-shrink-0"
+                  <div key={stage.key}
+                    onDragOver={e => {
+                      // Réordonnage de stage : on accepte le drop si on traîne une autre stage
+                      if (dragStageKey && dragStageKey !== stage.key) { e.preventDefault() }
+                    }}
+                    onDrop={e => {
+                      if (dragStageKey && dragStageKey !== stage.key) {
+                        e.preventDefault(); e.stopPropagation()
+                        const order = effectiveStatuses.map(s => s.key)
+                        const from = order.indexOf(dragStageKey)
+                        const to = order.indexOf(stage.key)
+                        if (from !== -1 && to !== -1) {
+                          const next = [...order]
+                          next.splice(from, 1)
+                          next.splice(to, 0, dragStageKey)
+                          setStageOrder(next)
+                        }
+                        setDragStageKey(null)
+                      }
+                    }}
+                    className={`w-[280px] min-w-[280px] flex flex-col bg-gray-50/80 rounded-xl border border-gray-100 h-full transition-opacity ${dragStageKey === stage.key ? 'opacity-40' : ''}`}>
+                    {/* Column header — coloré par stage + drag handle (handle = tout le header) */}
+                    <div className="px-3 py-2.5 border-b-2 flex flex-col gap-1.5 flex-shrink-0 cursor-grab active:cursor-grabbing select-none"
+                      draggable
+                      onDragStart={e => { setDragStageKey(stage.key); e.dataTransfer.effectAllowed = 'move' }}
+                      onDragEnd={() => setDragStageKey(null)}
                       style={{ borderColor: stage.color + '40' }}>
                       <div className="flex items-center gap-2">
+                        <svg className="w-3 h-3 text-gray-300 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8h16M4 16h16" /></svg>
                         <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: stage.color }} />
                         <span className="text-[12px] font-semibold text-gray-700 flex-1 truncate">{stage.label}</span>
                         <button onClick={e => {
