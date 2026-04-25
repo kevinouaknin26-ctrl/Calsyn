@@ -321,8 +321,13 @@ export default function CRMGlobal() {
     else localStorage.removeItem('calsyn_crm_view_as')
   }, [viewAsUserId])
   const [showViewAsMenu, setShowViewAsMenu] = useState(false)
-  const [pipelineGroupBy, setPipelineGroupBy] = useState<'stage' | 'list'>(() => (localStorage.getItem('calsyn_pipeline_groupby') as 'stage' | 'list') || 'stage')
-  useEffect(() => { localStorage.setItem('calsyn_pipeline_groupby', pipelineGroupBy) }, [pipelineGroupBy])
+  // Filtre par liste pour le pipeline (null = toutes listes)
+  const [listFilterId, setListFilterId] = useState<string | null>(() => localStorage.getItem('calsyn_crm_list_filter') || null)
+  useEffect(() => {
+    if (listFilterId) localStorage.setItem('calsyn_crm_list_filter', listFilterId)
+    else localStorage.removeItem('calsyn_crm_list_filter')
+  }, [listFilterId])
+  const [showListMenu, setShowListMenu] = useState(false)
 
   // Saved views (localStorage)
   const [savedViews, setSavedViews] = useState<SavedView[]>(() => {
@@ -591,6 +596,11 @@ export default function CRMGlobal() {
       result = result.filter(p => p.listIds.some(lid => (listSdrsMap[lid] || []).includes(targetUserId)))
     }
 
+    // Filtre par liste (pipeline + table) — null = toutes
+    if (listFilterId) {
+      result = result.filter(p => p.listIds.includes(listFilterId))
+    }
+
     // Text search
     if (search) {
       const lower = search.toLowerCase()
@@ -629,7 +639,7 @@ export default function CRMGlobal() {
     })
 
     return result
-  }, [mergedProspects, search, filters, sortBy, sortDir, allProperties, allCustomValues, viewAsUserId, profile?.id, listSdrsMap])
+  }, [mergedProspects, search, filters, sortBy, sortDir, allProperties, allCustomValues, viewAsUserId, profile?.id, listSdrsMap, listFilterId])
 
   // Stats
   const stats = useMemo(() => ({
@@ -867,19 +877,37 @@ export default function CRMGlobal() {
             </>
           )}
 
-          {/* Pipeline groupBy switch — pipeline only */}
-          {viewMode === 'board' && (
-            <div className="flex items-center bg-gray-100 rounded-lg p-0.5">
-              <button onClick={() => setPipelineGroupBy('stage')}
-                className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-all ${pipelineGroupBy === 'stage' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-400'}`}>
-                Par stage
-              </button>
-              <button onClick={() => setPipelineGroupBy('list')}
-                className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-all ${pipelineGroupBy === 'list' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-400'}`}>
-                Par liste
-              </button>
-            </div>
-          )}
+          {/* Filtre par liste (dropdown) */}
+          <div className="relative">
+            <button onClick={() => setShowListMenu(v => !v)}
+              title="Filtrer le pipeline sur une liste précise"
+              className={`flex items-center gap-1.5 text-[13px] px-3 py-1.5 rounded-lg border transition-colors ${
+                listFilterId ? 'bg-indigo-50 border-indigo-200 text-indigo-700 font-medium' : 'bg-white border-gray-200 text-gray-500 hover:text-gray-700'
+              }`}>
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h10M4 18h6" /></svg>
+              {listFilterId ? (lists?.find(l => l.id === listFilterId)?.name || 'Liste') : 'Toutes listes'}
+              <svg className="w-3 h-3 opacity-60" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+            </button>
+            {showListMenu && (
+              <>
+                <div className="fixed inset-0 z-40" onClick={() => setShowListMenu(false)} />
+                <div className="absolute right-0 top-10 w-[260px] bg-white rounded-xl shadow-xl border border-gray-200 z-50 py-1 max-h-[360px] overflow-y-auto animate-slide-down">
+                  <button onClick={() => { setListFilterId(null); setShowListMenu(false) }}
+                    className={`w-full text-left px-3 py-1.5 text-[12px] hover:bg-gray-50 transition-colors ${!listFilterId ? 'font-semibold text-indigo-600' : 'text-gray-600'}`}>
+                    Toutes les listes
+                  </button>
+                  <div className="border-t border-gray-100 my-1" />
+                  {(lists || []).map(l => (
+                    <button key={l.id} onClick={() => { setListFilterId(l.id); setShowListMenu(false) }}
+                      className={`w-full text-left px-3 py-1.5 text-[12px] hover:bg-gray-50 transition-colors truncate ${listFilterId === l.id ? 'font-semibold text-indigo-600' : 'text-gray-600'}`}>
+                      {l.name}
+                    </button>
+                  ))}
+                  {(!lists || lists.length === 0) && <p className="px-3 py-2 text-[11px] text-gray-400 italic">Aucune liste</p>}
+                </div>
+              </>
+            )}
+          </div>
 
           {/* Voir comme… (dropdown admin / toggle SDR) */}
           {perms.isAdmin ? (
@@ -1001,14 +1029,7 @@ export default function CRMGlobal() {
             onDrop={stopAutoScroll}
             className="flex-1 min-h-0 overflow-x-auto p-4">
             <div className="flex gap-3 h-full">
-              {(() => {
-                // Groupes : par stage (crm_status) ou par liste (list_id)
-                const groups: Array<{ key: string; label: string; color: string }> =
-                  pipelineGroupBy === 'list'
-                    ? (lists || []).map(l => ({ key: l.id, label: l.name, color: '#6366f1' }))
-                    : effectiveStatuses.map(s => ({ key: s.key, label: s.label, color: s.color }))
-                return groups
-              })().map(stage => {
+              {effectiveStatuses.map(stage => {
                 // Tri intelligent SDR : à appeler en haut (jamais appelé, snooze expiré),
                 // puis déjà appelés (par dernier appel le plus ancien), puis snoozés futurs, puis DNC en bas.
                 const callPriority = (p: MergedProspect): number => {
@@ -1018,11 +1039,8 @@ export default function CRMGlobal() {
                   if (!p.last_call_at) return 0
                   return 2
                 }
-                const matches = pipelineGroupBy === 'list'
-                  ? (p: MergedProspect) => p.listIds.includes(stage.key)
-                  : (p: MergedProspect) => (p.crm_status || 'new') === stage.key
                 const stageProspects = filtered
-                  .filter(matches)
+                  .filter(p => (p.crm_status || 'new') === stage.key)
                   .sort((a, b) => {
                     const pa = callPriority(a), pb = callPriority(b)
                     if (pa !== pb) return pa - pb
@@ -1044,12 +1062,8 @@ export default function CRMGlobal() {
                         <span className="text-[12px] font-semibold text-gray-700 flex-1 truncate">{stage.label}</span>
                         <button onClick={e => {
                           e.stopPropagation()
-                          // En mode "list", la colonne représente une liste : pré-remplit listId, crm_status reste 'new'
-                          if (pipelineGroupBy === 'list') {
-                            setQuickAdd({ stageKey: 'new', stageLabel: stage.label, name: '', phone: '', listId: stage.key })
-                          } else {
-                            setQuickAdd({ stageKey: stage.key, stageLabel: stage.label, name: '', phone: '', listId: lists?.[0]?.id || '' })
-                          }
+                          // Préremplit la liste avec celle filtrée si elle existe, sinon la première dispo
+                          setQuickAdd({ stageKey: stage.key, stageLabel: stage.label, name: '', phone: '', listId: listFilterId || lists?.[0]?.id || '' })
                         }} title={`Ajouter un contact dans "${stage.label}"`}
                           className="w-5 h-5 rounded-md text-gray-300 hover:text-violet-600 hover:bg-violet-100 flex items-center justify-center transition-colors flex-shrink-0">
                           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" /></svg>
@@ -1074,11 +1088,7 @@ export default function CRMGlobal() {
                         e.currentTarget.classList.remove('bg-violet-100/40', 'ring-2', 'ring-violet-300', 'ring-inset')
                         const prospectId = e.dataTransfer.getData('prospectId')
                         if (!prospectId) return
-                        // En mode "stage" : UPDATE crm_status. En mode "list" : UPDATE list_id (déplace la fiche dans une autre liste).
-                        const update = pipelineGroupBy === 'list'
-                          ? { list_id: stage.key }
-                          : { crm_status: stage.key }
-                        await supabase.from('prospects').update(update).eq('id', prospectId)
+                        await supabase.from('prospects').update({ crm_status: stage.key }).eq('id', prospectId)
                         queryClient.invalidateQueries({ queryKey: ['all-prospects'] })
                       }}>
                       {stageProspects.map(p => {
