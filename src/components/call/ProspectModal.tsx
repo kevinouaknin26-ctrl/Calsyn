@@ -530,7 +530,7 @@ function NameEditor({ name, prospectId }: { name: string; prospectId: string }) 
         prospect_id: prospectId, action: 'name_changed',
         details: `"${name}" → "${val.trim()}"`,
       })
-      qc.invalidateQueries({ queryKey: ['prospects'] })
+      qc.invalidateQueries({ queryKey: ['prospects'] }); qc.invalidateQueries({ queryKey: ['all-prospects'] })
     }
     setEditing(false)
   }
@@ -563,7 +563,7 @@ function EditableField({ label, value, prospectId, field, copyable, mono }: {
         action: 'field_updated',
         details: `${label} : "${value || ''}" → "${localVal || ''}"`,
       })
-      qc.invalidateQueries({ queryKey: ['prospects'] })
+      qc.invalidateQueries({ queryKey: ['prospects'] }); qc.invalidateQueries({ queryKey: ['all-prospects'] })
       qc.invalidateQueries({ queryKey: ['activity-logs'] })
     }
     setEditing(false)
@@ -761,6 +761,7 @@ export default function ProspectModal({
     // ne reste pas sur l'ancien state jusqu'au next cache refresh.
     await Promise.all([
       queryClient.refetchQueries({ queryKey: ['prospects'] }),
+      queryClient.refetchQueries({ queryKey: ['all-prospects'] }),
       queryClient.refetchQueries({ queryKey: ['rdv-upcoming'] }),
       queryClient.refetchQueries({ queryKey: ['reminders-calendar'] }),
       queryClient.refetchQueries({ queryKey: ['rdv-today'] }),
@@ -789,7 +790,10 @@ export default function ProspectModal({
     await supabase.from('prospects').update({ do_not_call: newValue }).eq('id', prospect.id)
     await supabase.from('activity_logs').insert({ prospect_id: prospect.id, action: newValue ? 'calls_disabled' : 'calls_enabled', details: newValue ? 'Appels désactivés' : 'Appels réactivés' })
     setLocalDoNotCall(newValue)
-    await queryClient.refetchQueries({ queryKey: ['prospects'] })
+    await Promise.all([
+      queryClient.refetchQueries({ queryKey: ['prospects'] }),
+      queryClient.refetchQueries({ queryKey: ['all-prospects'] }),
+    ])
   }
 
   // Téléphones supplémentaires : afficher seulement si remplis ou si l'utilisateur clique "Ajouter"
@@ -965,7 +969,7 @@ export default function ProspectModal({
                                 await supabase.from('prospects').update({ snoozed_until: new Date(e.target.value).toISOString() }).eq('id', prospect.id)
                                 setLocalSnoozedUntil(new Date(e.target.value).toISOString())
                                 setShowSnoozeMenu(false)
-                                queryClient.invalidateQueries({ queryKey: ['prospects'] })
+                                queryClient.invalidateQueries({ queryKey: ['prospects'] }); queryClient.invalidateQueries({ queryKey: ['all-prospects'] })
                               }
                             }} />
                         </div>
@@ -982,7 +986,7 @@ export default function ProspectModal({
                                 await supabase.from('prospects').update({ snoozed_until: today.toISOString() }).eq('id', prospect.id)
                                 setLocalSnoozedUntil(today.toISOString())
                                 setShowSnoozeMenu(false)
-                                queryClient.invalidateQueries({ queryKey: ['prospects'] })
+                                queryClient.invalidateQueries({ queryKey: ['prospects'] }); queryClient.invalidateQueries({ queryKey: ['all-prospects'] })
                               }
                             }} />
                         </div>
@@ -1019,7 +1023,7 @@ export default function ProspectModal({
                       onChange={async v => {
                         setLocalCallOutcome(v)
                         await supabase.from('prospects').update({ last_call_outcome: v }).eq('id', prospect.id)
-                        queryClient.invalidateQueries({ queryKey: ['prospects'] })
+                        queryClient.invalidateQueries({ queryKey: ['prospects'] }); queryClient.invalidateQueries({ queryKey: ['all-prospects'] })
                       }} />
                   </div>
                 </div>
@@ -1153,7 +1157,7 @@ export default function ProspectModal({
 
               {/* Historique — fiches accordéon (Minari exact) */}
               {callHistory.map((c, i) => (
-                <CallCard key={c.id} call={c} defaultOpen={i === 0 && !isInCall && !isDisconnected} onUpdate={() => { queryClient.invalidateQueries({ queryKey: ['calls-by-prospect'] }); queryClient.invalidateQueries({ queryKey: ['prospects'] }) }} onCelebrate={() => { setShowCelebration(true); setTimeout(() => setShowCelebration(false), 2500) }} />
+                <CallCard key={c.id} call={c} defaultOpen={i === 0 && !isInCall && !isDisconnected} onUpdate={() => { queryClient.invalidateQueries({ queryKey: ['calls-by-prospect'] }); queryClient.invalidateQueries({ queryKey: ['prospects'] }); queryClient.invalidateQueries({ queryKey: ['all-prospects'] }) }} onCelebrate={() => { setShowCelebration(true); setTimeout(() => setShowCelebration(false), 2500) }} />
               ))}
 
               {/* Vide */}
@@ -1216,7 +1220,7 @@ export default function ProspectModal({
               {activeTab === 'appels' && (
                 <div>
                   {callHistory.length > 0 ? callHistory.map(c => (
-                    <CallCard key={c.id} call={c} defaultOpen={false} onUpdate={() => { queryClient.invalidateQueries({ queryKey: ['calls-by-prospect'] }); queryClient.invalidateQueries({ queryKey: ['prospects'] }) }} onCelebrate={() => { setShowCelebration(true); setTimeout(() => setShowCelebration(false), 2500) }} />
+                    <CallCard key={c.id} call={c} defaultOpen={false} onUpdate={() => { queryClient.invalidateQueries({ queryKey: ['calls-by-prospect'] }); queryClient.invalidateQueries({ queryKey: ['prospects'] }); queryClient.invalidateQueries({ queryKey: ['all-prospects'] }) }} onCelebrate={() => { setShowCelebration(true); setTimeout(() => setShowCelebration(false), 2500) }} />
                   )) : (
                     <p className="text-[13px] text-gray-400 text-center py-10">Aucun appel enregistré</p>
                   )}
@@ -1403,7 +1407,7 @@ function DealSidebar({ prospect }: { prospect: Prospect }) {
       setLocalSnoozed(null)
     }
     await supabase.from('prospects').update(updateData).eq('id', prospect.id)
-    queryClient.invalidateQueries({ queryKey: ['prospects'] })
+    queryClient.invalidateQueries({ queryKey: ['prospects'] }); queryClient.invalidateQueries({ queryKey: ['all-prospects'] })
     queryClient.invalidateQueries({ queryKey: ['calls-by-prospect'] })
     queryClient.invalidateQueries({ queryKey: ['rdv-today'] })
   }
@@ -1418,7 +1422,7 @@ function DealSidebar({ prospect }: { prospect: Prospect }) {
       meeting_booked: true,
       rdv_date: dateTime.toISOString(),
     }).eq('id', prospect.id)
-    queryClient.invalidateQueries({ queryKey: ['prospects'] })
+    queryClient.invalidateQueries({ queryKey: ['prospects'] }); queryClient.invalidateQueries({ queryKey: ['all-prospects'] })
     queryClient.invalidateQueries({ queryKey: ['rdv-today'] })
     queryClient.invalidateQueries({ queryKey: ['activity-logs'] })
   }
@@ -1431,6 +1435,7 @@ function DealSidebar({ prospect }: { prospect: Prospect }) {
     // a fermer/rouvrir le modal pour voir la mise a jour.
     await Promise.all([
       queryClient.refetchQueries({ queryKey: ['prospects'] }),
+      queryClient.refetchQueries({ queryKey: ['all-prospects'] }),
       queryClient.refetchQueries({ queryKey: ['rdv-upcoming'] }),
       queryClient.refetchQueries({ queryKey: ['reminders-calendar'] }),
       queryClient.refetchQueries({ queryKey: ['rdv-today'] }),
