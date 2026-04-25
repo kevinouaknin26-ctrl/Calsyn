@@ -644,120 +644,164 @@ function CalendarInner() {
           </div>
         </div>
 
-        {/* Grille horaires */}
+        {/* Grille horaires — events en absolute positioning style Google Calendar */}
         <div className="flex-1 overflow-y-auto" id="calendar-grid">
-          <div className="relative">
+          <div className="relative" style={{ height: HOURS.length * 80 }}>
             {/* Ligne rouge "maintenant" */}
             <NowLine weekDays={renderDays} />
-            {HOURS.map(hour => (
-              <div key={hour} className="flex border-b border-gray-50" style={{ height: 80 }}>
-                {/* Heure à gauche */}
+            {/* Background grille horaires */}
+            {HOURS.map((hour, hi) => (
+              <div key={hour} className="flex border-b border-gray-50" style={{ height: 80, position: 'absolute', top: hi * 80, left: 0, right: 0 }}>
                 <div className="w-14 flex-shrink-0 text-right pr-2 pt-1">
                   <span className="text-[10px] text-gray-300 font-mono">{hour}:00</span>
                 </div>
-                {/* Colonnes jours */}
                 <div className={`flex-1 grid ${cols}`}>
+                  {renderDays.map((day, di) => (
+                    <div key={di} className={`border-r border-gray-50 last:border-r-0 ${isToday(day) ? 'bg-violet-50/20' : ''}`} />
+                  ))}
+                </div>
+              </div>
+            ))}
+            {/* Layer events absolute */}
+            <div className="absolute inset-0 pointer-events-none flex">
+              <div className="w-14 flex-shrink-0" />
+              <div className={`flex-1 grid ${cols} h-full`}>
                 {renderDays.map((day, di) => {
                   const dayKey = day.toISOString()
-                  // Combiner TOUS les events de cette heure (DB + Google) en une seule liste
-                  type CalEvent = { id: string; time: string; name: string; subtitle?: string; color: string; bg: string; onClick: () => void; minutes: number }
-                  const cellEvents: CalEvent[] = []
+                  type AbsEvent = { id: string; start: Date; end: Date; name: string; color: string; bg: string; onClick: () => void }
+                  const events: AbsEvent[] = []
 
-                  // Events DB (RDV)
-                  const dayRdvs = (byDay[dayKey] || []).filter(p => p.rdv_date && new Date(p.rdv_date).getHours() === hour)
-                  for (const p of dayRdvs) {
-                    const isPast = new Date(p.rdv_date!) < new Date()
+                  // RDV DB
+                  for (const p of (byDay[dayKey] || [])) {
+                    if (!p.rdv_date) continue
+                    const start = new Date(p.rdv_date)
+                    const end = new Date(start.getTime() + 30 * 60000) // 30 min default
+                    const isPast = start < new Date()
                     const c = p.crm_status === 'rdv_fait' ? '#059669' : p.crm_status === 'signe' || p.crm_status === 'paye' ? '#10b981' : isPast ? '#f59e0b' : '#7c3aed'
-                    cellEvents.push({
-                      id: p.id, minutes: new Date(p.rdv_date!).getMinutes(),
-                      time: new Date(p.rdv_date!).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
-                      name: p.name, subtitle: p.company || undefined, color: c, bg: c + '15',
+                    events.push({
+                      id: p.id, start, end,
+                      name: p.name, color: c, bg: c + '15',
                       onClick: () => setSelectedProspect(p as Prospect),
                     })
                   }
 
-                  // Rappels (snoozed_until) — affichés à l'heure stockée (ou 9h par défaut si minuit)
-                  if (weekReminders) {
-                    const dayReminders = weekReminders.filter(p => {
-                      if (!p.snoozed_until) return false
-                      const d = new Date(p.snoozed_until)
-                      if (getDayStart(d).getTime() !== day.getTime()) return false
-                      const h = d.getHours()
-                      // Si heure non précisée (minuit), affiche à 9h
-                      const targetHour = (h === 0 && d.getMinutes() === 0) ? 9 : h
-                      return targetHour === hour
+                  // Rappels
+                  for (const p of (weekReminders || [])) {
+                    if (!p.snoozed_until) continue
+                    const d = new Date(p.snoozed_until)
+                    if (getDayStart(d).getTime() !== day.getTime()) continue
+                    const isMidnight = d.getHours() === 0 && d.getMinutes() === 0
+                    const start = new Date(d)
+                    if (isMidnight) start.setHours(9, 0, 0, 0)
+                    const end = new Date(start.getTime() + 30 * 60000)
+                    events.push({
+                      id: 'rem-' + p.id, start, end,
+                      name: '🔔 ' + p.name, color: '#d97706', bg: '#fef3c720',
+                      onClick: () => setSelectedProspect(p as Prospect),
                     })
-                    for (const p of dayReminders) {
-                      const d = new Date(p.snoozed_until!)
-                      const minutes = d.getHours() === 0 && d.getMinutes() === 0 ? 0 : d.getMinutes()
-                      const time = (d.getHours() === 0 && d.getMinutes() === 0)
-                        ? '09:00'
-                        : `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
-                      cellEvents.push({
-                        id: 'rem-' + p.id, minutes,
-                        time,
-                        name: '🔔 ' + p.name, color: '#d97706', bg: '#fef3c720',
-                        onClick: () => setSelectedProspect(p as Prospect),
-                      })
-                    }
                   }
 
-                  // Events Google (seulement ceux PAS déjà dans DB par matching)
-                  const gcalForHour = (gcalEvents || []).filter(ev => {
-                    if (!ev.start?.dateTime) return false
-                    const evDate = getDayStart(new Date(ev.start.dateTime))
-                    return evDate.getTime() === day.getTime() && new Date(ev.start.dateTime).getHours() === hour
-                  })
-                  for (const ev of gcalForHour) {
+                  // Events Google Calendar (sauf doublons matchés)
+                  const dayRdvs = byDay[dayKey] || []
+                  for (const ev of (gcalEvents || [])) {
+                    if (!ev.start?.dateTime) continue
+                    const start = new Date(ev.start.dateTime)
+                    if (getDayStart(start).getTime() !== day.getTime()) continue
+                    const end = ev.end?.dateTime ? new Date(ev.end.dateTime) : new Date(start.getTime() + 60 * 60000)
                     const parsed = parseGCalEvent(ev)
-                    // Skip si déjà dans DB — match par PHONE (prioritaire) puis par NOM
                     const evPhone = normalizePhone(parsed.phone)
                     const evName = extractNameFromSummary(ev.summary || '').toLowerCase().trim()
                     const matchByPhone = evPhone && dayRdvs.some(p => normalizePhone(p.phone) === evPhone)
                     const matchByName = evName.length > 2 && dayRdvs.some(p => {
                       const pName = p.name.toLowerCase().trim()
-                      // Match exact ou premier/dernier mot en commun (pas substring aveugle)
                       return pName === evName ||
                         pName.split(' ')[0] === evName.split(' ')[0] ||
                         pName.split(' ').pop() === evName.split(' ').pop()
                     })
                     if (matchByPhone || matchByName) continue
-
                     const hasMatch = evPhone ? phoneMap.has(evPhone) : false
                     const c = parsed.isMurmuse ? (hasMatch ? '#7c3aed' : '#f59e0b') : '#6366f1'
-                    cellEvents.push({
-                      id: ev.id, minutes: new Date(ev.start.dateTime!).getMinutes(),
-                      time: new Date(ev.start.dateTime!).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
+                    events.push({
+                      id: ev.id, start, end,
                       name: ev.summary || 'Sans titre', color: c, bg: c + '12',
                       onClick: () => handleGCalEventClick(ev),
                     })
                   }
 
-                  cellEvents.sort((a, b) => a.minutes - b.minutes)
+                  // Trier par début + détecter overlaps pour les afficher côte-à-côte
+                  events.sort((a, b) => a.start.getTime() - b.start.getTime() || a.end.getTime() - b.end.getTime())
+                  // Algo simple : assigner colonne via greedy interval scheduling
+                  const cols2: AbsEvent[][] = []
+                  const eventCols = new Map<string, { col: number; total: number }>()
+                  for (const ev of events) {
+                    let placed = false
+                    for (let c = 0; c < cols2.length; c++) {
+                      const last = cols2[c][cols2[c].length - 1]
+                      if (last.end.getTime() <= ev.start.getTime()) {
+                        cols2[c].push(ev)
+                        eventCols.set(ev.id, { col: c, total: 0 })
+                        placed = true
+                        break
+                      }
+                    }
+                    if (!placed) {
+                      cols2.push([ev])
+                      eventCols.set(ev.id, { col: cols2.length - 1, total: 0 })
+                    }
+                  }
+                  // Pour chaque event, calculer "total" = nombre de colonnes en chevauchement à ce moment
+                  for (const ev of events) {
+                    let overlapping = 0
+                    for (const c of cols2) {
+                      if (c.some(other => other.start < ev.end && other.end > ev.start)) overlapping++
+                    }
+                    const cur = eventCols.get(ev.id)!
+                    cur.total = Math.max(overlapping, 1)
+                  }
+
+                  const firstHour = HOURS[0]
+                  const lastHour = HOURS[HOURS.length - 1] + 1
 
                   return (
-                    <div key={di} className={`border-r border-gray-50 last:border-r-0 p-0.5 ${isToday(day) ? 'bg-violet-50/20' : ''}`}>
-                      {di === 0 && (
-                        <span className="absolute -left-0 -top-2 text-[9px] text-gray-300 font-mono bg-white px-1">{hour}:00</span>
-                      )}
-                      <div className="flex flex-col gap-0.5 h-full">
-                        {cellEvents.map(ev => (
+                    <div key={di} className="relative">
+                      {events.map(ev => {
+                        const startHour = ev.start.getHours() + ev.start.getMinutes() / 60
+                        const endHour = ev.end.getHours() + ev.end.getMinutes() / 60
+                        if (endHour <= firstHour || startHour >= lastHour) return null
+                        const visibleStart = Math.max(startHour, firstHour)
+                        const visibleEnd = Math.min(endHour, lastHour)
+                        const top = (visibleStart - firstHour) * 80
+                        const height = Math.max((visibleEnd - visibleStart) * 80 - 2, 18)
+                        const meta = eventCols.get(ev.id)!
+                        const widthPct = 100 / meta.total
+                        const leftPct = meta.col * widthPct
+                        return (
                           <div key={ev.id} onClick={ev.onClick}
-                            className="rounded-md px-1.5 py-0.5 cursor-pointer hover:opacity-80 transition-all overflow-hidden flex-shrink-0"
-                            style={{ background: ev.bg, borderLeft: `3px solid ${ev.color}` }}>
-                            <div className="flex items-center gap-1">
-                              <span className="text-[9px] font-bold" style={{ color: ev.color }}>{ev.time}</span>
+                            style={{
+                              position: 'absolute',
+                              top: `${top}px`,
+                              height: `${height}px`,
+                              left: `calc(${leftPct}% + 2px)`,
+                              width: `calc(${widthPct}% - 4px)`,
+                              background: ev.bg,
+                              borderLeft: `3px solid ${ev.color}`,
+                              pointerEvents: 'auto',
+                            }}
+                            className="rounded-md px-1.5 py-0.5 cursor-pointer hover:opacity-80 transition-all overflow-hidden">
+                            <div className="flex items-center gap-1 leading-tight">
+                              <span className="text-[9px] font-bold" style={{ color: ev.color }}>
+                                {ev.start.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                              </span>
                               <span className="text-[10px] font-medium text-gray-700 truncate">{ev.name}</span>
                             </div>
                           </div>
-                        ))}
-                      </div>
+                        )
+                      })}
                     </div>
                   )
                 })}
-                </div>
               </div>
-            ))}
+            </div>
           </div>
         </div>
           </>
