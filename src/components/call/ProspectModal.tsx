@@ -698,17 +698,30 @@ function TasksTab({ prospect, onUpdate }: { prospect: Prospect; onUpdate: () => 
 
   // Fetch l'event Google pour récupérer le statut RSVP + Meet link
   const [eventDetails, setEventDetails] = useState<{ rsvp?: string; meetLink?: string } | null>(null)
-  useEffect(() => {
+  const [refreshTick, setRefreshTick] = useState(0)
+  const allProspectEmails = [prospect.email, prospect.email2, prospect.email3].filter(Boolean).map(e => e!.toLowerCase())
+
+  const fetchEvent = useCallback(async () => {
     if (!gcalConnected || !eventId || !hasRdv) { setEventDetails(null); return }
-    let alive = true
-    gcalGetEvent(eventId).then(ev => {
-      if (!alive || !ev) return
-      const attendee = ev.attendees?.find((a: { email: string; responseStatus?: string }) => a.email === prospect.email)
-      const meetLink = ev.hangoutLink || ev.conferenceData?.entryPoints?.find((e: { entryPointType: string; uri: string }) => e.entryPointType === 'video')?.uri
-      setEventDetails({ rsvp: attendee?.responseStatus, meetLink })
-    }).catch(() => {})
-    return () => { alive = false }
-  }, [eventId, gcalConnected, hasRdv, prospect.email, gcalGetEvent])
+    const ev = await gcalGetEvent(eventId)
+    if (!ev) return
+    // Match attendee par email (case-insensitive, sur tous les emails du prospect)
+    const attendee = ev.attendees?.find((a: { email?: string; responseStatus?: string }) =>
+      a.email && allProspectEmails.includes(a.email.toLowerCase())
+    )
+    const meetLink = ev.hangoutLink || ev.conferenceData?.entryPoints?.find((e: { entryPointType: string; uri: string }) => e.entryPointType === 'video')?.uri
+    setEventDetails({ rsvp: attendee?.responseStatus, meetLink })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [eventId, gcalConnected, hasRdv, allProspectEmails.join(','), gcalGetEvent])
+
+  // Fetch initial + refresh manuel via refreshTick
+  useEffect(() => { fetchEvent() }, [fetchEvent, refreshTick])
+  // Auto-refresh toutes les 30s pour récupérer les changements RSVP
+  useEffect(() => {
+    if (!eventId || !hasRdv) return
+    const iv = setInterval(() => setRefreshTick(t => t + 1), 30000)
+    return () => clearInterval(iv)
+  }, [eventId, hasRdv])
 
   const rsvpLabel: Record<string, { text: string; color: string; bg: string }> = {
     accepted: { text: '✓ Accepté', color: 'text-emerald-700', bg: 'bg-emerald-100' },
@@ -759,12 +772,21 @@ function TasksTab({ prospect, onUpdate }: { prospect: Prospect; onUpdate: () => 
                 {' à '}
                 {new Date(prospect.rdv_date!).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
               </p>
-              {wasInvited && eventDetails?.rsvp && rsvpLabel[eventDetails.rsvp] && (
-                <span className={`inline-block mt-1 text-[10px] font-semibold px-1.5 py-0.5 rounded ${rsvpLabel[eventDetails.rsvp].bg} ${rsvpLabel[eventDetails.rsvp].color}`}>
-                  {rsvpLabel[eventDetails.rsvp].text}
-                </span>
+              {wasInvited && (
+                <div className="flex items-center gap-1.5 mt-1">
+                  {eventDetails?.rsvp && rsvpLabel[eventDetails.rsvp] ? (
+                    <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${rsvpLabel[eventDetails.rsvp].bg} ${rsvpLabel[eventDetails.rsvp].color}`}>
+                      {rsvpLabel[eventDetails.rsvp].text}
+                    </span>
+                  ) : (
+                    <span className="text-[10px] text-teal-500">✉ Client invité par email</span>
+                  )}
+                  <button onClick={() => setRefreshTick(t => t + 1)} title="Rafraîchir le statut"
+                    className="text-gray-300 hover:text-teal-600">
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+                  </button>
+                </div>
               )}
-              {wasInvited && !eventDetails?.rsvp && <p className="text-[10px] text-teal-500 mt-0.5">✉ Client invité par email</p>}
               {!wasInvited && eventId && <p className="text-[10px] text-teal-500 mt-0.5">📌 Bloqué sur ton Google Calendar</p>}
               {eventDetails?.meetLink && (
                 <a href={eventDetails.meetLink} target="_blank" rel="noopener noreferrer"
