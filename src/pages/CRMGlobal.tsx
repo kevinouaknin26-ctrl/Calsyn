@@ -1104,12 +1104,12 @@ export default function CRMGlobal() {
               </thead>
               <tbody>
                 {filtered.map(p => (
-                  <tr key={p.id} className={`border-b border-gray-50 hover:bg-violet-50/30 transition-colors ${selectedIds.has(p.id) ? 'bg-indigo-50/40' : ''}`}>
+                  <tr key={p.id} className={`group/row border-b border-gray-50 hover:bg-violet-50/30 transition-colors ${selectedIds.has(p.id) ? 'bg-indigo-50/40' : ''}`}>
                     <td className="py-2 px-3" onClick={e => e.stopPropagation()}>
                       <input type="checkbox" checked={selectedIds.has(p.id)} onChange={() => toggleSelect(p.id)}
                         className="w-3.5 h-3.5 rounded border-gray-300 accent-indigo-600" />
                     </td>
-                    <td className="py-2 px-4 sticky left-0 z-10 bg-white hover:bg-violet-50/30 border-r border-gray-100 cursor-pointer"
+                    <td className="py-2 px-4 sticky left-0 z-10 bg-white group-hover/row:bg-violet-100 hover:bg-violet-200 border-r border-gray-100 cursor-pointer transition-colors"
                       style={{ width: 220, minWidth: 220, boxShadow: '4px 0 8px -4px rgba(0,0,0,0.03)' }}
                       onClick={() => setSelectedProspect(p)}>
                       <div className="flex items-center gap-2">
