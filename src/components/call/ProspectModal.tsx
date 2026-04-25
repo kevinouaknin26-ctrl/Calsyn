@@ -297,10 +297,10 @@ function CallCard({ call, defaultOpen, onUpdate, onCelebrate }: { call: Call; de
                 value={((call.call_outcome || 'no_answer').replace(/_incoming$/, '')) || 'no_answer'}
                 options={DISPOSITIONS}
                 onChange={async newOutcome => {
-                  // Préserver la direction entrante : si l'appel était _incoming et user choisit 'connected',
-                  // on stocke 'connected_incoming' pour garder le badge Entrant.
+                  // Préserver la direction entrante : si l'appel était _incoming, append le suffixe
+                  // à la nouvelle valeur pour conserver le badge Entrant quel que soit l'outcome choisi.
                   const wasIncoming = (call.call_outcome || '').endsWith('_incoming')
-                  const finalOutcome = wasIncoming && newOutcome === 'connected' ? 'connected_incoming' : newOutcome
+                  const finalOutcome = wasIncoming && !newOutcome.endsWith('_incoming') ? `${newOutcome}_incoming` : newOutcome
                   await supabase.from('calls').update({ call_outcome: finalOutcome }).eq('id', call.id)
                   if (call.prospect_id) {
                     const { data: allCalls } = await supabase.from('calls').select('call_outcome').eq('prospect_id', call.prospect_id)

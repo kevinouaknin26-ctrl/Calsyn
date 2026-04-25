@@ -193,8 +193,9 @@ function CallRow({ call }: { call: Call }) {
   const [downloading, setDownloading] = useState(false)
   const navigate = useNavigate()
   const signedAudioUrl = useRecordingSignedUrl(expanded ? call.recording_url : null)
-  const color = OUTCOME_COLORS[call.call_outcome || ''] || '#9ca3af'
-  const label = OUTCOME_LABELS[call.call_outcome || ''] || call.call_outcome || '—'
+  const baseOutcome = (call.call_outcome || '').replace(/_incoming$/, '')
+  const color = OUTCOME_COLORS[call.call_outcome || ''] || OUTCOME_COLORS[baseOutcome] || '#9ca3af'
+  const label = OUTCOME_LABELS[call.call_outcome || ''] || OUTCOME_LABELS[baseOutcome] || call.call_outcome || '—'
   const hasAI = call.ai_analysis_status === 'completed' && call.ai_score_global != null
   const initial = (call.prospect_name || '?')[0].toUpperCase()
 
@@ -388,7 +389,10 @@ export default function History() {
   const filtered = useMemo(() => {
     const s = search.trim().toLowerCase()
     return (calls || []).filter(c => {
-      if (filter !== 'all' && c.call_outcome !== filter) return false
+      if (filter !== 'all') {
+        const base = (c.call_outcome || '').replace(/_incoming$/, '')
+        if (c.call_outcome !== filter && base !== filter) return false
+      }
       if (s) {
         const hay = [c.prospect_name, c.prospect_phone, c.note].filter(Boolean).join(' ').toLowerCase()
         if (!hay.includes(s)) return false
@@ -400,7 +404,7 @@ export default function History() {
   const stats = useMemo(() => {
     const total = filtered.length
     const rdv = filtered.filter(c => c.meeting_booked).length
-    const connected = filtered.filter(c => c.call_outcome === 'connected' || c.meeting_booked).length
+    const connected = filtered.filter(c => c.call_outcome === 'connected' || c.call_outcome === 'connected_incoming' || c.meeting_booked).length
     const totalMin = Math.round(filtered.reduce((s, c) => s + (c.call_duration || 0), 0) / 60)
     return { total, rdv, connected, totalMin }
   }, [filtered])
