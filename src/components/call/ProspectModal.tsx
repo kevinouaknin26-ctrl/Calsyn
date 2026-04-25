@@ -19,6 +19,7 @@ import { useGmail, type GmailThread, type GmailMessage } from '@/hooks/useGmail'
 import { useSmsForProspect, useSendSms } from '@/hooks/useSms'
 import { useEmailTemplates, useSaveEmailTemplate, useDeleteEmailTemplate } from '@/hooks/useEmailTemplates'
 import { CallDirectionBadge, getCallDirection } from '@/pages/History'
+import { downloadCallZip } from '@/services/exportCall'
 import type { Prospect, CrmStatus } from '@/types/prospect'
 import type { Disposition, Call } from '@/types/call'
 import type { CallContext } from '@/machines/callMachine'
@@ -152,7 +153,7 @@ function OutcomeBadge({ outcome, meeting }: { outcome: string | null; meeting: b
 }
 
 // ── Player audio custom (Minari exact — ▶ barre + durée + download + vitesse) ──
-function AudioPlayer({ url, date, prospectName }: { url: string; date?: string; prospectName?: string }) {
+function AudioPlayer({ url, date, prospectName, call }: { url: string; date?: string; prospectName?: string; call?: Call }) {
   const audioRef = useRef<HTMLAudioElement>(null)
   const [playing, setPlaying] = useState(false)
   const [currentTime, setCurrentTime] = useState(0)
@@ -220,8 +221,12 @@ function AudioPlayer({ url, date, prospectName }: { url: string; date?: string; 
         <span className="text-[11px] text-gray-400 font-mono flex-shrink-0">
           {loadError ? <span className="text-red-500" title={loadError}>erreur</span> : (!ready && !duration ? '...' : `${fmt(currentTime)}/${fmt(duration)}`)}
         </span>
-        {/* Download — force téléchargement via XMLHttpRequest pour éviter redirect login */}
+        {/* Download — ZIP fiche complète si call fourni, sinon mp3 brut */}
         <button onClick={() => {
+          if (call) {
+            downloadCallZip(call)
+            return
+          }
           const xhr = new XMLHttpRequest()
           xhr.open('GET', url, true)
           xhr.responseType = 'blob'
@@ -239,7 +244,7 @@ function AudioPlayer({ url, date, prospectName }: { url: string; date?: string; 
             }
           }
           xhr.send()
-        }} className="text-gray-400 hover:text-gray-600 flex-shrink-0" title="Télécharger">
+        }} className="text-gray-400 hover:text-gray-600 flex-shrink-0" title={call ? 'Télécharger la fiche (ZIP)' : 'Télécharger l\'audio'}>
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
         </button>
         {/* Vitesse */}
@@ -349,7 +354,7 @@ function CallCard({ call, defaultOpen, onUpdate, onCelebrate }: { call: Call; de
           </div>
 
           {/* Player audio (Minari exact — ▶ barre + durée + download + vitesse) */}
-          {call.recording_url && signedAudioUrl && <AudioPlayer url={signedAudioUrl} date={call.created_at} prospectName={call.prospect_name || undefined} />}
+          {call.recording_url && signedAudioUrl && <AudioPlayer url={signedAudioUrl} date={call.created_at} prospectName={call.prospect_name || undefined} call={call} />}
 
           {/* ── Bulle Notes & Résumé (toujours ouverte) ── */}
           <div className="mt-3 rounded-xl border border-indigo-100 bg-indigo-50/40 p-4 space-y-3">
