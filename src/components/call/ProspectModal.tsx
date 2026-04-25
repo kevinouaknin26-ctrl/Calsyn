@@ -658,34 +658,50 @@ function NotesTab({ prospect, callHistory, queryClient }: {
   const saveMain = async () => {
     const val = mainNote.trim()
     setSavingMain(true)
-    await supabase.from('prospects').update({ notes: val || null }).eq('id', prospect.id)
-    await supabase.from('activity_logs').insert({
-      prospect_id: prospect.id,
-      action: val ? 'note_updated' : 'note_cleared',
-      details: val ? `Note modifiée` : 'Note supprimée',
-    })
-    setSavedMainNote(val)
-    setSavingMain(false)
-    await queryClient.refetchQueries({ queryKey: ['prospects'] })
-    await queryClient.refetchQueries({ queryKey: ['activity-logs'] })
+    try {
+      const { error: updateErr } = await supabase.from('prospects').update({ notes: val || null }).eq('id', prospect.id)
+      if (updateErr) throw updateErr
+      const { error: logErr } = await supabase.from('activity_logs').insert({
+        prospect_id: prospect.id,
+        action: val ? 'note_updated' : 'note_cleared',
+        details: val ? `Note modifiée` : 'Note supprimée',
+      })
+      if (logErr) console.warn('activity_log note_updated failed (non bloquant)', logErr)
+      setSavedMainNote(val)
+      // Fire-and-forget : l'UI locale (mainNote/savedMainNote) est deja a jour.
+      queryClient.invalidateQueries({ queryKey: ['prospects'] })
+      queryClient.invalidateQueries({ queryKey: ['activity-logs', prospect.id] })
+    } catch (e) {
+      console.error('saveMain failed', e)
+      alert('Impossible d\'enregistrer la note : ' + ((e as Error)?.message || 'erreur inconnue'))
+    } finally {
+      setSavingMain(false)
+    }
   }
 
   const saveAddNote = async () => {
     const val = addNote.trim()
     if (!val) return
     setSavingAdd(true)
-    await supabase.from('calls').insert({
-      prospect_id: prospect.id,
-      prospect_name: prospect.name,
-      prospect_phone: prospect.phone,
-      note: val,
-      call_outcome: 'connected',
-      call_duration: 0,
-      provider: 'manual',
-    })
-    setAddNote('')
-    setSavingAdd(false)
-    await queryClient.refetchQueries({ queryKey: ['calls-by-prospect'] })
+    try {
+      const { error: insertErr } = await supabase.from('calls').insert({
+        prospect_id: prospect.id,
+        prospect_name: prospect.name,
+        prospect_phone: prospect.phone,
+        note: val,
+        call_outcome: 'connected',
+        call_duration: 0,
+        provider: 'manual',
+      })
+      if (insertErr) throw insertErr
+      setAddNote('')
+      queryClient.invalidateQueries({ queryKey: ['calls-by-prospect'] })
+    } catch (e) {
+      console.error('saveAddNote failed', e)
+      alert('Impossible d\'ajouter la note : ' + ((e as Error)?.message || 'erreur inconnue'))
+    } finally {
+      setSavingAdd(false)
+    }
   }
 
   // Notes = calls avec `note` manuelle OU ai_summary (resume IA)
