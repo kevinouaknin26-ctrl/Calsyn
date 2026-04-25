@@ -127,9 +127,15 @@ serve(async (req) => {
 
       if (clientIdentity) {
         const vmTwiml = await buildVoicemailTwiml()
+        // Enregistrement des inbound : record-from-answer-dual (2 channels) + callback recording.
+        // recording-callback matche par call_sid (parent leg) ou fallback "call récent <2min sans URL".
         const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Dial timeout="25">
+  <Dial timeout="25"
+    record="record-from-answer-dual"
+    recordingStatusCallback="${SUPABASE_URL}/functions/v1/recording-callback"
+    recordingStatusCallbackMethod="POST"
+    recordingStatusCallbackEvent="completed">
     <Client>
       <Identity>${clientIdentity}</Identity>
     </Client>
