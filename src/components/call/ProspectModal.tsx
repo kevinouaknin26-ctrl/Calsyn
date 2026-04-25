@@ -1446,6 +1446,7 @@ function DealSidebar({ prospect }: { prospect: Prospect }) {
   const reminderDate = localSnoozed ? new Date(localSnoozed) : null
   const [settingReminder, setSettingReminder] = useState(false)
   const [reminderDays, setReminderDays] = useState('7')
+  const [reminderMotif, setReminderMotif] = useState<'rappel' | 'retour_demande' | 'rdv' | 'rdv_2' | 'rdv_3'>('rappel')
   const [customReminderDate, setCustomReminderDate] = useState('')
   const [showRdvPicker, setShowRdvPicker] = useState(false)
   const [rdvDate, setRdvDate] = useState('')
@@ -1510,21 +1511,44 @@ function DealSidebar({ prospect }: { prospect: Prospect }) {
     ])
   }
 
-  const setReminder = async () => {
-    // Priorite a la date custom si l'user en a choisi une dans le date picker,
-    // sinon on utilise le select "Dans N jours".
-    let d: Date
-    if (customReminderDate) {
-      d = new Date(customReminderDate)
+  const motifLabel: Record<string, string> = {
+    rappel: 'Rappel',
+    retour_demande: 'Retour sur demande',
+    rdv: 'RDV',
+    rdv_2: 'RDV n°2',
+    rdv_3: 'RDV n°3',
+  }
+
+  const saveTask = async () => {
+    if (!customReminderDate) return
+    const isRdv = reminderMotif === 'rdv' || reminderMotif === 'rdv_2' || reminderMotif === 'rdv_3'
+    const datetime = isRdv ? new Date(`${customReminderDate}T${rdvTime}:00`) : new Date(customReminderDate)
+    const update: Record<string, unknown> = { next_action_type: reminderMotif }
+    if (isRdv) {
+      update.rdv_date = datetime.toISOString()
+      update.meeting_booked = true
+      update.crm_status = 'rdv_pris'
+      update.snoozed_until = null
+      setLocalStatus('rdv_pris' as any)
+      setLocalSnoozed(null)
     } else {
-      d = new Date(); d.setDate(d.getDate() + parseInt(reminderDays))
+      update.snoozed_until = datetime.toISOString()
+      update.crm_status = 'callback'
+      setLocalStatus('callback' as any)
+      setLocalSnoozed(datetime.toISOString())
     }
-    setLocalSnoozed(d.toISOString())
-    await supabase.from('prospects').update({ snoozed_until: d.toISOString() }).eq('id', prospect.id)
-    await supabase.from('activity_logs').insert({ prospect_id: prospect.id, action: 'snoozed', details: `Rappel programmé le ${d.toLocaleDateString('fr-FR')}` })
+    await supabase.from('prospects').update(update).eq('id', prospect.id)
+    await supabase.from('activity_logs').insert({
+      prospect_id: prospect.id,
+      action: isRdv ? 'rdv_planned' : 'snoozed',
+      details: `${motifLabel[reminderMotif]} programmé(e) le ${datetime.toLocaleDateString('fr-FR')}${isRdv ? ` à ${datetime.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}` : ''}`,
+    })
     await invalidateSnooze()
+    queryClient.invalidateQueries({ queryKey: ['rdv-upcoming-bar'] })
+    queryClient.invalidateQueries({ queryKey: ['rdv-upcoming'] })
     setSettingReminder(false)
     setCustomReminderDate('')
+    setReminderMotif('rappel')
   }
 
   const clearReminder = async () => {
@@ -1618,55 +1642,53 @@ function DealSidebar({ prospect }: { prospect: Prospect }) {
         </div>
       )}
 
-      {/* Rappel */}
+      {/* Tâches — programmer un rappel / RDV / retour demande */}
       <div className="border-t border-gray-200 pt-3">
-        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">Rappel</p>
-        {hasReminder ? (
-          <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">Tâches</p>
+        {hasReminder && (
+          <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-2">
             <div className="flex items-center gap-1.5 mb-1">
               <svg className="w-3.5 h-3.5 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
               <span className="text-[12px] font-semibold text-amber-700">
                 {reminderDate!.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' })}
               </span>
             </div>
-            <p className="text-[10px] text-amber-600 mb-1.5">
-              Dans {Math.ceil((reminderDate!.getTime() - Date.now()) / 86400000)} jour(s)
-            </p>
-            <button onClick={clearReminder} className="text-[10px] text-amber-500 hover:text-amber-700 font-medium">
-              Supprimer le rappel
-            </button>
+            <p className="text-[10px] text-amber-600 mb-1.5">Dans {Math.ceil((reminderDate!.getTime() - Date.now()) / 86400000)} jour(s)</p>
+            <button onClick={clearReminder} className="text-[10px] text-amber-500 hover:text-amber-700 font-medium">Supprimer le rappel</button>
           </div>
-        ) : settingReminder ? (
-          <div className="space-y-1.5">
-            <div className="flex items-center gap-2">
-              <select value={reminderDays} onChange={e => setReminderDays(e.target.value)}
-                className="text-[12px] border border-gray-200 rounded-lg px-2 py-1.5 outline-none flex-1">
-                <option value="1">Demain</option>
-                <option value="2">Dans 2 jours</option>
-                <option value="3">Dans 3 jours</option>
-                <option value="7">Dans 1 semaine</option>
-                <option value="14">Dans 2 semaines</option>
-                <option value="30">Dans 1 mois</option>
-                <option value="60">Dans 2 mois</option>
-                <option value="90">Dans 3 mois</option>
-              </select>
-              <button onClick={setReminder} className="px-2.5 py-1.5 bg-amber-500 text-white text-[11px] rounded-lg hover:bg-amber-600 font-medium">OK</button>
-              <button onClick={() => setSettingReminder(false)} className="text-gray-400 hover:text-gray-600 text-[11px]">x</button>
-            </div>
-            <div className="flex items-center gap-1.5 text-[11px] text-gray-400">
-              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-              Ou choisir une date :
-              <input type="date" className="text-[11px] border border-gray-200 rounded px-1.5 py-0.5 outline-none"
-                value={customReminderDate}
+        )}
+        {settingReminder ? (
+          <div className="space-y-1.5 bg-amber-50/40 border border-amber-200 rounded-lg p-2">
+            <select value={reminderMotif} onChange={e => setReminderMotif(e.target.value)}
+              className="w-full text-[12px] border border-amber-200 rounded-lg px-2 py-1.5 outline-none bg-white">
+              <option value="rappel">📞 Rappel</option>
+              <option value="retour_demande">🔄 Retour sur demande</option>
+              <option value="rdv">📅 RDV</option>
+              <option value="rdv_2">📅 RDV n°2</option>
+              <option value="rdv_3">📅 RDV n°3</option>
+            </select>
+            <div className="flex gap-1.5">
+              <input type="date" value={customReminderDate}
                 min={new Date().toISOString().split('T')[0]}
-                onChange={e => setCustomReminderDate(e.target.value)} />
+                onChange={e => setCustomReminderDate(e.target.value)}
+                className="flex-1 text-[12px] border border-amber-200 rounded-lg px-2 py-1.5 outline-none bg-white" />
+              {(reminderMotif === 'rdv' || reminderMotif === 'rdv_2' || reminderMotif === 'rdv_3') && (
+                <input type="time" value={rdvTime} onChange={e => setRdvTime(e.target.value)}
+                  className="w-[90px] text-[12px] border border-amber-200 rounded-lg px-2 py-1.5 outline-none bg-white" />
+              )}
+            </div>
+            <div className="flex gap-1.5">
+              <button onClick={saveTask} disabled={!customReminderDate}
+                className="flex-1 px-2.5 py-1.5 bg-amber-500 text-white text-[11px] rounded-lg hover:bg-amber-600 font-medium disabled:opacity-40">OK</button>
+              <button onClick={() => { setSettingReminder(false); setCustomReminderDate('') }}
+                className="px-2.5 py-1.5 text-gray-500 bg-gray-100 hover:bg-gray-200 text-[11px] rounded-lg">Annuler</button>
             </div>
           </div>
         ) : (
           <button onClick={() => setSettingReminder(true)}
             className="flex items-center gap-1.5 text-[12px] text-amber-500 hover:text-amber-700 font-medium">
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
-            Programmer un rappel
+            Programmer une tâche
           </button>
         )}
       </div>

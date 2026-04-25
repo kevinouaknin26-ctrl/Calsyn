@@ -23,7 +23,7 @@ export default function UpcomingRdvBar({ onProspectClick }: Props) {
     queryFn: async () => {
       if (!organisation?.id) return []
       const now = new Date().toISOString()
-      const cols = 'id, list_id, name, phone, email, company, title, crm_status, last_call_outcome, rdv_date, snoozed_until, meeting_booked, call_count'
+      const cols = 'id, list_id, name, phone, email, company, title, crm_status, last_call_outcome, rdv_date, snoozed_until, meeting_booked, call_count, next_action_type'
       const [{ data: rdvData }, { data: reminderData }] = await Promise.all([
         supabase.from('prospects').select(cols)
           .eq('organisation_id', organisation.id)
@@ -73,6 +73,11 @@ export default function UpcomingRdvBar({ onProspectClick }: Props) {
             const time = eff.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
             const day = eff.toLocaleDateString('fr-FR', { weekday: 'short', day: '2-digit', month: 'short' })
             const isFirst = i === 0
+            const motif = (p as Prospect & { next_action_type?: string }).next_action_type
+            const motifLabels: Record<string, string> = {
+              rappel: 'Rappel', retour_demande: 'Retour', rdv: 'RDV', rdv_2: 'RDV 2', rdv_3: 'RDV 3',
+            }
+            const motifBadge = motif && motifLabels[motif] ? motifLabels[motif] : (isReminder ? 'Rappel' : 'RDV')
             return (
               <button key={p.id} onClick={() => onProspectClick(p)}
                 className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border flex-shrink-0 cursor-pointer hover:shadow-sm transition-all ${
@@ -80,7 +85,7 @@ export default function UpcomingRdvBar({ onProspectClick }: Props) {
                   isReminder ? 'border-amber-200 bg-amber-50/50 hover:border-amber-300' :
                   'border-teal-200 bg-white hover:border-teal-400'
                 }`}>
-                {isReminder && <svg className="w-3 h-3 text-amber-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>}
+                <span className={`text-[8px] font-bold uppercase px-1 rounded ${isReminder ? 'bg-amber-100 text-amber-700' : 'bg-teal-100 text-teal-700'}`}>{motifBadge}</span>
                 <span className={`text-[9px] font-bold uppercase ${isReminder ? 'text-amber-400' : 'text-teal-400'}`}>{day}</span>
                 <span className={`text-[11px] font-mono font-bold ${isFirst ? 'text-teal-700' : isReminder ? 'text-amber-600' : 'text-teal-600'}`}>{time}</span>
                 <span className="text-[11px] font-medium text-gray-700 max-w-[140px] truncate">{p.name}</span>
