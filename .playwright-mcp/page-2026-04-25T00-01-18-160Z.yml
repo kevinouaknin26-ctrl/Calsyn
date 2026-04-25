@@ -1,0 +1,85 @@
+- generic [ref=e2]:
+  - status: STAGING — donnees de test, aucun impact production
+  - generic [ref=e3]:
+    - complementary [ref=e4]:
+      - button [ref=e6] [cursor=pointer]:
+        - img [ref=e7]
+      - navigation [ref=e9]:
+        - link "Clients Calsyn" [ref=e10] [cursor=pointer]:
+          - /url: /app/super-admin
+          - img [ref=e12]
+        - link "Contacts" [ref=e14] [cursor=pointer]:
+          - /url: /app/contacts
+          - img [ref=e16]
+        - link "Dialer" [ref=e18] [cursor=pointer]:
+          - /url: /app/dialer
+          - img [ref=e20]
+        - link "Calendrier" [ref=e22] [cursor=pointer]:
+          - /url: /app/calendar
+          - img [ref=e24]
+        - link "Analytics" [ref=e26] [cursor=pointer]:
+          - /url: /app/dashboard
+          - img [ref=e28]
+        - link "Historique appels" [ref=e30] [cursor=pointer]:
+          - /url: /app/history
+          - img [ref=e32]
+        - button [ref=e34] [cursor=pointer]:
+          - img [ref=e35]
+        - button [ref=e37] [cursor=pointer]:
+          - img [ref=e38]
+        - button [ref=e40] [cursor=pointer]:
+          - img [ref=e41]
+        - link "Équipe" [ref=e43] [cursor=pointer]:
+          - /url: /app/team
+          - img [ref=e44]
+        - link "Parametres" [ref=e46] [cursor=pointer]:
+          - /url: /app/settings
+          - img [ref=e47]
+        - button "Mode sombre" [ref=e50] [cursor=pointer]:
+          - img [ref=e51]
+        - button [ref=e53] [cursor=pointer]:
+          - img [ref=e54]
+        - button "K" [ref=e57] [cursor=pointer]:
+          - generic [ref=e58]: K
+    - main [ref=e59]:
+      - generic [ref=e61]:
+        - generic [ref=e62]:
+          - generic [ref=e63]:
+            - generic [ref=e64]:
+              - heading "Contacts" [level=1] [ref=e65]
+              - paragraph [ref=e66]: 0 contact sur 0
+            - generic [ref=e67]:
+              - generic [ref=e68]:
+                - generic [ref=e69]: Total
+                - generic [ref=e70]: "0"
+              - generic [ref=e71]:
+                - generic [ref=e73]: Appelés
+                - generic [ref=e74]: "0"
+              - generic [ref=e75]:
+                - generic [ref=e77]: Connectés
+                - generic [ref=e78]: "0"
+              - generic [ref=e79]:
+                - generic [ref=e81]: RDV
+                - generic [ref=e82]: "0"
+              - generic [ref=e83]:
+                - button "Table" [ref=e84] [cursor=pointer]:
+                  - img [ref=e85]
+                  - text: Table
+                - button "Pipeline" [ref=e87] [cursor=pointer]:
+                  - img [ref=e88]
+                  - text: Pipeline
+          - generic [ref=e90]:
+            - button "Tous" [ref=e91] [cursor=pointer]
+            - button "+ Vue" [ref=e92] [cursor=pointer]
+        - generic [ref=e93]:
+          - generic [ref=e94]:
+            - img [ref=e95]
+            - textbox "Rechercher..." [ref=e97]
+          - button "Filtrer" [ref=e99] [cursor=pointer]:
+            - img [ref=e100]
+            - text: Filtrer
+          - button "Colonnes 8" [ref=e103] [cursor=pointer]:
+            - img [ref=e104]
+            - text: Colonnes
+            - generic [ref=e106]: "8"
+        - paragraph [ref=e110]: Chargement...

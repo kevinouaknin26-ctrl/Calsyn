@@ -1,0 +1,225 @@
+- generic [ref=e2]:
+  - status: STAGING — donnees de test, aucun impact production
+  - generic [ref=e5]:
+    - complementary [ref=e6]:
+      - button [ref=e8] [cursor=pointer]:
+        - img [ref=e9]
+      - navigation [ref=e11]:
+        - link "Clients Calsyn" [ref=e9913] [cursor=pointer]:
+          - /url: /app/super-admin
+          - img [ref=e9915]
+        - link "Contacts" [ref=e9917] [cursor=pointer]:
+          - /url: /app/contacts
+          - img [ref=e9919]
+        - link "Dialer" [ref=e9921] [cursor=pointer]:
+          - /url: /app/dialer
+          - img [ref=e9923]
+        - link "Calendrier" [ref=e9925] [cursor=pointer]:
+          - /url: /app/calendar
+          - img [ref=e9927]
+        - link "Analytics" [ref=e9929] [cursor=pointer]:
+          - /url: /app/dashboard
+          - img [ref=e9931]
+        - link "Historique appels" [ref=e9933] [cursor=pointer]:
+          - /url: /app/history
+          - img [ref=e9935]
+        - button [ref=e36] [cursor=pointer]:
+          - img [ref=e37]
+        - button [ref=e39] [cursor=pointer]:
+          - img [ref=e40]
+        - button [ref=e42] [cursor=pointer]:
+          - img [ref=e43]
+        - link "Équipe" [ref=e45] [cursor=pointer]:
+          - /url: /app/team
+          - img [ref=e46]
+        - link "Parametres" [ref=e48] [cursor=pointer]:
+          - /url: /app/settings
+          - img [ref=e49]
+        - button "Mode sombre" [ref=e52] [cursor=pointer]:
+          - img [ref=e53]
+        - button [ref=e55] [cursor=pointer]:
+          - img [ref=e56]
+        - button "K" [ref=e59] [cursor=pointer]:
+          - generic [ref=e60]: K
+    - main [ref=e61]:
+      - generic [ref=e9938]:
+        - generic [ref=e9939]:
+          - button "+ Nouvelle liste" [ref=e9940] [cursor=pointer]:
+            - generic [ref=e9941]: +
+            - text: Nouvelle liste
+          - button "test Fermer l'onglet" [ref=e9942] [cursor=pointer]:
+            - text: test
+            - button "Fermer l'onglet" [ref=e9943]: ×
+          - generic [ref=e9944]: +1 ▾
+        - generic [ref=e9946]:
+          - generic [ref=e9947]:
+            - heading "test" [level=1] [ref=e9948] [cursor=pointer]
+            - generic [ref=e9949]: 1 contacts
+            - button "Contact" [ref=e9950] [cursor=pointer]:
+              - img [ref=e9951]
+              - text: Contact
+            - button "Actualiser" [ref=e9953] [cursor=pointer]:
+              - img [ref=e9954]
+              - text: Actualiser
+            - button "Exporter" [ref=e9957] [cursor=pointer]:
+              - img [ref=e9958]
+              - text: Exporter
+            - button "Partager" [ref=e9960] [cursor=pointer]:
+              - img [ref=e9961]
+              - text: Partager
+          - generic [ref=e9964]:
+            - generic [ref=e9965]:
+              - img [ref=e9966]
+              - text: 0 RDV
+            - generic [ref=e9969]: Connectés 0
+            - generic [ref=e9971]: Tentatives 1
+            - generic [ref=e9973]: En attente 0
+        - generic [ref=e9976]:
+          - generic [ref=e9977]:
+            - button "Démarrer les appels" [ref=e9978] [cursor=pointer]:
+              - img [ref=e9979]
+              - text: Démarrer les appels
+            - button "Vues" [ref=e9982] [cursor=pointer]:
+              - img [ref=e9983]
+              - text: Vues
+            - button "Ordre par défaut" [ref=e9986] [cursor=pointer]:
+              - img [ref=e9987]
+              - generic [ref=e9989]: Ordre par défaut
+              - img [ref=e9990]
+            - button "Filtrer" [ref=e9993] [cursor=pointer]:
+              - img [ref=e9994]
+              - text: Filtrer
+            - button "Colonnes 7" [ref=e9997] [cursor=pointer]:
+              - img [ref=e9998]
+              - text: Colonnes
+              - generic [ref=e10000]: "7"
+            - generic [ref=e10001]:
+              - img [ref=e10002]
+              - textbox "Rechercher des contacts..." [ref=e10004]
+          - button "Paramètres d'appel" [ref=e10007] [cursor=pointer]:
+            - img [ref=e10008]
+            - text: Paramètres d'appel
+            - img [ref=e10010]
+        - table [ref=e10013]:
+          - rowgroup [ref=e10014]:
+            - row "Statut appel Actions Nom Liens Téléphone Email Société Poste Dernier appel Statut CRM" [ref=e10015]:
+              - columnheader [ref=e10016]:
+                - checkbox [ref=e10017]
+              - columnheader "Statut appel" [ref=e10018]:
+                - generic [ref=e10019]:
+                  - generic [ref=e10020]: Statut appel
+                  - button [ref=e10021] [cursor=pointer]:
+                    - img [ref=e10022]
+              - columnheader "Actions" [ref=e10024]
+              - columnheader "Nom" [ref=e10025]:
+                - generic [ref=e10026]:
+                  - generic [ref=e10027]: Nom
+                  - button [ref=e10028] [cursor=pointer]:
+                    - img [ref=e10029]
+              - columnheader "Liens" [ref=e10031]:
+                - generic [ref=e10032]:
+                  - generic [ref=e10033]: Liens
+                  - button "Trier" [ref=e10034] [cursor=pointer]:
+                    - img [ref=e10035]
+                  - button "Filtrer" [ref=e10037] [cursor=pointer]:
+                    - img [ref=e10038]
+                  - button "Masquer la colonne" [ref=e10040] [cursor=pointer]:
+                    - img [ref=e10041]
+              - columnheader "Téléphone" [ref=e10044]:
+                - generic [ref=e10045]:
+                  - generic [ref=e10046]: Téléphone
+                  - button "Trier" [ref=e10047] [cursor=pointer]:
+                    - img [ref=e10048]
+                  - button "Filtrer" [ref=e10050] [cursor=pointer]:
+                    - img [ref=e10051]
+                  - button "Masquer la colonne" [ref=e10053] [cursor=pointer]:
+                    - img [ref=e10054]
+              - columnheader "Email" [ref=e10057]:
+                - generic [ref=e10058]:
+                  - generic [ref=e10059]: Email
+                  - button "Trier" [ref=e10060] [cursor=pointer]:
+                    - img [ref=e10061]
+                  - button "Filtrer" [ref=e10063] [cursor=pointer]:
+                    - img [ref=e10064]
+                  - button "Masquer la colonne" [ref=e10066] [cursor=pointer]:
+                    - img [ref=e10067]
+              - columnheader "Société" [ref=e10070]:
+                - generic [ref=e10071]:
+                  - generic [ref=e10072]: Société
+                  - button "Trier" [ref=e10073] [cursor=pointer]:
+                    - img [ref=e10074]
+                  - button "Filtrer" [ref=e10076] [cursor=pointer]:
+                    - img [ref=e10077]
+                  - button "Masquer la colonne" [ref=e10079] [cursor=pointer]:
+                    - img [ref=e10080]
+              - columnheader "Poste" [ref=e10083]:
+                - generic [ref=e10084]:
+                  - generic [ref=e10085]: Poste
+                  - button "Trier" [ref=e10086] [cursor=pointer]:
+                    - img [ref=e10087]
+                  - button "Filtrer" [ref=e10089] [cursor=pointer]:
+                    - img [ref=e10090]
+                  - button "Masquer la colonne" [ref=e10092] [cursor=pointer]:
+                    - img [ref=e10093]
+              - columnheader "Dernier appel" [ref=e10096]:
+                - generic [ref=e10097]:
+                  - generic [ref=e10098]: Dernier appel
+                  - button "Trier" [ref=e10099] [cursor=pointer]:
+                    - img [ref=e10100]
+                  - button "Filtrer" [ref=e10102] [cursor=pointer]:
+                    - img [ref=e10103]
+                  - button "Masquer la colonne" [ref=e10105] [cursor=pointer]:
+                    - img [ref=e10106]
+              - columnheader "Statut CRM" [ref=e10109]:
+                - generic [ref=e10110]:
+                  - generic [ref=e10111]: Statut CRM
+                  - button "Trier" [ref=e10112] [cursor=pointer]:
+                    - img [ref=e10113]
+                  - button "Filtrer" [ref=e10115] [cursor=pointer]:
+                    - img [ref=e10116]
+                  - button "Masquer la colonne" [ref=e10118] [cursor=pointer]:
+                    - img [ref=e10119]
+          - rowgroup [ref=e10122]:
+            - row "Messagerie kevin - +33617535622 - - - il y a 22 min Tenté" [ref=e10123]:
+              - cell [ref=e10124]:
+                - checkbox [ref=e10125]
+              - cell "Messagerie" [ref=e10126]:
+                - generic [ref=e10127]:
+                  - img [ref=e10128]
+                  - text: Messagerie
+              - cell [ref=e10130]:
+                - button "Appeler" [ref=e10132] [cursor=pointer]:
+                  - img [ref=e10133]
+              - cell "kevin" [ref=e10135]:
+                - button "kevin" [ref=e10136] [cursor=pointer]:
+                  - img [ref=e10137]
+                  - generic [ref=e10139]: kevin
+              - cell "-" [ref=e10140]
+              - cell "+33617535622" [ref=e10141]:
+                - generic [ref=e10142]:
+                  - generic [ref=e10143]: "+33617535622"
+                  - button "Copier" [ref=e10144] [cursor=pointer]:
+                    - img [ref=e10145]
+              - cell "-" [ref=e10147]:
+                - generic [ref=e10148]: "-"
+              - cell "-" [ref=e10149]:
+                - generic [ref=e10150]: "-"
+              - cell "-" [ref=e10151]:
+                - generic [ref=e10152]: "-"
+              - cell "il y a 22 min" [ref=e10153]
+              - cell "Tenté" [ref=e10154]:
+                - combobox [ref=e10155] [cursor=pointer]:
+                  - option "—"
+                  - option "Nouveau"
+                  - option "Tenté" [selected]
+                  - option "Connecté"
+                  - option "En cours"
+                  - option "Rappel"
+                  - option "Pas intéressé"
+                  - option "Mail envoyé"
+                  - option "RDV pris"
+                  - option "RDV fait"
+                  - option "En attente signature"
+                  - option "Signé"
+                  - option "En attente paiement"
+                  - option "Payé"

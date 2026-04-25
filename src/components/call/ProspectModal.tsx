@@ -283,7 +283,11 @@ function CallCard({ call, defaultOpen, onUpdate, onCelebrate }: { call: Call; de
           <div className="flex items-center gap-5 mb-3">
             <div>
               <p className="text-[11px] text-gray-400 mb-1">Résultat</p>
-              <MiniDropdown value={call.call_outcome || 'no_answer'} options={DISPOSITIONS}
+              <MiniDropdown
+                // Le dropdown ne connaît que les variantes sortantes (DISPOSITIONS).
+                // Pour un entrant (connected_incoming), on strip le suffixe afin que le label "Connecté" s'affiche.
+                value={((call.call_outcome || 'no_answer').replace(/_incoming$/, '')) || 'no_answer'}
+                options={DISPOSITIONS}
                 onChange={async newOutcome => {
                   // Préserver la direction entrante : si l'appel était _incoming et user choisit 'connected',
                   // on stocke 'connected_incoming' pour garder le badge Entrant.
