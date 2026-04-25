@@ -641,6 +641,124 @@ function MiniDropdown({ value, options, onChange, className }: {
   )
 }
 
+// ── Onglet Notes (extrait pour state local + bouton Enregistrer) ─
+function NotesTab({ prospect, callHistory, queryClient }: {
+  prospect: Prospect
+  callHistory: Call[]
+  queryClient: ReturnType<typeof useQueryClient>
+}) {
+  const [mainNote, setMainNote] = useState(prospect.notes || '')
+  const [savedMainNote, setSavedMainNote] = useState(prospect.notes || '')
+  const [savingMain, setSavingMain] = useState(false)
+  const [addNote, setAddNote] = useState('')
+  const [savingAdd, setSavingAdd] = useState(false)
+
+  const mainDirty = mainNote.trim() !== (savedMainNote || '').trim()
+
+  const saveMain = async () => {
+    const val = mainNote.trim()
+    setSavingMain(true)
+    await supabase.from('prospects').update({ notes: val || null }).eq('id', prospect.id)
+    await supabase.from('activity_logs').insert({
+      prospect_id: prospect.id,
+      action: val ? 'note_updated' : 'note_cleared',
+      details: val ? `Note modifiée` : 'Note supprimée',
+    })
+    setSavedMainNote(val)
+    setSavingMain(false)
+    await queryClient.refetchQueries({ queryKey: ['prospects'] })
+    await queryClient.refetchQueries({ queryKey: ['activity-logs'] })
+  }
+
+  const saveAddNote = async () => {
+    const val = addNote.trim()
+    if (!val) return
+    setSavingAdd(true)
+    await supabase.from('calls').insert({
+      prospect_id: prospect.id,
+      prospect_name: prospect.name,
+      prospect_phone: prospect.phone,
+      note: val,
+      call_outcome: 'connected',
+      call_duration: 0,
+      provider: 'manual',
+    })
+    setAddNote('')
+    setSavingAdd(false)
+    await queryClient.refetchQueries({ queryKey: ['calls-by-prospect'] })
+  }
+
+  // Notes = calls avec `note` manuelle OU ai_summary (resume IA)
+  const notesCalls = callHistory.filter(c => c.note || c.ai_summary)
+
+  return (
+    <div>
+      {/* Note principale — state controle + bouton Enregistrer */}
+      <div className="mb-4 rounded-xl border border-indigo-100 bg-indigo-50/40 p-3">
+        <div className="flex items-center justify-between mb-1.5">
+          <p className="text-[10px] font-bold text-indigo-500 uppercase tracking-wider">Note principale</p>
+          {mainDirty && <span className="text-[10px] text-amber-600 font-medium">Non enregistré</span>}
+        </div>
+        <textarea
+          value={mainNote}
+          onChange={e => setMainNote(e.target.value)}
+          placeholder="Notes générales sur ce prospect (toujours accessibles, même sans appel)..."
+          rows={3}
+          className="w-full text-[13px] text-gray-700 bg-white border border-indigo-100 rounded-lg p-2.5 resize-none outline-none focus:border-indigo-300 focus:ring-1 focus:ring-indigo-200 placeholder:text-gray-400" />
+        <div className="flex items-center justify-end gap-2 mt-2">
+          {mainDirty && !savingMain && (
+            <button onClick={() => setMainNote(savedMainNote)}
+              className="text-[11px] text-gray-500 hover:text-gray-700 font-medium px-2 py-1">Annuler</button>
+          )}
+          <button onClick={saveMain} disabled={!mainDirty || savingMain}
+            className={`text-[11px] font-semibold px-3 py-1.5 rounded-lg transition-all ${mainDirty && !savingMain ? 'bg-indigo-500 text-white hover:bg-indigo-600' : 'bg-gray-100 text-gray-400 cursor-not-allowed'}`}>
+            {savingMain ? 'Enregistrement…' : 'Enregistrer'}
+          </button>
+        </div>
+      </div>
+
+      {/* Notes existantes des appels + résumés IA */}
+      {notesCalls.length > 0 ? (
+        <div className="space-y-2 mb-4">
+          {notesCalls.map(c => (
+            <div key={c.id} className="bg-gray-50 rounded-lg p-3">
+              <div className="flex items-center gap-2 mb-1">
+                <svg className="w-3 h-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" /></svg>
+                <span className="text-[11px] text-gray-400">{formatDate(c.created_at)}</span>
+                {c.ai_summary && <span className="text-[9px] font-bold text-violet-500 uppercase tracking-wider bg-violet-100 px-1.5 py-0.5 rounded">IA</span>}
+              </div>
+              {c.note && <p className="text-[13px] text-gray-600">{c.note}</p>}
+              {c.ai_summary && (
+                <p className="text-[12px] text-violet-700 italic mt-1.5 border-l-2 border-violet-200 pl-2">
+                  {typeof c.ai_summary === 'string' ? c.ai_summary : (c.ai_summary as { summary?: string })?.summary || JSON.stringify(c.ai_summary)}
+                </p>
+              )}
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p className="text-[13px] text-gray-400 mb-4">Aucune note pour ce prospect</p>
+      )}
+
+      {/* Ajouter une note libre — avec bouton Enregistrer */}
+      <div>
+        <textarea
+          value={addNote}
+          onChange={e => setAddNote(e.target.value)}
+          placeholder="Ajouter une note…"
+          rows={3}
+          className="w-full px-3 py-2 rounded-lg border border-gray-200 text-[13px] text-gray-700 outline-none resize-none placeholder:text-gray-400" />
+        <div className="flex items-center justify-end gap-2 mt-2">
+          <button onClick={saveAddNote} disabled={!addNote.trim() || savingAdd}
+            className={`text-[11px] font-semibold px-3 py-1.5 rounded-lg transition-all ${addNote.trim() && !savingAdd ? 'bg-indigo-500 text-white hover:bg-indigo-600' : 'bg-gray-100 text-gray-400 cursor-not-allowed'}`}>
+            {savingAdd ? 'Enregistrement…' : 'Enregistrer la note'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── Modal ────────────────────────────────────────────────────────
 export default function ProspectModal({
   prospect, callContext, callHistory, isInCall, isDisconnected,
@@ -1077,53 +1195,11 @@ export default function ProspectModal({
 
               {/* ── Onglet Notes ── */}
               {activeTab === 'notes' && (
-                <div>
-                  {/* Note principale du prospect — toujours éditable (indépendante des appels) */}
-                  <div className="mb-4 rounded-xl border border-indigo-100 bg-indigo-50/40 p-3">
-                    <p className="text-[10px] font-bold text-indigo-500 uppercase tracking-wider mb-1.5">Note principale</p>
-                    <textarea
-                      defaultValue={prospect.notes || ''}
-                      placeholder="Notes générales sur ce prospect (toujours accessibles, même sans appel)..."
-                      onBlur={async e => {
-                        const val = e.target.value.trim()
-                        if (val !== (prospect.notes || '')) {
-                          await supabase.from('prospects').update({ notes: val || null }).eq('id', prospect.id)
-                          queryClient.invalidateQueries({ queryKey: ['prospects'] })
-                        }
-                      }}
-                      rows={3}
-                      className="w-full text-[13px] text-gray-700 bg-white border border-indigo-100 rounded-lg p-2.5 resize-none outline-none focus:border-indigo-300 focus:ring-1 focus:ring-indigo-200 placeholder:text-gray-400" />
-                  </div>
-                  {/* Notes de tous les appels */}
-                  {callHistory.filter(c => c.note).length > 0 ? (
-                    <div className="space-y-2 mb-4">
-                      {callHistory.filter(c => c.note).map(c => (
-                        <div key={c.id} className="bg-gray-50 rounded-lg p-3">
-                          <div className="flex items-center gap-2 mb-1">
-                            <svg className="w-3 h-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" /></svg>
-                            <span className="text-[11px] text-gray-400">{formatDate(c.created_at)}</span>
-                          </div>
-                          <p className="text-[13px] text-gray-600">{c.note}</p>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="text-[13px] text-gray-400 mb-4">Aucune note pour ce prospect</p>
-                  )}
-                  {/* Ajouter une note libre */}
-                  <textarea placeholder="Ajouter une note..."
-                    onBlur={async e => {
-                      if (e.target.value.trim()) {
-                        await supabase.from('calls').insert({
-                          prospect_id: prospect.id, prospect_name: prospect.name, prospect_phone: prospect.phone,
-                          note: e.target.value.trim(), call_outcome: 'connected', call_duration: 0, provider: 'manual',
-                        })
-                        queryClient.invalidateQueries({ queryKey: ['calls-by-prospect'] })
-                        e.target.value = ''
-                      }
-                    }}
-                    className="w-full px-3 py-2 rounded-lg border border-gray-200 text-[13px] text-gray-700 outline-none resize-none placeholder:text-gray-400" rows={3} />
-                </div>
+                <NotesTab
+                  prospect={prospect}
+                  callHistory={callHistory}
+                  queryClient={queryClient}
+                />
               )}
 
               {/* ── Onglet Tâches ── */}
