@@ -29,10 +29,10 @@ export interface GmailMessage {
 }
 
 export function useGmail() {
-  const listThreads = useCallback(async (q: string): Promise<{ threads?: GmailThread[]; error?: string }> => {
+  const listThreads = useCallback(async (q: string, maxResults = 50): Promise<{ threads?: GmailThread[]; error?: string }> => {
     const { data: { session } } = await supabase.auth.getSession()
     if (!session) return { error: 'No session' }
-    const params = new URLSearchParams({ action: 'list', q })
+    const params = new URLSearchParams({ action: 'list', q, maxResults: String(maxResults) })
     const res = await fetch(`${SUPABASE_URL}/functions/v1/gmail?${params}`, {
       headers: { Authorization: `Bearer ${session.access_token}` },
     })

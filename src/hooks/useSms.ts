@@ -2,7 +2,7 @@
  * useSms — gestion des SMS prospect (lecture + envoi via edge function).
  */
 
-import { useCallback } from 'react'
+import { useCallback, useEffect } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/config/supabase'
 
@@ -24,6 +24,28 @@ export interface SmsMessage {
 
 /** Liste tous les SMS d'un prospect (par phone numbers, lookup côté DB). */
 export function useSmsForProspect(prospectId: string | null, phoneNumbers: string[]) {
+  const queryClient = useQueryClient()
+
+  // Realtime : écoute les INSERT sur sms_messages et invalide la query courante.
+  // Permet d'afficher les SMS reçus en direct (style WhatsApp / Messenger).
+  useEffect(() => {
+    if (!prospectId && phoneNumbers.filter(Boolean).length === 0) return
+    const channel = supabase
+      .channel(`sms-prospect-${prospectId || phoneNumbers[0]}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'sms_messages' }, payload => {
+        const row = (payload.new || payload.old) as { prospect_id?: string; from_number?: string; to_number?: string }
+        const matches =
+          (prospectId && row.prospect_id === prospectId) ||
+          phoneNumbers.some(p => p && (row.from_number === p || row.to_number === p))
+        if (matches) {
+          queryClient.invalidateQueries({ queryKey: ['sms-prospect'] })
+        }
+      })
+      .subscribe()
+    return () => { channel.unsubscribe() }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [prospectId, phoneNumbers.join(','), queryClient])
+
   return useQuery({
     queryKey: ['sms-prospect', prospectId, phoneNumbers.join(',')],
     queryFn: async () => {

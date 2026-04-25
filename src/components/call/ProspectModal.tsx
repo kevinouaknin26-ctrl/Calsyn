@@ -786,7 +786,9 @@ function EmailsTab({ prospect }: { prospect: Prospect }) {
     }
     setLoading(true)
     setError(null)
-    const r = await listThreads(`from:${prospect.email} OR to:${prospect.email}`)
+    // Inclut envois (sent), reçus (inbox), cc/bcc, et tous les dossiers (in:anywhere) y compris archivés/spam.
+    const q = `(from:${prospect.email} OR to:${prospect.email} OR cc:${prospect.email} OR bcc:${prospect.email}) in:anywhere`
+    const r = await listThreads(q)
     setLoading(false)
     if (r.error) setError(r.error)
     else setThreads(r.threads || [])
