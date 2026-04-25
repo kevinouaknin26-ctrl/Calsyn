@@ -2029,6 +2029,7 @@ const FALLBACK_STAGES: Array<{ key: string; label: string; color: string }> = [
 
 function DealSidebar({ prospect }: { prospect: Prospect }) {
   const queryClient = useQueryClient()
+  const { profile } = useAuth()
   const { data: dbStatuses } = useCrmStatuses()
   const { connected: gcalConnected, createEvent: gcalCreateEvent, deleteEvent: gcalDeleteEvent, listEvents: gcalListEvents } = useGoogleCalendar()
 
@@ -2459,16 +2460,26 @@ function DealSidebar({ prospect }: { prospect: Prospect }) {
               <>
                 <input type="time" value={rdvTime} onChange={e => setRdvTime(e.target.value)}
                   className="w-full min-w-0 text-[12px] border border-amber-200 rounded-lg px-2 py-1.5 outline-none bg-white" />
-                {/* Picker de créneaux dispo (slots 30 min de 9h à 19h) */}
+                {/* Picker de créneaux dispo (configurable depuis Settings) */}
                 {customReminderDate && gcalConnected && (() => {
+                  const dur = profile?.slot_duration_min || 30
+                  const buf = profile?.slot_buffer_min || 0
+                  const step = dur + buf
+                  // work hours from profile (HH:MM:SS), défaut 09:00 → 18:00
+                  const parseH = (s: string | null | undefined) => {
+                    if (!s) return null
+                    const m = s.match(/^(\d{1,2}):(\d{2})/)
+                    return m ? parseInt(m[1]) * 60 + parseInt(m[2]) : null
+                  }
+                  const startMin = parseH(profile?.work_hours_start) ?? 9 * 60
+                  const endMin = parseH(profile?.work_hours_end) ?? 18 * 60
                   const slots: Array<{ time: string; busy: boolean }> = []
-                  for (let h = 9; h < 19; h++) {
-                    for (const m of [0, 30]) {
-                      const slotStart = new Date(`${customReminderDate}T${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:00`).getTime()
-                      const slotEnd = slotStart + 30 * 60 * 1000
-                      const busy = busySlots.some(b => b.start < slotEnd && b.end > slotStart)
-                      slots.push({ time: `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`, busy })
-                    }
+                  for (let cur = startMin; cur + dur <= endMin; cur += step) {
+                    const h = Math.floor(cur / 60), m = cur % 60
+                    const slotStart = new Date(`${customReminderDate}T${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:00`).getTime()
+                    const slotEnd = slotStart + dur * 60 * 1000
+                    const busy = busySlots.some(b => b.start < slotEnd && b.end > slotStart)
+                    slots.push({ time: `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`, busy })
                   }
                   return (
                     <div className="bg-white border border-amber-200 rounded-lg p-2">

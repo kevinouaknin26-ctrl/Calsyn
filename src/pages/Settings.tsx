@@ -235,6 +235,83 @@ function CallSettings({ org, save }: { org: any; save: (u: Record<string, unknow
       <div className="pt-4 mt-2 border-t border-gray-100">
         <EmailSignatureEditor />
       </div>
+
+      {/* Disponibilités RDV */}
+      <div className="pt-4 mt-2 border-t border-gray-100">
+        <SlotConfigEditor />
+      </div>
+    </div>
+  )
+}
+
+function SlotConfigEditor() {
+  const { profile, refreshProfile } = useAuth()
+  const [duration, setDuration] = useState(profile?.slot_duration_min || 30)
+  const [buffer, setBuffer] = useState(profile?.slot_buffer_min || 0)
+  const [hStart, setHStart] = useState((profile?.work_hours_start || '09:00:00').slice(0, 5))
+  const [hEnd, setHEnd] = useState((profile?.work_hours_end || '18:00:00').slice(0, 5))
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
+
+  useEffect(() => {
+    setDuration(profile?.slot_duration_min || 30)
+    setBuffer(profile?.slot_buffer_min || 0)
+    setHStart((profile?.work_hours_start || '09:00:00').slice(0, 5))
+    setHEnd((profile?.work_hours_end || '18:00:00').slice(0, 5))
+  }, [profile?.slot_duration_min, profile?.slot_buffer_min, profile?.work_hours_start, profile?.work_hours_end])
+
+  const save = async () => {
+    if (!profile?.id) return
+    setSaving(true)
+    const { error } = await supabase.from('profiles').update({
+      slot_duration_min: duration,
+      slot_buffer_min: buffer,
+      work_hours_start: hStart + ':00',
+      work_hours_end: hEnd + ':00',
+    }).eq('id', profile.id)
+    setSaving(false)
+    if (error) { alert(`Erreur : ${error.message}`); return }
+    setSaved(true); setTimeout(() => setSaved(false), 2000)
+    if (refreshProfile) refreshProfile()
+  }
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-2">
+        <label className="text-xs font-semibold text-gray-600">Disponibilités RDV</label>
+        {saved && <span className="text-[11px] text-emerald-500 font-medium">Enregistré ✓</span>}
+      </div>
+      <p className="text-[11px] text-gray-400 mb-3">Définit les créneaux proposés dans le picker quand tu programmes un RDV.</p>
+      <div className="grid grid-cols-2 gap-2">
+        <div>
+          <label className="text-[10px] font-bold text-gray-400 uppercase">Durée d'un RDV</label>
+          <select value={duration} onChange={e => setDuration(parseInt(e.target.value))}
+            className="w-full mt-1 text-[12px] px-2 py-1.5 border border-gray-200 rounded-lg outline-none focus:border-indigo-300 bg-white">
+            {[15, 20, 30, 45, 60, 90, 120].map(v => <option key={v} value={v}>{v} min</option>)}
+          </select>
+        </div>
+        <div>
+          <label className="text-[10px] font-bold text-gray-400 uppercase">Pause entre 2 RDV</label>
+          <select value={buffer} onChange={e => setBuffer(parseInt(e.target.value))}
+            className="w-full mt-1 text-[12px] px-2 py-1.5 border border-gray-200 rounded-lg outline-none focus:border-indigo-300 bg-white">
+            {[0, 5, 10, 15, 20, 30].map(v => <option key={v} value={v}>{v === 0 ? 'Aucune' : `${v} min`}</option>)}
+          </select>
+        </div>
+        <div>
+          <label className="text-[10px] font-bold text-gray-400 uppercase">Début</label>
+          <input type="time" value={hStart} onChange={e => setHStart(e.target.value)}
+            className="w-full mt-1 text-[12px] px-2 py-1.5 border border-gray-200 rounded-lg outline-none focus:border-indigo-300" />
+        </div>
+        <div>
+          <label className="text-[10px] font-bold text-gray-400 uppercase">Fin</label>
+          <input type="time" value={hEnd} onChange={e => setHEnd(e.target.value)}
+            className="w-full mt-1 text-[12px] px-2 py-1.5 border border-gray-200 rounded-lg outline-none focus:border-indigo-300" />
+        </div>
+      </div>
+      <button onClick={save} disabled={saving}
+        className="mt-3 px-3 py-1.5 text-[12px] font-medium text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 rounded-lg">
+        {saving ? 'Enregistrement...' : 'Enregistrer'}
+      </button>
     </div>
   )
 }

@@ -87,6 +87,10 @@ export interface Profile {
   email_signature: string | null
   /** URL publique d'une image de signature (logo + coordonnées). Ajoutée en HTML au mail. */
   email_signature_image_url: string | null
+  /** Durée d'un créneau RDV en minutes (défaut 30). */
+  slot_duration_min: number | null
+  /** Pause entre 2 RDV en minutes (défaut 0). */
+  slot_buffer_min: number | null
   created_at: string
 }
 

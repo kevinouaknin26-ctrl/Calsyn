@@ -33,7 +33,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   async function loadProfile(userId: string) {
     const { data: p } = await supabase
       .from('profiles')
-      .select('id, organisation_id, email, full_name, role, is_active, assigned_phone, assigned_phones, call_license, deactivated_at, work_hours_start, work_hours_end, max_calls_per_day, last_seen_at, invite_expires_at, voicemail_url, voicemail_text, email_signature, email_signature_image_url, created_at')
+      .select('id, organisation_id, email, full_name, role, is_active, assigned_phone, assigned_phones, call_license, deactivated_at, work_hours_start, work_hours_end, max_calls_per_day, last_seen_at, invite_expires_at, voicemail_url, voicemail_text, email_signature, email_signature_image_url, slot_duration_min, slot_buffer_min, created_at')
       .eq('id', userId)
       .single()
 
@@ -98,7 +98,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!user?.id) return
     const { data: p } = await supabase
       .from('profiles')
-      .select('id, organisation_id, email, full_name, role, is_active, assigned_phone, assigned_phones, call_license, deactivated_at, work_hours_start, work_hours_end, max_calls_per_day, last_seen_at, invite_expires_at, voicemail_url, voicemail_text, email_signature, email_signature_image_url, created_at')
+      .select('id, organisation_id, email, full_name, role, is_active, assigned_phone, assigned_phones, call_license, deactivated_at, work_hours_start, work_hours_end, max_calls_per_day, last_seen_at, invite_expires_at, voicemail_url, voicemail_text, email_signature, email_signature_image_url, slot_duration_min, slot_buffer_min, created_at')
       .eq('id', user.id)
       .single()
     if (p) setProfile(p as Profile)
