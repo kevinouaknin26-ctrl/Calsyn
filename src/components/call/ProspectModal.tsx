@@ -641,6 +641,94 @@ function MiniDropdown({ value, options, onChange, className }: {
   )
 }
 
+// ── Onglet Notes : zone pour ajouter + liste des notes (appels + IA) ─
+function NotesTab({ prospect, callHistory, queryClient }: {
+  prospect: Prospect
+  callHistory: Call[]
+  queryClient: ReturnType<typeof useQueryClient>
+}) {
+  const [addNote, setAddNote] = useState('')
+  const [savingAdd, setSavingAdd] = useState(false)
+  const [justSaved, setJustSaved] = useState(false)
+
+  const saveAddNote = async () => {
+    const val = addNote.trim()
+    if (!val) return
+    setSavingAdd(true)
+    try {
+      const { error: insertErr } = await supabase.from('calls').insert({
+        prospect_id: prospect.id,
+        prospect_name: prospect.name,
+        prospect_phone: prospect.phone,
+        note: val,
+        call_outcome: 'connected',
+        call_duration: 0,
+        provider: 'manual',
+      })
+      if (insertErr) throw insertErr
+      setAddNote('')
+      setJustSaved(true)
+      setTimeout(() => setJustSaved(false), 2000)
+      queryClient.invalidateQueries({ queryKey: ['calls-by-prospect'] })
+    } catch (e) {
+      console.error('saveAddNote failed', e)
+      alert('Impossible d\'ajouter la note : ' + ((e as Error)?.message || 'erreur inconnue'))
+    } finally {
+      setSavingAdd(false)
+    }
+  }
+
+  // Notes = calls avec `note` manuelle OU ai_summary (resume IA)
+  const notesCalls = callHistory.filter(c => c.note || c.ai_summary)
+
+  return (
+    <div>
+      {/* Zone pour ajouter une note */}
+      <div className="mb-4 rounded-xl border border-indigo-100 bg-indigo-50/40 p-3">
+        <div className="flex items-center justify-between mb-1.5">
+          <p className="text-[10px] font-bold text-indigo-500 uppercase tracking-wider">Ajouter une note</p>
+          {justSaved && <span className="text-[10px] text-emerald-600 font-medium">Enregistré ✓</span>}
+        </div>
+        <textarea
+          value={addNote}
+          onChange={e => setAddNote(e.target.value)}
+          placeholder="Note à ajouter (s'affichera dans l'historique du prospect)…"
+          rows={3}
+          className="w-full text-[13px] text-gray-700 bg-white border border-indigo-100 rounded-lg p-2.5 resize-none outline-none focus:border-indigo-300 focus:ring-1 focus:ring-indigo-200 placeholder:text-gray-400" />
+        <div className="flex items-center justify-end gap-2 mt-2">
+          <button onClick={saveAddNote} disabled={!addNote.trim() || savingAdd}
+            className={`text-[11px] font-semibold px-3 py-1.5 rounded-lg transition-all ${addNote.trim() && !savingAdd ? 'bg-indigo-500 text-white hover:bg-indigo-600' : 'bg-gray-100 text-gray-400 cursor-not-allowed'}`}>
+            {savingAdd ? 'Enregistrement…' : 'Enregistrer la note'}
+          </button>
+        </div>
+      </div>
+
+      {/* Notes existantes : appels avec note + résumés IA */}
+      {notesCalls.length > 0 ? (
+        <div className="space-y-2">
+          {notesCalls.map(c => (
+            <div key={c.id} className="bg-gray-50 rounded-lg p-3">
+              <div className="flex items-center gap-2 mb-1">
+                <svg className="w-3 h-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" /></svg>
+                <span className="text-[11px] text-gray-400">{formatDate(c.created_at)}</span>
+                {c.ai_summary && <span className="text-[9px] font-bold text-violet-500 uppercase tracking-wider bg-violet-100 px-1.5 py-0.5 rounded">IA</span>}
+              </div>
+              {c.note && <p className="text-[13px] text-gray-600">{c.note}</p>}
+              {c.ai_summary && (
+                <p className="text-[12px] text-violet-700 italic mt-1.5 border-l-2 border-violet-200 pl-2">
+                  {typeof c.ai_summary === 'string' ? c.ai_summary : (c.ai_summary as { summary?: string })?.summary || JSON.stringify(c.ai_summary)}
+                </p>
+              )}
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p className="text-[13px] text-gray-400 text-center py-6">Aucune note pour ce prospect</p>
+      )}
+    </div>
+  )
+}
+
 // ── Modal ────────────────────────────────────────────────────────
 export default function ProspectModal({
   prospect, callContext, callHistory, isInCall, isDisconnected,
@@ -668,11 +756,15 @@ export default function ProspectModal({
     // Décocher ne change PAS la disposition
   }
 
-  const invalidateAfterSnooze = () => {
-    queryClient.invalidateQueries({ queryKey: ['prospects'] })
-    queryClient.invalidateQueries({ queryKey: ['rdv-upcoming'] })
-    queryClient.invalidateQueries({ queryKey: ['reminders-calendar'] })
-    queryClient.invalidateQueries({ queryKey: ['rdv-today'] })
+  const invalidateAfterSnooze = async () => {
+    // refetchQueries (awaited) au lieu de invalidateQueries pour que l'UI
+    // ne reste pas sur l'ancien state jusqu'au next cache refresh.
+    await Promise.all([
+      queryClient.refetchQueries({ queryKey: ['prospects'] }),
+      queryClient.refetchQueries({ queryKey: ['rdv-upcoming'] }),
+      queryClient.refetchQueries({ queryKey: ['reminders-calendar'] }),
+      queryClient.refetchQueries({ queryKey: ['rdv-today'] }),
+    ])
   }
 
   async function handleSnooze(days: number) {
@@ -682,14 +774,14 @@ export default function ProspectModal({
     await supabase.from('activity_logs').insert({ prospect_id: prospect.id, action: 'snoozed', details: `En pause jusqu'au ${until.toLocaleDateString('fr-FR')}` })
     setLocalSnoozedUntil(until.toISOString())
     setShowSnoozeMenu(false)
-    invalidateAfterSnooze()
+    await invalidateAfterSnooze()
   }
 
   async function handleRemoveSnooze() {
     await supabase.from('prospects').update({ snoozed_until: null }).eq('id', prospect.id)
     await supabase.from('activity_logs').insert({ prospect_id: prospect.id, action: 'snooze_removed', details: 'Pause retirée' })
     setLocalSnoozedUntil(null)
-    invalidateAfterSnooze()
+    await invalidateAfterSnooze()
   }
 
   async function handleToggleDNC() {
@@ -697,7 +789,7 @@ export default function ProspectModal({
     await supabase.from('prospects').update({ do_not_call: newValue }).eq('id', prospect.id)
     await supabase.from('activity_logs').insert({ prospect_id: prospect.id, action: newValue ? 'calls_disabled' : 'calls_enabled', details: newValue ? 'Appels désactivés' : 'Appels réactivés' })
     setLocalDoNotCall(newValue)
-    queryClient.invalidateQueries({ queryKey: ['prospects'] })
+    await queryClient.refetchQueries({ queryKey: ['prospects'] })
   }
 
   // Téléphones supplémentaires : afficher seulement si remplis ou si l'utilisateur clique "Ajouter"
@@ -1073,63 +1165,43 @@ export default function ProspectModal({
 
               {/* ── Onglet Notes ── */}
               {activeTab === 'notes' && (
-                <div>
-                  {/* Note principale du prospect — toujours éditable (indépendante des appels) */}
-                  <div className="mb-4 rounded-xl border border-indigo-100 bg-indigo-50/40 p-3">
-                    <p className="text-[10px] font-bold text-indigo-500 uppercase tracking-wider mb-1.5">Note principale</p>
-                    <textarea
-                      defaultValue={prospect.notes || ''}
-                      placeholder="Notes générales sur ce prospect (toujours accessibles, même sans appel)..."
-                      onBlur={async e => {
-                        const val = e.target.value.trim()
-                        if (val !== (prospect.notes || '')) {
-                          await supabase.from('prospects').update({ notes: val || null }).eq('id', prospect.id)
-                          queryClient.invalidateQueries({ queryKey: ['prospects'] })
-                        }
-                      }}
-                      rows={3}
-                      className="w-full text-[13px] text-gray-700 bg-white border border-indigo-100 rounded-lg p-2.5 resize-none outline-none focus:border-indigo-300 focus:ring-1 focus:ring-indigo-200 placeholder:text-gray-400" />
-                  </div>
-                  {/* Notes de tous les appels */}
-                  {callHistory.filter(c => c.note).length > 0 ? (
-                    <div className="space-y-2 mb-4">
-                      {callHistory.filter(c => c.note).map(c => (
-                        <div key={c.id} className="bg-gray-50 rounded-lg p-3">
-                          <div className="flex items-center gap-2 mb-1">
-                            <svg className="w-3 h-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" /></svg>
-                            <span className="text-[11px] text-gray-400">{formatDate(c.created_at)}</span>
-                          </div>
-                          <p className="text-[13px] text-gray-600">{c.note}</p>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="text-[13px] text-gray-400 mb-4">Aucune note pour ce prospect</p>
-                  )}
-                  {/* Ajouter une note libre */}
-                  <textarea placeholder="Ajouter une note..."
-                    onBlur={async e => {
-                      if (e.target.value.trim()) {
-                        await supabase.from('calls').insert({
-                          prospect_id: prospect.id, prospect_name: prospect.name, prospect_phone: prospect.phone,
-                          note: e.target.value.trim(), call_outcome: 'connected', call_duration: 0, provider: 'manual',
-                        })
-                        queryClient.invalidateQueries({ queryKey: ['calls-by-prospect'] })
-                        e.target.value = ''
-                      }
-                    }}
-                    className="w-full px-3 py-2 rounded-lg border border-gray-200 text-[13px] text-gray-700 outline-none resize-none placeholder:text-gray-400" rows={3} />
-                </div>
+                <NotesTab
+                  prospect={prospect}
+                  callHistory={callHistory}
+                  queryClient={queryClient}
+                />
               )}
 
-              {/* ── Onglet Tâches ── */}
-              {activeTab === 'taches' && (
-                <div className="text-center py-10">
-                  <svg className="w-8 h-8 text-gray-300 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" /></svg>
-                  <p className="text-[13px] text-gray-400">Aucune tâche</p>
-                  <p className="text-[11px] text-gray-300 mt-1">Les tâches seront disponibles prochainement</p>
-                </div>
-              )}
+              {/* ── Onglet Tâches : affiche les rappels actifs ── */}
+              {activeTab === 'taches' && (() => {
+                const hasActiveReminder = prospect.snoozed_until && new Date(prospect.snoozed_until) > new Date()
+                const reminderDateObj = prospect.snoozed_until ? new Date(prospect.snoozed_until) : null
+                if (!hasActiveReminder) {
+                  return (
+                    <div className="text-center py-10">
+                      <svg className="w-8 h-8 text-gray-300 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" /></svg>
+                      <p className="text-[13px] text-gray-400">Aucune tâche</p>
+                      <p className="text-[11px] text-gray-300 mt-1">Les rappels programmés apparaîtront ici.</p>
+                    </div>
+                  )
+                }
+                const daysUntil = Math.ceil((reminderDateObj!.getTime() - Date.now()) / 86400000)
+                return (
+                  <div className="space-y-2">
+                    <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 flex items-start gap-2.5">
+                      <svg className="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                      <div className="flex-1">
+                        <p className="text-[13px] font-semibold text-amber-800">Rappeler ce prospect</p>
+                        <p className="text-[11px] text-amber-600 mt-0.5">
+                          {reminderDateObj!.toLocaleDateString('fr-FR', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' })}
+                          {' · '}
+                          dans {daysUntil} jour{daysUntil > 1 ? 's' : ''}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )
+              })()}
 
               {/* ── Onglet Emails ── */}
               {activeTab === 'emails' && (
@@ -1160,26 +1232,70 @@ export default function ProspectModal({
                 </div>
               )}
 
-              {/* ── Onglet Historique ── */}
-              {activeTab === 'historique' && (
-                <div>
-                  {activityLogs && activityLogs.length > 0 ? (
-                    <div className="space-y-1">
-                      {activityLogs.map((log: { id: string; action: string; details: string; created_at: string }) => (
-                        <div key={log.id} className="flex items-start gap-2 text-[12px] py-2 border-b border-gray-50">
-                          <svg className="w-3.5 h-3.5 text-gray-300 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                          <div className="flex-1">
-                            <p className="text-gray-600">{log.details}</p>
-                            <p className="text-[10px] text-gray-300 mt-0.5">{formatDate(log.created_at)}</p>
-                          </div>
+              {/* ── Onglet Historique : timeline unifiée (logs + calls + notes) ── */}
+              {activeTab === 'historique' && (() => {
+                type TimelineItem = {
+                  id: string
+                  kind: 'activity' | 'call'
+                  created_at: string
+                  icon_color: string
+                  title: string
+                  subtitle?: string
+                }
+                const items: TimelineItem[] = []
+                if (activityLogs) {
+                  for (const log of activityLogs as Array<{ id: string; action: string; details: string; created_at: string }>) {
+                    items.push({
+                      id: `log-${log.id}`,
+                      kind: 'activity',
+                      created_at: log.created_at,
+                      icon_color: 'text-gray-300',
+                      title: log.details,
+                    })
+                  }
+                }
+                for (const c of callHistory) {
+                  const outcome = c.call_outcome || 'appel'
+                  const hasNote = !!c.note
+                  const hasAI = !!c.ai_summary
+                  const duration = c.call_duration ? ` · ${formatDuration(c.call_duration)}` : ''
+                  let title = `Appel ${outcome}${duration}`
+                  if (c.provider === 'manual') title = 'Note ajoutée'
+                  items.push({
+                    id: `call-${c.id}`,
+                    kind: 'call',
+                    created_at: c.created_at,
+                    icon_color: hasAI ? 'text-violet-400' : (hasNote ? 'text-indigo-400' : 'text-sky-400'),
+                    title,
+                    subtitle: c.note || (hasAI ? '[Résumé IA disponible]' : undefined),
+                  })
+                }
+                items.sort((a, b) => b.created_at.localeCompare(a.created_at))
+
+                if (items.length === 0) {
+                  return <p className="text-[13px] text-gray-400 text-center py-10">Aucune activité enregistrée</p>
+                }
+                return (
+                  <div className="space-y-1">
+                    {items.map(item => (
+                      <div key={item.id} className="flex items-start gap-2 text-[12px] py-2 border-b border-gray-50">
+                        <svg className={`w-3.5 h-3.5 flex-shrink-0 mt-0.5 ${item.icon_color}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          {item.kind === 'call' ? (
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                          ) : (
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          )}
+                        </svg>
+                        <div className="flex-1">
+                          <p className="text-gray-600">{item.title}</p>
+                          {item.subtitle && <p className="text-[11px] text-gray-500 mt-0.5 italic">{item.subtitle}</p>}
+                          <p className="text-[10px] text-gray-300 mt-0.5">{formatDate(item.created_at)}</p>
                         </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="text-[13px] text-gray-400 text-center py-10">Aucune modification enregistrée</p>
-                  )}
-                </div>
-              )}
+                      </div>
+                    ))}
+                  </div>
+                )
+              })()}
             </div>
           </div>
 
@@ -1258,6 +1374,7 @@ function DealSidebar({ prospect }: { prospect: Prospect }) {
   const reminderDate = localSnoozed ? new Date(localSnoozed) : null
   const [settingReminder, setSettingReminder] = useState(false)
   const [reminderDays, setReminderDays] = useState('7')
+  const [customReminderDate, setCustomReminderDate] = useState('')
   const [showRdvPicker, setShowRdvPicker] = useState(false)
   const [rdvDate, setRdvDate] = useState('')
   const [rdvTime, setRdvTime] = useState('10:00')
@@ -1306,27 +1423,42 @@ function DealSidebar({ prospect }: { prospect: Prospect }) {
     queryClient.invalidateQueries({ queryKey: ['activity-logs'] })
   }
 
-  const invalidateSnooze = () => {
-    queryClient.invalidateQueries({ queryKey: ['prospects'] })
-    queryClient.invalidateQueries({ queryKey: ['rdv-upcoming'] })
-    queryClient.invalidateQueries({ queryKey: ['reminders-calendar'] })
-    queryClient.invalidateQueries({ queryKey: ['rdv-today'] })
+  const invalidateSnooze = async () => {
+    // On utilise refetchQueries (pas invalidateQueries) pour que l'UI
+    // attende les donnees fraiches avant de rendre le nouveau state. Sans
+    // ca, apres save, le prop `prospect` reste sur l'ancienne valeur le
+    // temps du refetch → l'UI reste sur l'ancien state, obligeant l'user
+    // a fermer/rouvrir le modal pour voir la mise a jour.
+    await Promise.all([
+      queryClient.refetchQueries({ queryKey: ['prospects'] }),
+      queryClient.refetchQueries({ queryKey: ['rdv-upcoming'] }),
+      queryClient.refetchQueries({ queryKey: ['reminders-calendar'] }),
+      queryClient.refetchQueries({ queryKey: ['rdv-today'] }),
+    ])
   }
 
   const setReminder = async () => {
-    const d = new Date(); d.setDate(d.getDate() + parseInt(reminderDays))
+    // Priorite a la date custom si l'user en a choisi une dans le date picker,
+    // sinon on utilise le select "Dans N jours".
+    let d: Date
+    if (customReminderDate) {
+      d = new Date(customReminderDate)
+    } else {
+      d = new Date(); d.setDate(d.getDate() + parseInt(reminderDays))
+    }
     setLocalSnoozed(d.toISOString())
     await supabase.from('prospects').update({ snoozed_until: d.toISOString() }).eq('id', prospect.id)
     await supabase.from('activity_logs').insert({ prospect_id: prospect.id, action: 'snoozed', details: `Rappel programmé le ${d.toLocaleDateString('fr-FR')}` })
-    invalidateSnooze()
+    await invalidateSnooze()
     setSettingReminder(false)
+    setCustomReminderDate('')
   }
 
   const clearReminder = async () => {
     setLocalSnoozed(null)
     await supabase.from('prospects').update({ snoozed_until: null }).eq('id', prospect.id)
     await supabase.from('activity_logs').insert({ prospect_id: prospect.id, action: 'snooze_removed', details: 'Rappel supprimé' })
-    invalidateSnooze()
+    await invalidateSnooze()
   }
 
   return (
@@ -1452,17 +1584,9 @@ function DealSidebar({ prospect }: { prospect: Prospect }) {
               <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
               Ou choisir une date :
               <input type="date" className="text-[11px] border border-gray-200 rounded px-1.5 py-0.5 outline-none"
+                value={customReminderDate}
                 min={new Date().toISOString().split('T')[0]}
-                onChange={async e => {
-                  if (e.target.value) {
-                    const d = new Date(e.target.value)
-                    await supabase.from('prospects').update({ snoozed_until: d.toISOString() }).eq('id', prospect.id)
-                    await supabase.from('activity_logs').insert({ prospect_id: prospect.id, action: 'snoozed', details: `Rappel programmé le ${d.toLocaleDateString('fr-FR')}` })
-                    setLocalSnoozed(d.toISOString())
-                    setSettingReminder(false)
-                    queryClient.invalidateQueries({ queryKey: ['prospects'] })
-                  }
-                }} />
+                onChange={e => setCustomReminderDate(e.target.value)} />
             </div>
           </div>
         ) : (
