@@ -1658,25 +1658,23 @@ function DealSidebar({ prospect }: { prospect: Prospect }) {
           </div>
         )}
         {settingReminder ? (
-          <div className="space-y-1.5 bg-amber-50/40 border border-amber-200 rounded-lg p-2">
-            <select value={reminderMotif} onChange={e => setReminderMotif(e.target.value)}
-              className="w-full text-[12px] border border-amber-200 rounded-lg px-2 py-1.5 outline-none bg-white">
+          <div className="space-y-1.5 bg-amber-50/40 border border-amber-200 rounded-lg p-2 max-w-full overflow-hidden">
+            <select value={reminderMotif} onChange={e => setReminderMotif(e.target.value as typeof reminderMotif)}
+              className="w-full min-w-0 text-[12px] border border-amber-200 rounded-lg px-2 py-1.5 outline-none bg-white">
               <option value="rappel">📞 Rappel</option>
               <option value="retour_demande">🔄 Retour sur demande</option>
               <option value="rdv">📅 RDV</option>
               <option value="rdv_2">📅 RDV n°2</option>
               <option value="rdv_3">📅 RDV n°3</option>
             </select>
-            <div className="flex gap-1.5">
-              <input type="date" value={customReminderDate}
-                min={new Date().toISOString().split('T')[0]}
-                onChange={e => setCustomReminderDate(e.target.value)}
-                className="flex-1 text-[12px] border border-amber-200 rounded-lg px-2 py-1.5 outline-none bg-white" />
-              {(reminderMotif === 'rdv' || reminderMotif === 'rdv_2' || reminderMotif === 'rdv_3') && (
-                <input type="time" value={rdvTime} onChange={e => setRdvTime(e.target.value)}
-                  className="w-[90px] text-[12px] border border-amber-200 rounded-lg px-2 py-1.5 outline-none bg-white" />
-              )}
-            </div>
+            <input type="date" value={customReminderDate}
+              min={new Date().toISOString().split('T')[0]}
+              onChange={e => setCustomReminderDate(e.target.value)}
+              className="w-full min-w-0 text-[12px] border border-amber-200 rounded-lg px-2 py-1.5 outline-none bg-white" />
+            {(reminderMotif === 'rdv' || reminderMotif === 'rdv_2' || reminderMotif === 'rdv_3') && (
+              <input type="time" value={rdvTime} onChange={e => setRdvTime(e.target.value)}
+                className="w-full min-w-0 text-[12px] border border-amber-200 rounded-lg px-2 py-1.5 outline-none bg-white" />
+            )}
             <div className="flex gap-1.5">
               <button onClick={saveTask} disabled={!customReminderDate}
                 className="flex-1 px-2.5 py-1.5 bg-amber-500 text-white text-[11px] rounded-lg hover:bg-amber-600 font-medium disabled:opacity-40">OK</button>
