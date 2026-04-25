@@ -74,7 +74,7 @@ export function useSmsForProspect(prospectId: string | null, phoneNumbers: strin
 
 export function useSendSms() {
   const queryClient = useQueryClient()
-  return useCallback(async (input: { to: string; body: string; prospectId?: string; fromNumber?: string }) => {
+  return useCallback(async (input: { to: string; body: string; prospectId?: string; fromNumber?: string; mediaUrl?: string }) => {
     const { data: { session } } = await supabase.auth.getSession()
     if (!session) return { error: 'No session' }
     const res = await fetch(`${SUPABASE_URL}/functions/v1/sms-send`, {
@@ -84,7 +84,6 @@ export function useSendSms() {
     })
     const data = await res.json()
     if (data?.ok) {
-      // Refresh la liste après envoi
       queryClient.invalidateQueries({ queryKey: ['sms-prospect'] })
     }
     return data as { ok?: boolean; sid?: string; status?: string; error?: string }

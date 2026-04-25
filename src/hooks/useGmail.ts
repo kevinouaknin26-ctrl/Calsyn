@@ -49,7 +49,7 @@ export function useGmail() {
     return res.json()
   }, [])
 
-  const sendEmail = useCallback(async (input: { to: string; subject: string; body: string; threadId?: string; signatureImageUrl?: string }): Promise<{ ok?: boolean; messageId?: string; threadId?: string; error?: string }> => {
+  const sendEmail = useCallback(async (input: { to: string; subject: string; body: string; threadId?: string; signatureImageUrl?: string; attachments?: Array<{ filename: string; mimeType: string; base64: string }> }): Promise<{ ok?: boolean; messageId?: string; threadId?: string; error?: string }> => {
     const { data: { session } } = await supabase.auth.getSession()
     if (!session) return { error: 'No session' }
     const res = await fetch(`${SUPABASE_URL}/functions/v1/gmail?action=send`, {
