@@ -312,6 +312,8 @@ export default function CRMGlobal() {
   const [dragColId, setDragColId] = useState<string | null>(null)
   const [quickAdd, setQuickAdd] = useState<{ stageKey: string; stageLabel: string; name: string; phone: string; listId: string } | null>(null)
   const [quickAddSaving, setQuickAddSaving] = useState(false)
+  const [myOnly, setMyOnly] = useState<boolean>(() => localStorage.getItem('calsyn_crm_my_only') === '1')
+  useEffect(() => { localStorage.setItem('calsyn_crm_my_only', myOnly ? '1' : '0') }, [myOnly])
 
   // Saved views (localStorage)
   const [savedViews, setSavedViews] = useState<SavedView[]>(() => {
@@ -554,6 +556,11 @@ export default function CRMGlobal() {
   const filtered = useMemo(() => {
     let result = mergedProspects
 
+    // "Mes contacts seulement" : ne garder que les prospects dans une liste assignée à l'user courant
+    if (myOnly && profile?.id) {
+      result = result.filter(p => p.listIds.some(lid => (listSdrsMap[lid] || []).includes(profile.id)))
+    }
+
     // Text search
     if (search) {
       const lower = search.toLowerCase()
@@ -592,7 +599,7 @@ export default function CRMGlobal() {
     })
 
     return result
-  }, [mergedProspects, search, filters, sortBy, sortDir, allProperties, allCustomValues])
+  }, [mergedProspects, search, filters, sortBy, sortDir, allProperties, allCustomValues, myOnly, profile?.id, listSdrsMap])
 
   // Stats
   const stats = useMemo(() => ({
@@ -824,6 +831,18 @@ export default function CRMGlobal() {
 
           {/* Advanced filters */}
           <FilterBuilder filters={filters} setFilters={setFilters} allProperties={allProperties} crmStatuses={crmStatuses || []} />
+
+          {/* Toggle "Mes contacts seulement" */}
+          <button onClick={() => setMyOnly(v => !v)}
+            title={myOnly ? 'Afficher tous les contacts' : 'Filtrer sur mes contacts (listes assignées)'}
+            className={`flex items-center gap-1.5 text-[13px] px-3 py-1.5 rounded-lg border transition-colors ${
+              myOnly ? 'bg-amber-50 border-amber-200 text-amber-700 font-medium' : 'bg-white border-gray-200 text-gray-500 hover:text-gray-700'
+            }`}>
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+            </svg>
+            Mes contacts
+          </button>
 
           {/* Column picker */}
           <CrmColumnPicker visible={visibleColumnIds} setVisible={setVisibleColumnIds} allProperties={allProperties} open={showColumnPicker} onToggle={() => setShowColumnPicker(!showColumnPicker)} />
