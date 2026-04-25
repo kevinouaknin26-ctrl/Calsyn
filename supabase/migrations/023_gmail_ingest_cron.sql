@@ -11,8 +11,11 @@ SELECT cron.schedule(
   $$
   SELECT net.http_post(
     url := 'https://enrpuayypjnpfmdgpfhs.supabase.co/functions/v1/gmail-ingest',
-    headers := jsonb_build_object('Authorization', 'Bearer ' || current_setting('app.settings.service_role_key', true)),
-    body := '{}'::jsonb
+    headers := jsonb_build_object('Content-Type', 'application/json'),
+    body := '{}'::jsonb,
+    timeout_milliseconds := 90000
   );
   $$
 );
+-- Note : la function gmail-ingest accepte les appels sans token (mode cron).
+-- Pas de risque : elle ne fait que sync les Gmail des users déjà connectés.
