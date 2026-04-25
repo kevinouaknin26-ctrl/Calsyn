@@ -6,7 +6,7 @@
  * Colonne droite : tabs, fiches appels accordéon (réduit/agrandi), player, transcription, AI summary
  */
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import { useQueryClient, useQuery } from '@tanstack/react-query'
 import { usePropertyDefinitions, useProspectCustomValues, groupProperties, updatePropertyValue, useCrmStatuses } from '@/hooks/useProperties'
 import { getPropertyValue } from '@/config/properties'
@@ -15,6 +15,7 @@ import { supabase } from '@/config/supabase'
 import { useRecordingSignedUrl } from '@/hooks/useRecordingSignedUrl'
 import { useAuth } from '@/hooks/useAuth'
 import { useGoogleCalendar } from '@/hooks/useGoogleCalendar'
+import { useGmail, type GmailThread, type GmailMessage } from '@/hooks/useGmail'
 import { CallDirectionBadge, getCallDirection } from '@/pages/History'
 import type { Prospect, CrmStatus } from '@/types/prospect'
 import type { Disposition, Call } from '@/types/call'
@@ -676,6 +677,170 @@ function MiniDropdown({ value, options, onChange, className }: {
 }
 
 // ── Onglet Notes : zone pour ajouter + liste des notes (appels + IA) ─
+// ── Onglet Emails (Gmail intégré) ────────────────────────────────────
+function EmailsTab({ prospect }: { prospect: Prospect }) {
+  const { listThreads, getThread, sendEmail } = useGmail()
+  const [threads, setThreads] = useState<GmailThread[] | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [openThread, setOpenThread] = useState<string | null>(null)
+  const [threadMessages, setThreadMessages] = useState<GmailMessage[] | null>(null)
+  const [composing, setComposing] = useState(false)
+  const [draftSubject, setDraftSubject] = useState('')
+  const [draftBody, setDraftBody] = useState('')
+  const [sending, setSending] = useState(false)
+
+  const refresh = useCallback(async () => {
+    if (!prospect.email) {
+      setError('Aucun email pour ce prospect')
+      return
+    }
+    setLoading(true)
+    setError(null)
+    const r = await listThreads(`from:${prospect.email} OR to:${prospect.email}`)
+    setLoading(false)
+    if (r.error) setError(r.error)
+    else setThreads(r.threads || [])
+  }, [prospect.email, listThreads])
+
+  useEffect(() => { refresh() }, [refresh])
+
+  const openThreadDetails = async (id: string) => {
+    setOpenThread(id)
+    setThreadMessages(null)
+    const r = await getThread(id)
+    if (r.error) setError(r.error)
+    else setThreadMessages(r.messages || [])
+  }
+
+  const handleSend = async () => {
+    if (!prospect.email || !draftSubject.trim() || !draftBody.trim()) return
+    setSending(true)
+    const r = await sendEmail({ to: prospect.email, subject: draftSubject, body: draftBody })
+    setSending(false)
+    if (r.error) {
+      alert(`Erreur envoi : ${r.error}`)
+      return
+    }
+    setComposing(false)
+    setDraftSubject('')
+    setDraftBody('')
+    refresh()
+  }
+
+  if (!prospect.email) {
+    return (
+      <div className="text-center py-10">
+        <svg className="w-8 h-8 text-gray-300 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
+        <p className="text-[13px] text-gray-400">Pas d'email pour ce prospect</p>
+        <p className="text-[11px] text-gray-300 mt-1">Ajoutez une adresse email dans la fiche</p>
+      </div>
+    )
+  }
+
+  if (composing) {
+    return (
+      <div className="bg-indigo-50/40 border border-indigo-100 rounded-xl p-4 space-y-3">
+        <div className="flex items-center justify-between">
+          <h3 className="text-[13px] font-semibold text-gray-700">Nouveau message</h3>
+          <button onClick={() => setComposing(false)} className="text-gray-400 hover:text-red-500 text-[13px]">×</button>
+        </div>
+        <div>
+          <label className="text-[10px] font-bold text-gray-400 uppercase">À</label>
+          <p className="text-[13px] text-gray-700 mt-0.5">{prospect.email}</p>
+        </div>
+        <div>
+          <label className="text-[10px] font-bold text-gray-400 uppercase">Objet</label>
+          <input type="text" value={draftSubject} onChange={e => setDraftSubject(e.target.value)}
+            className="w-full mt-1 text-[13px] px-3 py-2 border border-gray-200 rounded-lg outline-none focus:border-indigo-300" />
+        </div>
+        <div>
+          <label className="text-[10px] font-bold text-gray-400 uppercase">Message</label>
+          <textarea value={draftBody} onChange={e => setDraftBody(e.target.value)} rows={10}
+            className="w-full mt-1 text-[13px] px-3 py-2 border border-gray-200 rounded-lg outline-none focus:border-indigo-300 resize-none" />
+        </div>
+        <div className="flex gap-2">
+          <button onClick={handleSend} disabled={sending || !draftSubject.trim() || !draftBody.trim()}
+            className="flex-1 px-4 py-2 text-[13px] font-medium text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 rounded-xl">
+            {sending ? 'Envoi...' : 'Envoyer'}
+          </button>
+          <button onClick={() => setComposing(false)} disabled={sending}
+            className="px-4 py-2 text-[13px] font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-xl">
+            Annuler
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  if (openThread && threadMessages) {
+    return (
+      <div className="space-y-3">
+        <button onClick={() => { setOpenThread(null); setThreadMessages(null) }}
+          className="text-[12px] text-gray-500 hover:text-gray-700 flex items-center gap-1">
+          ← Retour à la liste
+        </button>
+        {threadMessages.map(m => (
+          <div key={m.id} className="bg-white rounded-xl border border-gray-100 p-4">
+            <div className="flex items-center justify-between mb-2 text-[11px] text-gray-400">
+              <span className="font-medium text-gray-600 truncate">{m.from}</span>
+              <span className="flex-shrink-0 ml-2">{new Date(m.date).toLocaleString('fr-FR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>
+            </div>
+            {m.subject && <p className="text-[13px] font-semibold text-gray-800 mb-2">{m.subject}</p>}
+            <pre className="text-[12px] text-gray-700 whitespace-pre-wrap font-sans">{m.body || m.snippet}</pre>
+          </div>
+        ))}
+        <button onClick={() => { setComposing(true); setDraftSubject('Re: ' + (threadMessages[0]?.subject || '')) }}
+          className="w-full px-3 py-2 text-[13px] font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl">
+          Répondre
+        </button>
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between mb-2">
+        <p className="text-[11px] text-gray-500">Conversations avec <span className="font-medium">{prospect.email}</span></p>
+        <div className="flex gap-1.5">
+          <button onClick={refresh} title="Rafraîchir"
+            className="text-gray-400 hover:text-gray-600 px-1.5 py-0.5 rounded hover:bg-gray-100">
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+          </button>
+          <button onClick={() => setComposing(true)}
+            className="px-2.5 py-1 text-[11px] font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg">
+            + Composer
+          </button>
+        </div>
+      </div>
+      {error && (
+        <div className="text-[12px] text-red-500 bg-red-50 border border-red-100 rounded-lg p-2">
+          {error.includes('not connected') || error.includes('No session')
+            ? 'Connectez votre Gmail dans Paramètres → Google Calendar (Reconnecter pour accorder Gmail).'
+            : error}
+        </div>
+      )}
+      {loading && <p className="text-[12px] text-gray-400 text-center py-4">Chargement...</p>}
+      {!loading && threads && threads.length === 0 && !error && (
+        <p className="text-[12px] text-gray-400 text-center py-6">Aucune conversation avec ce prospect</p>
+      )}
+      {threads && threads.map(t => (
+        <button key={t.id} onClick={() => openThreadDetails(t.id)}
+          className="w-full text-left bg-white border border-gray-100 hover:border-indigo-200 hover:bg-indigo-50/30 rounded-xl px-3 py-2.5 transition-colors">
+          <div className="flex items-center justify-between gap-2 mb-0.5">
+            <p className={`text-[13px] truncate flex-1 ${t.unread ? 'font-semibold text-gray-800' : 'text-gray-700'}`}>
+              {t.subject || '(sans objet)'}
+            </p>
+            <span className="text-[10px] text-gray-400 flex-shrink-0">{new Date(t.date).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })}</span>
+          </div>
+          <p className="text-[11px] text-gray-400 truncate">{t.snippet}</p>
+          {t.messageCount > 1 && <span className="text-[9px] text-indigo-500 font-bold mt-0.5 inline-block">{t.messageCount} msgs</span>}
+        </button>
+      ))}
+    </div>
+  )
+}
+
 function NotesTab({ prospect, callHistory, queryClient }: {
   prospect: Prospect
   callHistory: Call[]
@@ -1276,13 +1441,9 @@ export default function ProspectModal({
                 )
               })()}
 
-              {/* ── Onglet Emails ── */}
+              {/* ── Onglet Emails (Gmail) ── */}
               {activeTab === 'emails' && (
-                <div className="text-center py-10">
-                  <svg className="w-8 h-8 text-gray-300 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
-                  <p className="text-[13px] text-gray-400">Aucun email</p>
-                  <p className="text-[11px] text-gray-300 mt-1">Connectez votre CRM pour voir les emails</p>
-                </div>
+                <EmailsTab prospect={prospect} />
               )}
 
               {/* ── Onglet Appels (Call logs) ── */}
