@@ -164,7 +164,7 @@ function CalendarInner() {
   const gcal = useGoogleCalendar()
   const cm = useCall()
   const [currentDate, setCurrentDate] = useState(getDayStart(new Date()))
-  const [view, setView] = useState<'day' | 'week'>('week')
+  const [view, setView] = useState<'day' | 'week' | 'month'>('week')
   const [selectedProspect, setSelectedProspect] = useState<Prospect | null>(null)
   const { data: callHistory } = useCallsByProspect(selectedProspect?.id || null, selectedProspect?.phone)
 
@@ -323,9 +323,23 @@ function CalendarInner() {
     byDay[dayKey].push(p)
   }
 
-  const prevWeek = () => { const d = new Date(currentDate); d.setDate(d.getDate() - 7); setCurrentDate(getDayStart(d)) }
-  const nextWeek = () => { const d = new Date(currentDate); d.setDate(d.getDate() + 7); setCurrentDate(getDayStart(d)) }
+  const prev = () => {
+    const d = new Date(currentDate)
+    if (view === 'day') d.setDate(d.getDate() - 1)
+    else if (view === 'month') d.setMonth(d.getMonth() - 1)
+    else d.setDate(d.getDate() - 7)
+    setCurrentDate(getDayStart(d))
+  }
+  const next = () => {
+    const d = new Date(currentDate)
+    if (view === 'day') d.setDate(d.getDate() + 1)
+    else if (view === 'month') d.setMonth(d.getMonth() + 1)
+    else d.setDate(d.getDate() + 7)
+    setCurrentDate(getDayStart(d))
+  }
   const goToday = () => setCurrentDate(getDayStart(new Date()))
+  const prevWeek = prev
+  const nextWeek = next
 
   const dayNames = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim']
 
@@ -490,6 +504,15 @@ function CalendarInner() {
             className="text-[12px] text-indigo-600 font-medium px-3 py-1.5 rounded-lg border border-indigo-200 hover:bg-indigo-50 transition-colors">
             Aujourd'hui
           </button>
+          {/* Toggle Day / Week / Month */}
+          <div className="flex items-center bg-gray-100 rounded-lg p-0.5">
+            <button onClick={() => setView('day')}
+              className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-all ${view === 'day' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-400'}`}>Jour</button>
+            <button onClick={() => setView('week')}
+              className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-all ${view === 'week' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-400'}`}>Semaine</button>
+            <button onClick={() => setView('month')}
+              className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-all ${view === 'month' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-400'}`}>Mois</button>
+          </div>
           <div className="flex items-center gap-1">
             <button onClick={prevWeek} className="w-7 h-7 rounded-lg bg-white border border-gray-200 flex items-center justify-center text-gray-500 hover:bg-gray-50">
               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
@@ -503,6 +526,95 @@ function CalendarInner() {
 
       {/* Grille semaine */}
       <div className="flex-1 bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden flex flex-col">
+        {view === 'month' && (() => {
+          // Grille mois : 6 rangées x 7 colonnes (jours lundi..dimanche)
+          const monthStart = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1)
+          const firstWeekOffset = (monthStart.getDay() + 6) % 7 // lundi = 0
+          const gridStart = new Date(monthStart)
+          gridStart.setDate(1 - firstWeekOffset)
+          const gridDays: Date[] = []
+          for (let i = 0; i < 42; i++) {
+            const d = new Date(gridStart)
+            d.setDate(gridStart.getDate() + i)
+            gridDays.push(getDayStart(d))
+          }
+          // Map événements (rdvProspects + gcalEvents) par jour
+          const byDayMonth: Record<string, Array<{ key: string; time: string; name: string; color: string; onClick: () => void }>> = {}
+          for (const p of (rdvProspects || [])) {
+            if (!p.rdv_date) continue
+            const k = getDayStart(new Date(p.rdv_date)).toISOString()
+            if (!byDayMonth[k]) byDayMonth[k] = []
+            byDayMonth[k].push({
+              key: 'p-' + p.id,
+              time: new Date(p.rdv_date).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
+              name: p.name,
+              color: '#0d9488',
+              onClick: () => setSelectedProspect(p),
+            })
+          }
+          for (const ev of (gcalEvents || [])) {
+            if (!ev.start?.dateTime) continue
+            const evDate = getDayStart(new Date(ev.start.dateTime))
+            const k = evDate.toISOString()
+            // Skip si déjà dans byDayMonth (matched by phone/name avec un prospect)
+            if (byDayMonth[k]?.some(x => x.name.toLowerCase() === extractNameFromSummary(ev.summary || '').toLowerCase().trim())) continue
+            if (!byDayMonth[k]) byDayMonth[k] = []
+            byDayMonth[k].push({
+              key: 'g-' + ev.id,
+              time: new Date(ev.start.dateTime).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
+              name: ev.summary || '(sans titre)',
+              color: '#3b82f6',
+              onClick: () => { setClickedEvent(ev); setShowEventPopup(true) },
+            })
+          }
+          for (const k in byDayMonth) byDayMonth[k].sort((a, b) => a.time.localeCompare(b.time))
+
+          return (
+            <div className="flex-1 flex flex-col overflow-hidden">
+              {/* Header jours */}
+              <div className="grid grid-cols-7 border-b border-gray-100 bg-gray-50/50">
+                {dayNames.map(n => (
+                  <div key={n} className="py-2 text-center text-[10px] uppercase text-gray-400 font-bold tracking-wider border-r border-gray-100 last:border-r-0">{n}</div>
+                ))}
+              </div>
+              {/* Grille 6 semaines */}
+              <div className="flex-1 grid grid-cols-7 grid-rows-6 overflow-hidden">
+                {gridDays.map((d, i) => {
+                  const inMonth = d.getMonth() === currentDate.getMonth()
+                  const k = d.toISOString()
+                  const events = byDayMonth[k] || []
+                  return (
+                    <div key={i}
+                      className={`border-r border-b border-gray-100 last:border-r-0 p-1 overflow-hidden flex flex-col ${
+                        !inMonth ? 'bg-gray-50/30' : isToday(d) ? 'bg-violet-50/40' : 'bg-white'
+                      }`}>
+                      <div className={`text-[11px] font-semibold ${
+                        !inMonth ? 'text-gray-300' : isToday(d) ? 'text-violet-600' : 'text-gray-700'
+                      }`}>{d.getDate()}{isToday(d) && <span className="ml-1 text-[8px] font-bold uppercase">aujourd'hui</span>}</div>
+                      <div className="flex-1 mt-1 space-y-0.5 overflow-hidden">
+                        {events.slice(0, 3).map(e => (
+                          <button key={e.key} onClick={e.onClick}
+                            className="w-full text-left rounded px-1 py-0.5 text-[9px] truncate hover:opacity-80"
+                            style={{ background: e.color + '18', color: e.color }}>
+                            <span className="font-mono mr-1">{e.time}</span>{e.name}
+                          </button>
+                        ))}
+                        {events.length > 3 && (
+                          <button onClick={() => { setView('day'); setCurrentDate(d) }}
+                            className="text-[9px] text-gray-400 hover:text-gray-600 px-1">
+                            +{events.length - 3} autre{events.length - 3 > 1 ? 's' : ''}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )
+        })()}
+        {view !== 'month' && (
+          <>
         {/* Header jours */}
         <div className="flex border-b border-gray-100">
           <div className="w-14 flex-shrink-0" />
@@ -642,6 +754,8 @@ function CalendarInner() {
             ))}
           </div>
         </div>
+          </>
+        )}
       </div>
 
       {/* (RDV à venir : déplacé en haut via <UpcomingRdvBar /> au début du return) */}
