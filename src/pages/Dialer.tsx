@@ -1583,7 +1583,7 @@ export default function Dialer() {
               onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setActiveListId(tabId); localStorage.setItem('calsyn_active_list', tabId) } }}
               className={`flex items-center gap-2 px-3 py-2 text-[12px] whitespace-nowrap flex-shrink-0 transition-colors rounded-t-lg cursor-pointer ${
                 activeListId === tabId
-                  ? 'text-gray-800 font-semibold bg-white shadow-[0_-1px_3px_rgba(0,0,0,0.08)] border border-gray-200 border-b-white -mb-px relative z-10'
+                  ? 'text-violet-700 font-semibold bg-violet-100 shadow-[0_-1px_3px_rgba(124,58,237,0.12)] border border-violet-200 border-b-violet-100 -mb-px relative z-10'
                   : 'text-gray-400 hover:text-gray-600'
               } ${isSmart ? 'italic' : ''}`}>
               {tabName}
