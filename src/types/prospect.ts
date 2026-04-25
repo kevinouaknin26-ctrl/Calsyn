@@ -39,6 +39,8 @@ export interface Prospect {
   phone4: string | null
   phone5: string | null
   email: string | null
+  email2: string | null
+  email3: string | null
   company: string | null
   title: string | null
   sector: string | null

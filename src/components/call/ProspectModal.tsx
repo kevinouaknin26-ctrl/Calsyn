@@ -779,20 +779,25 @@ function EmailsTab({ prospect }: { prospect: Prospect }) {
   const [draftBody, setDraftBody] = useState('')
   const [sending, setSending] = useState(false)
 
+  const allEmails = [prospect.email, prospect.email2, prospect.email3].filter(Boolean) as string[]
   const refresh = useCallback(async () => {
-    if (!prospect.email) {
+    if (allEmails.length === 0) {
       setError('Aucun email pour ce prospect')
       return
     }
     setLoading(true)
     setError(null)
     // Inclut envois (sent), reçus (inbox), cc/bcc, et tous les dossiers (in:anywhere) y compris archivés/spam.
-    const q = `(from:${prospect.email} OR to:${prospect.email} OR cc:${prospect.email} OR bcc:${prospect.email}) in:anywhere`
+    const orClause = allEmails
+      .flatMap(e => [`from:${e}`, `to:${e}`, `cc:${e}`, `bcc:${e}`])
+      .join(' OR ')
+    const q = `(${orClause}) in:anywhere`
     const r = await listThreads(q)
     setLoading(false)
     if (r.error) setError(r.error)
     else setThreads(r.threads || [])
-  }, [prospect.email, listThreads])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allEmails.join(','), listThreads])
 
   useEffect(() => { refresh() }, [refresh])
 
@@ -805,9 +810,10 @@ function EmailsTab({ prospect }: { prospect: Prospect }) {
   }
 
   const handleSend = async () => {
-    if (!prospect.email || !draftSubject.trim() || !draftBody.trim()) return
+    const targetEmail = allEmails[0]
+    if (!targetEmail || !draftSubject.trim() || !draftBody.trim()) return
     setSending(true)
-    const r = await sendEmail({ to: prospect.email, subject: draftSubject, body: draftBody })
+    const r = await sendEmail({ to: targetEmail, subject: draftSubject, body: draftBody })
     setSending(false)
     if (r.error) {
       alert(`Erreur envoi : ${r.error}`)
@@ -819,7 +825,7 @@ function EmailsTab({ prospect }: { prospect: Prospect }) {
     refresh()
   }
 
-  if (!prospect.email) {
+  if (allEmails.length === 0) {
     return (
       <div className="text-center py-10">
         <svg className="w-8 h-8 text-gray-300 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
@@ -838,7 +844,7 @@ function EmailsTab({ prospect }: { prospect: Prospect }) {
         </div>
         <div>
           <label className="text-[10px] font-bold text-gray-400 uppercase">À</label>
-          <p className="text-[13px] text-gray-700 mt-0.5">{prospect.email}</p>
+          <p className="text-[13px] text-gray-700 mt-0.5">{allEmails[0]}</p>
         </div>
         <div>
           <label className="text-[10px] font-bold text-gray-400 uppercase">Objet</label>
@@ -892,7 +898,7 @@ function EmailsTab({ prospect }: { prospect: Prospect }) {
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between mb-2">
-        <p className="text-[11px] text-gray-500">Conversations avec <span className="font-medium">{prospect.email}</span></p>
+        <p className="text-[11px] text-gray-500">Conversations avec <span className="font-medium">{allEmails.join(', ')}</span></p>
         <div className="flex gap-1.5">
           <button onClick={refresh} title="Rafraîchir"
             className="text-gray-400 hover:text-gray-600 px-1.5 py-0.5 rounded hover:bg-gray-100">
@@ -1090,6 +1096,8 @@ export default function ProspectModal({
   // Téléphones supplémentaires : afficher seulement si remplis ou si l'utilisateur clique "Ajouter"
   const nextEmptyPhone = !prospect.phone2 ? 2 : !prospect.phone3 ? 3 : !prospect.phone4 ? 4 : !prospect.phone5 ? 5 : 6
   const [showExtraPhone, setShowExtraPhone] = useState(0)
+  const nextEmptyEmail = !prospect.email2 ? 2 : !prospect.email3 ? 3 : 4
+  const [showExtraEmail, setShowExtraEmail] = useState(0)
 
   const callsDisabled = localDoNotCall
   const isSnoozed = localSnoozedUntil && new Date(localSnoozedUntil) > new Date()
@@ -1341,6 +1349,15 @@ export default function ProspectModal({
               {/* ── Contact ── */}
               <div className="bg-violet-50/50 rounded-xl p-3 space-y-2">
                 <EditableField label="Email" value={prospect.email || ''} prospectId={prospect.id} field="email" copyable />
+                {(prospect.email2 || showExtraEmail >= 2) && <EditableField label="Email 2" value={prospect.email2 || ''} prospectId={prospect.id} field="email2" copyable />}
+                {(prospect.email3 || showExtraEmail >= 3) && <EditableField label="Email 3" value={prospect.email3 || ''} prospectId={prospect.id} field="email3" copyable />}
+                {nextEmptyEmail <= 3 && (
+                  <button onClick={() => setShowExtraEmail(nextEmptyEmail)}
+                    className="text-[11px] text-violet-400 hover:text-violet-600 flex items-center gap-1">
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+                    Ajouter un email
+                  </button>
+                )}
                 <div>
                   <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Statut appel</span>
                   <div className="mt-1">
