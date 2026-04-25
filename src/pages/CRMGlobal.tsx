@@ -18,6 +18,7 @@ import { useProspectLists } from '@/hooks/useProspects'
 import SocialLinks from '@/components/call/SocialLinks'
 import ProspectModal from '@/components/call/ProspectModal'
 import MultiSelectFilter from '@/components/ui/MultiSelectFilter'
+import { InlineEditCell } from '@/pages/Dialer'
 import type { Prospect } from '@/types/prospect'
 import { normalizePhone } from '@/utils/phone'
 
@@ -633,25 +634,34 @@ export default function CRMGlobal() {
 
     const value = getPropertyValue(prospect, allCustomValues?.[prospect.id], col)
 
-    if (col.key === 'crm_status' && value) {
-      const label = crmLabels[value] || CRM_STATUS_LABELS[value] || value
-      const color = crmColors[value] || '#6b7280'
-      return <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold whitespace-nowrap" style={{ background: color + '18', color }}>{label}</span>
-    }
-
-    if (col.key === 'meeting_booked' || col.key === 'do_not_call') {
-      return value === 'Oui' ? <span className="text-emerald-500 font-bold text-[11px]">Oui</span> : <span className="text-gray-300 text-[11px]">Non</span>
-    }
-
-    if (col.fieldType === 'date' && value && value !== '—') {
-      const d = new Date(value)
-      if (!isNaN(d.getTime())) {
-        return <span className="text-[12px] text-gray-600">{d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: '2-digit' })}</span>
+    // Read-only colonnes calculées (pas de modification)
+    if (col.key === 'last_call_at' || col.key === 'call_count' || col.key === 'last_call_outcome' || col.key === 'created_at') {
+      if (col.fieldType === 'date' && value && value !== '—') {
+        const d = new Date(value)
+        if (!isNaN(d.getTime())) {
+          return <span className="text-[12px] text-gray-600">{d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: '2-digit' })}</span>
+        }
       }
-      return <span className="text-[12px] text-gray-300">—</span>
+      return <span className="text-[12px] text-gray-500">{value || '—'}</span>
     }
 
-    return <span className="text-[12px] text-gray-600 truncate block max-w-[160px]">{value}</span>
+    // Édition inline (style Dialer / HubSpot) pour tout le reste
+    return (
+      <div className="group">
+        <InlineEditCell
+          prospectId={prospect.id}
+          col={col}
+          value={value}
+          customValues={allCustomValues?.[prospect.id]}
+          enumLabels={col.key === 'crm_status' ? crmLabels : undefined}
+          distinctValues={columnDistinctValues[col.id]}
+          onSaved={() => {
+            queryClient.invalidateQueries({ queryKey: ['all-prospects'] })
+            queryClient.invalidateQueries({ queryKey: ['custom-field-values'] })
+          }}
+        />
+      </div>
+    )
   }
 
   return (
