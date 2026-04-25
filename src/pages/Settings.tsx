@@ -246,6 +246,7 @@ function EmailSignatureEditor() {
   const [saving, setSaving] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [previewOpen, setPreviewOpen] = useState(false)
 
   useEffect(() => {
     setSignature(profile?.email_signature || '')
@@ -300,8 +301,10 @@ function EmailSignatureEditor() {
       <div className="mt-3">
         {imageUrl ? (
           <div className="border border-gray-200 rounded-lg p-3 bg-gray-50">
-            <p className="text-[10px] text-gray-400 uppercase tracking-wider mb-2">Image signature</p>
-            <img src={imageUrl} alt="Signature" className="max-h-24 max-w-full rounded border border-gray-200 bg-white" />
+            <p className="text-[10px] text-gray-400 uppercase tracking-wider mb-2">Image signature (clic pour agrandir)</p>
+            <button onClick={() => setPreviewOpen(true)} className="block">
+              <img src={imageUrl} alt="Signature" className="max-h-24 max-w-full rounded border border-gray-200 bg-white cursor-zoom-in hover:border-indigo-300 transition-colors" />
+            </button>
             <div className="flex gap-2 mt-2">
               <label className={`text-[11px] px-2 py-1 rounded bg-white border border-gray-200 hover:border-indigo-300 text-gray-600 ${uploading ? 'opacity-50' : 'cursor-pointer'}`}>
                 Remplacer
@@ -328,6 +331,19 @@ function EmailSignatureEditor() {
         className="mt-3 px-3 py-1.5 text-[12px] font-medium text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 rounded-lg">
         {saving ? 'Enregistrement...' : 'Enregistrer la signature'}
       </button>
+
+      {/* Lightbox aperçu image en plein écran */}
+      {previewOpen && imageUrl && (
+        <div onClick={() => setPreviewOpen(false)}
+          className="fixed inset-0 z-[9999] bg-black/80 flex items-center justify-center p-6 cursor-zoom-out animate-fade-in">
+          <img src={imageUrl} alt="Signature aperçu" className="max-w-full max-h-full object-contain rounded shadow-2xl"
+            onClick={e => e.stopPropagation()} />
+          <button onClick={() => setPreviewOpen(false)}
+            className="absolute top-4 right-4 w-9 h-9 rounded-full bg-white/90 hover:bg-white text-gray-800 flex items-center justify-center shadow-lg">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" /></svg>
+          </button>
+        </div>
+      )}
     </div>
   )
 }
