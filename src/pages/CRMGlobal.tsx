@@ -17,6 +17,7 @@ import { SYSTEM_PROPERTIES, DEFAULT_VISIBLE_COLUMNS, getPropertyValue, matchesSe
 import { useProspectLists } from '@/hooks/useProspects'
 import SocialLinks from '@/components/call/SocialLinks'
 import ProspectModal from '@/components/call/ProspectModal'
+import MultiSelectFilter from '@/components/ui/MultiSelectFilter'
 import type { Prospect } from '@/types/prospect'
 import { normalizePhone } from '@/utils/phone'
 
@@ -230,6 +231,7 @@ export default function CRMGlobal() {
   const [filters, setFilters] = useState<Filter[]>([])
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [showColumnPicker, setShowColumnPicker] = useState(false)
+  const [dragColId, setDragColId] = useState<string | null>(null)
 
   // Saved views (localStorage)
   const [savedViews, setSavedViews] = useState<SavedView[]>(() => {
@@ -433,6 +435,26 @@ export default function CRMGlobal() {
   // Custom field values
   const prospectIds = useMemo(() => mergedProspects.map(p => p.id), [mergedProspects])
   const { data: allCustomValues } = useCustomFieldValues(prospectIds)
+
+  // Valeurs distinctes par colonne (pour MultiSelectFilter sur les headers).
+  // Limit 50 valeurs uniques par colonne pour ne pas saturer le menu.
+  const columnDistinctValues = useMemo(() => {
+    const m: Record<string, string[]> = {}
+    if (!mergedProspects.length) return m
+    for (const col of allProperties) {
+      // Skip les colonnes sans sens en filtre catégoriel (texte libre, urls, dates pures).
+      if (col.fieldType === 'date' || col.fieldType === 'url' || col.key === 'socials') continue
+      if (col.key === 'email' || col.key === 'phone' || col.key === 'phone2') continue
+      const set = new Set<string>()
+      for (const p of mergedProspects) {
+        const v = getPropertyValue(p, allCustomValues?.[p.id], col)
+        if (v && v !== '—') set.add(v)
+        if (set.size >= 50) break
+      }
+      if (set.size > 0) m[col.id] = Array.from(set).sort()
+    }
+    return m
+  }, [mergedProspects, allProperties, allCustomValues])
 
   // ── Filter + Sort ──
   const filtered = useMemo(() => {
@@ -791,14 +813,65 @@ export default function CRMGlobal() {
                   <th className="py-2.5 px-3 text-left text-[10px] font-bold text-gray-400 uppercase tracking-wider border-r border-gray-100" style={{ width: 140 }}>Listes</th>
                   {/* Commerciaux qui ont le contact dans leurs listes */}
                   <th className="py-2.5 px-3 text-left text-[10px] font-bold text-gray-400 uppercase tracking-wider border-r border-gray-100" style={{ width: 160 }}>Commerciaux</th>
-                  {/* Dynamic columns */}
-                  {activeColumns.map(col => (
-                    <th key={col.id} onClick={() => toggleSort(col.id)}
-                      className="py-2.5 px-3 text-left text-[10px] font-bold text-gray-400 uppercase tracking-wider border-r border-gray-100 cursor-pointer hover:text-gray-600 whitespace-nowrap"
-                      style={{ minWidth: col.key === 'email' ? 170 : 110 }}>
-                      <div className="flex items-center gap-1">{col.name} {sortBy === col.id && (sortDir === 'asc' ? '↑' : '↓')}</div>
-                    </th>
-                  ))}
+                  {/* Dynamic columns — drag, tri, filtre, masquer (style Dialer) */}
+                  {activeColumns.map(col => {
+                    const isSorted = sortBy === col.id
+                    const isFiltered = filters.some(f => f.propertyId === col.id)
+                    return (
+                      <th key={col.id}
+                        draggable
+                        onDragStart={() => setDragColId(col.id)}
+                        onDragOver={e => e.preventDefault()}
+                        onDrop={() => {
+                          if (dragColId && dragColId !== col.id) {
+                            const from = visibleColumnIds.indexOf(dragColId)
+                            const to = visibleColumnIds.indexOf(col.id)
+                            if (from !== -1 && to !== -1) {
+                              const next = [...visibleColumnIds]
+                              next.splice(from, 1)
+                              next.splice(to, 0, dragColId)
+                              setVisibleColumnIds(next)
+                            }
+                          }
+                          setDragColId(null)
+                        }}
+                        onDragEnd={() => setDragColId(null)}
+                        className={`py-2.5 px-3 text-left text-[10px] font-bold uppercase tracking-wider border-r border-gray-100 whitespace-nowrap select-none cursor-grab active:cursor-grabbing group/th relative ${
+                          dragColId === col.id ? 'opacity-40' : ''
+                        } ${col.type === 'custom' ? 'text-violet-400' : 'text-gray-400'}`}
+                        style={{ minWidth: col.key === 'email' ? 170 : 130 }}>
+                        <div className="flex items-center gap-1">
+                          <span className="flex-1 truncate">{col.name}</span>
+                          <button onClick={e => { e.stopPropagation(); toggleSort(col.id) }} title="Trier"
+                            className={`flex-shrink-0 transition-opacity ${isSorted ? 'opacity-100 text-indigo-500' : 'opacity-0 group-hover/th:opacity-60 text-gray-400 hover:text-gray-600'}`}>
+                            {isSorted && sortDir === 'desc'
+                              ? <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                              : <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" /></svg>
+                            }
+                          </button>
+                          <button onClick={e => {
+                            e.stopPropagation()
+                            const existing = filters.find(f => f.propertyId === col.id)
+                            if (existing) {
+                              setFilters(prev => prev.filter(f => f.propertyId !== col.id))
+                            } else {
+                              const dv = columnDistinctValues[col.id]
+                              const op: FilterOp = col.fieldType === 'boolean' ? 'true' : (col.fieldType === 'enum' || dv) ? 'in' : 'contains'
+                              setFilters(prev => [...prev, { id: crypto.randomUUID(), propertyId: col.id, op, value: '' }])
+                            }
+                          }} title="Filtrer cette colonne"
+                            className={`flex-shrink-0 transition-opacity ${isFiltered ? 'opacity-100 text-indigo-500' : 'opacity-0 group-hover/th:opacity-60 text-gray-400 hover:text-gray-600'}`}>
+                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" /></svg>
+                          </button>
+                          <button onClick={e => { e.stopPropagation(); setVisibleColumnIds(visibleColumnIds.filter(c => c !== col.id)) }}
+                            title="Masquer cette colonne"
+                            className="flex-shrink-0 opacity-0 group-hover/th:opacity-60 text-gray-400 hover:text-red-500 transition-opacity">
+                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                          </button>
+                        </div>
+                      </th>
+                    )
+                  })}
                 </tr>
               </thead>
               <tbody>
