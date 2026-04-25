@@ -17,6 +17,8 @@ import { SYSTEM_PROPERTIES, DEFAULT_VISIBLE_COLUMNS, getPropertyValue, matchesSe
 import { useProspectLists } from '@/hooks/useProspects'
 import SocialLinks from '@/components/call/SocialLinks'
 import ProspectModal from '@/components/call/ProspectModal'
+import MultiSelectFilter from '@/components/ui/MultiSelectFilter'
+import { InlineEditCell } from '@/pages/Dialer'
 import type { Prospect } from '@/types/prospect'
 import { normalizePhone } from '@/utils/phone'
 
@@ -27,6 +29,9 @@ import { normalizePhone } from '@/utils/phone'
 interface MergedProspect extends Prospect {
   listNames: string[]
   listIds: string[]
+  // Versions string pour getPropertyValue (lecture system field via prospect[key])
+  list_names: string
+  assigned_sdrs: string
 }
 
 type FilterOp = 'eq' | 'neq' | 'contains' | 'not_contains' | 'starts' | 'empty' | 'not_empty' | 'gt' | 'lt' | 'in' | 'true' | 'false'
@@ -230,6 +235,7 @@ export default function CRMGlobal() {
   const [filters, setFilters] = useState<Filter[]>([])
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [showColumnPicker, setShowColumnPicker] = useState(false)
+  const [dragColId, setDragColId] = useState<string | null>(null)
 
   // Saved views (localStorage)
   const [savedViews, setSavedViews] = useState<SavedView[]>(() => {
@@ -318,6 +324,13 @@ export default function CRMGlobal() {
         setVisibleColumnIds([...DEFAULT_VISIBLE_COLUMNS, 'system:call_count'])
       } else if (valid.length !== visibleColumnIds.length) {
         setVisibleColumnIds(valid)
+      } else {
+        // Migration auto : injecter list_names + assigned_sdrs en tête s'ils manquent
+        // (clients qui avaient une config sauvegardée avant l'ajout de ces 2 system fields)
+        const missing: string[] = []
+        if (!valid.includes('system:list_names')) missing.push('system:list_names')
+        if (!valid.includes('system:assigned_sdrs')) missing.push('system:assigned_sdrs')
+        if (missing.length > 0) setVisibleColumnIds([...missing, ...valid])
       }
     }
   }, [allProperties, visibleColumnIds])
@@ -385,20 +398,27 @@ export default function CRMGlobal() {
 
       const existing = byPhone.get(phone)
       if (!existing) {
-        byPhone.set(phone, { ...p, listNames: [listNameMap[p.list_id] || '?'], listIds: [p.list_id] })
+        byPhone.set(phone, { ...p, listNames: [listNameMap[p.list_id] || '?'], listIds: [p.list_id], list_names: '', assigned_sdrs: '' })
       } else {
         const existingScore = [existing.email, existing.company, existing.title, existing.sector, existing.linkedin_url].filter(Boolean).length
         const newScore = [p.email, p.company, p.title, p.sector, p.linkedin_url].filter(Boolean).length
         if (newScore > existingScore) {
-          byPhone.set(phone, { ...p, listNames: [...existing.listNames, listNameMap[p.list_id] || '?'], listIds: [...existing.listIds, p.list_id] })
+          byPhone.set(phone, { ...p, listNames: [...existing.listNames, listNameMap[p.list_id] || '?'], listIds: [...existing.listIds, p.list_id], list_names: '', assigned_sdrs: '' })
         } else {
           existing.listNames.push(listNameMap[p.list_id] || '?')
           existing.listIds.push(p.list_id)
         }
       }
     }
-    return Array.from(byPhone.values())
-  }, [allProspects, listNameMap])
+    // Post-process : calculer list_names et assigned_sdrs (string) pour getPropertyValue + filtre/tri.
+    return Array.from(byPhone.values()).map(mp => ({
+      ...mp,
+      list_names: mp.listNames.join(', '),
+      assigned_sdrs: Array.from(new Set(mp.listIds.flatMap(lid => listSdrsMap[lid] || [])))
+        .map(uid => memberNameMap[uid] || 'SDR')
+        .join(', '),
+    }))
+  }, [allProspects, listNameMap, listSdrsMap, memberNameMap])
 
   // ── Auto-open ProspectModal depuis un appel entrant ──────────────
   // Quand useIncomingCall.accept() navigue ici avec state.openProspectId,
@@ -433,6 +453,26 @@ export default function CRMGlobal() {
   // Custom field values
   const prospectIds = useMemo(() => mergedProspects.map(p => p.id), [mergedProspects])
   const { data: allCustomValues } = useCustomFieldValues(prospectIds)
+
+  // Valeurs distinctes par colonne (pour MultiSelectFilter sur les headers).
+  // Limit 50 valeurs uniques par colonne pour ne pas saturer le menu.
+  const columnDistinctValues = useMemo(() => {
+    const m: Record<string, string[]> = {}
+    if (!mergedProspects.length) return m
+    for (const col of allProperties) {
+      // Skip les colonnes sans sens en filtre catégoriel (texte libre, urls, dates pures).
+      if (col.fieldType === 'date' || col.fieldType === 'url' || col.key === 'socials') continue
+      if (col.key === 'email' || col.key === 'phone' || col.key === 'phone2') continue
+      const set = new Set<string>()
+      for (const p of mergedProspects) {
+        const v = getPropertyValue(p, allCustomValues?.[p.id], col)
+        if (v && v !== '—') set.add(v)
+        if (set.size >= 50) break
+      }
+      if (set.size > 0) m[col.id] = Array.from(set).sort()
+    }
+    return m
+  }, [mergedProspects, allProperties, allCustomValues])
 
   // ── Filter + Sort ──
   const filtered = useMemo(() => {
@@ -565,27 +605,63 @@ export default function CRMGlobal() {
   const renderCell = (prospect: MergedProspect, col: PropertyDefinition) => {
     if (col.key === 'socials') return <SocialLinks prospectId={prospect.id} compact />
 
+    if (col.key === 'list_names') {
+      if (prospect.listNames.length === 0) return <span className="text-[10px] text-gray-300">—</span>
+      return (
+        <div className="flex flex-wrap gap-0.5">
+          {prospect.listNames.slice(0, 2).map((name, i) => (
+            <span key={i} className="px-1.5 py-0.5 rounded text-[9px] font-medium bg-indigo-50 text-indigo-600 border border-indigo-100 whitespace-nowrap truncate max-w-[80px]">{name}</span>
+          ))}
+          {prospect.listNames.length > 2 && <span className="text-[9px] text-gray-400">+{prospect.listNames.length - 2}</span>}
+        </div>
+      )
+    }
+
+    if (col.key === 'assigned_sdrs') {
+      const sdrIds = Array.from(new Set(prospect.listIds.flatMap(lid => listSdrsMap[lid] || [])))
+      if (sdrIds.length === 0) return <span className="text-[10px] text-gray-300">—</span>
+      return (
+        <div className="flex flex-wrap gap-0.5">
+          {sdrIds.slice(0, 2).map(uid => (
+            <span key={uid} className="px-1.5 py-0.5 rounded text-[9px] font-medium bg-amber-50 text-amber-700 border border-amber-100 whitespace-nowrap truncate max-w-[100px]" title={memberNameMap[uid] || 'SDR'}>
+              {memberNameMap[uid] || 'SDR'}
+            </span>
+          ))}
+          {sdrIds.length > 2 && <span className="text-[9px] text-gray-400">+{sdrIds.length - 2}</span>}
+        </div>
+      )
+    }
+
     const value = getPropertyValue(prospect, allCustomValues?.[prospect.id], col)
 
-    if (col.key === 'crm_status' && value) {
-      const label = crmLabels[value] || CRM_STATUS_LABELS[value] || value
-      const color = crmColors[value] || '#6b7280'
-      return <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold whitespace-nowrap" style={{ background: color + '18', color }}>{label}</span>
-    }
-
-    if (col.key === 'meeting_booked' || col.key === 'do_not_call') {
-      return value === 'Oui' ? <span className="text-emerald-500 font-bold text-[11px]">Oui</span> : <span className="text-gray-300 text-[11px]">Non</span>
-    }
-
-    if (col.fieldType === 'date' && value && value !== '—') {
-      const d = new Date(value)
-      if (!isNaN(d.getTime())) {
-        return <span className="text-[12px] text-gray-600">{d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: '2-digit' })}</span>
+    // Read-only colonnes calculées (pas de modification)
+    if (col.key === 'last_call_at' || col.key === 'call_count' || col.key === 'last_call_outcome' || col.key === 'created_at') {
+      if (col.fieldType === 'date' && value && value !== '—') {
+        const d = new Date(value)
+        if (!isNaN(d.getTime())) {
+          return <span className="text-[12px] text-gray-600">{d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: '2-digit' })}</span>
+        }
       }
-      return <span className="text-[12px] text-gray-300">—</span>
+      return <span className="text-[12px] text-gray-500">{value || '—'}</span>
     }
 
-    return <span className="text-[12px] text-gray-600 truncate block max-w-[160px]">{value}</span>
+    // Édition inline (style Dialer / HubSpot) pour tout le reste
+    return (
+      <div className="group">
+        <InlineEditCell
+          prospectId={prospect.id}
+          col={col}
+          value={value}
+          customValues={allCustomValues?.[prospect.id]}
+          enumLabels={col.key === 'crm_status' ? crmLabels : undefined}
+          distinctValues={columnDistinctValues[col.id]}
+          onSaved={() => {
+            queryClient.invalidateQueries({ queryKey: ['all-prospects'] })
+            queryClient.invalidateQueries({ queryKey: ['custom-field-values'] })
+          }}
+        />
+      </div>
+    )
   }
 
   return (
@@ -787,18 +863,66 @@ export default function CRMGlobal() {
                     onClick={() => toggleSort('name')}>
                     <div className="flex items-center gap-1">Nom {sortBy === 'name' && (sortDir === 'asc' ? '↑' : '↓')}</div>
                   </th>
-                  {/* Lists */}
-                  <th className="py-2.5 px-3 text-left text-[10px] font-bold text-gray-400 uppercase tracking-wider border-r border-gray-100" style={{ width: 140 }}>Listes</th>
-                  {/* Commerciaux qui ont le contact dans leurs listes */}
-                  <th className="py-2.5 px-3 text-left text-[10px] font-bold text-gray-400 uppercase tracking-wider border-r border-gray-100" style={{ width: 160 }}>Commerciaux</th>
-                  {/* Dynamic columns */}
-                  {activeColumns.map(col => (
-                    <th key={col.id} onClick={() => toggleSort(col.id)}
-                      className="py-2.5 px-3 text-left text-[10px] font-bold text-gray-400 uppercase tracking-wider border-r border-gray-100 cursor-pointer hover:text-gray-600 whitespace-nowrap"
-                      style={{ minWidth: col.key === 'email' ? 170 : 110 }}>
-                      <div className="flex items-center gap-1">{col.name} {sortBy === col.id && (sortDir === 'asc' ? '↑' : '↓')}</div>
-                    </th>
-                  ))}
+                  {/* Listes + Commerciaux sont désormais des colonnes dynamiques (system:list_names, system:assigned_sdrs) */}
+                  {/* Dynamic columns — drag, tri, filtre, masquer (style Dialer) */}
+                  {activeColumns.map(col => {
+                    const isSorted = sortBy === col.id
+                    const isFiltered = filters.some(f => f.propertyId === col.id)
+                    return (
+                      <th key={col.id}
+                        draggable
+                        onDragStart={() => setDragColId(col.id)}
+                        onDragOver={e => e.preventDefault()}
+                        onDrop={() => {
+                          if (dragColId && dragColId !== col.id) {
+                            const from = visibleColumnIds.indexOf(dragColId)
+                            const to = visibleColumnIds.indexOf(col.id)
+                            if (from !== -1 && to !== -1) {
+                              const next = [...visibleColumnIds]
+                              next.splice(from, 1)
+                              next.splice(to, 0, dragColId)
+                              setVisibleColumnIds(next)
+                            }
+                          }
+                          setDragColId(null)
+                        }}
+                        onDragEnd={() => setDragColId(null)}
+                        className={`py-2.5 px-3 text-left text-[10px] font-bold uppercase tracking-wider border-r border-gray-100 whitespace-nowrap select-none cursor-grab active:cursor-grabbing group/th relative ${
+                          dragColId === col.id ? 'opacity-40' : ''
+                        } ${col.type === 'custom' ? 'text-violet-400' : 'text-gray-400'}`}
+                        style={{ minWidth: col.key === 'email' ? 170 : 130 }}>
+                        <div className="flex items-center gap-1">
+                          <span className="flex-1 truncate">{col.name}</span>
+                          <button onClick={e => { e.stopPropagation(); toggleSort(col.id) }} title="Trier"
+                            className={`flex-shrink-0 transition-opacity ${isSorted ? 'opacity-100 text-indigo-500' : 'opacity-0 group-hover/th:opacity-60 text-gray-400 hover:text-gray-600'}`}>
+                            {isSorted && sortDir === 'desc'
+                              ? <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                              : <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" /></svg>
+                            }
+                          </button>
+                          <button onClick={e => {
+                            e.stopPropagation()
+                            const existing = filters.find(f => f.propertyId === col.id)
+                            if (existing) {
+                              setFilters(prev => prev.filter(f => f.propertyId !== col.id))
+                            } else {
+                              const dv = columnDistinctValues[col.id]
+                              const op: FilterOp = col.fieldType === 'boolean' ? 'true' : (col.fieldType === 'enum' || dv) ? 'in' : 'contains'
+                              setFilters(prev => [...prev, { id: crypto.randomUUID(), propertyId: col.id, op, value: '' }])
+                            }
+                          }} title="Filtrer cette colonne"
+                            className={`flex-shrink-0 transition-opacity ${isFiltered ? 'opacity-100 text-indigo-500' : 'opacity-0 group-hover/th:opacity-60 text-gray-400 hover:text-gray-600'}`}>
+                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" /></svg>
+                          </button>
+                          <button onClick={e => { e.stopPropagation(); setVisibleColumnIds(visibleColumnIds.filter(c => c !== col.id)) }}
+                            title="Masquer cette colonne"
+                            className="flex-shrink-0 opacity-0 group-hover/th:opacity-60 text-gray-400 hover:text-red-500 transition-opacity">
+                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                          </button>
+                        </div>
+                      </th>
+                    )
+                  })}
                 </tr>
               </thead>
               <tbody>
@@ -821,30 +945,7 @@ export default function CRMGlobal() {
                         </div>
                       </div>
                     </td>
-                    <td className="py-2 px-3 border-r border-gray-100" onClick={() => setSelectedProspect(p)}>
-                      <div className="flex flex-wrap gap-0.5">
-                        {p.listNames.slice(0, 2).map((name, i) => (
-                          <span key={i} className="px-1.5 py-0.5 rounded text-[9px] font-medium bg-indigo-50 text-indigo-600 border border-indigo-100 whitespace-nowrap truncate max-w-[60px]">{name}</span>
-                        ))}
-                        {p.listNames.length > 2 && <span className="text-[9px] text-gray-400">+{p.listNames.length - 2}</span>}
-                      </div>
-                    </td>
-                    <td className="py-2 px-3 border-r border-gray-100" onClick={() => setSelectedProspect(p)}>
-                      {(() => {
-                        const sdrIds = Array.from(new Set(p.listIds.flatMap(lid => listSdrsMap[lid] || [])))
-                        if (sdrIds.length === 0) return <span className="text-[10px] text-gray-300">—</span>
-                        return (
-                          <div className="flex flex-wrap gap-0.5">
-                            {sdrIds.slice(0, 2).map(uid => (
-                              <span key={uid} className="px-1.5 py-0.5 rounded text-[9px] font-medium bg-amber-50 text-amber-700 border border-amber-100 whitespace-nowrap truncate max-w-[80px]" title={memberNameMap[uid] || 'SDR'}>
-                                {memberNameMap[uid] || 'SDR'}
-                              </span>
-                            ))}
-                            {sdrIds.length > 2 && <span className="text-[9px] text-gray-400">+{sdrIds.length - 2}</span>}
-                          </div>
-                        )
-                      })()}
-                    </td>
+                    {/* Listes + Commerciaux sont rendus via renderCell (system:list_names + system:assigned_sdrs) */}
                     {activeColumns.map(col => (
                       <td key={col.id} className="py-2 px-3 border-r border-gray-100 cursor-pointer" onClick={() => setSelectedProspect(p)}>
                         {renderCell(p, col)}

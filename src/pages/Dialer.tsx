@@ -646,7 +646,7 @@ function CallSettingsDropdown({ open, onToggle, parallel, setParallel, callLicen
 }
 
 // ── Textarea portal (sort du overflow:hidden du tableau) ────
-function TextareaPortal({ draft, setDraft, save, cancel }: {
+export function TextareaPortal({ draft, setDraft, save, cancel }: {
   draft: string; setDraft: (v: string) => void; save: () => void; cancel: () => void
 }) {
   const anchorRef = useRef<HTMLDivElement>(null)
@@ -687,7 +687,7 @@ function TextareaPortal({ draft, setDraft, save, cancel }: {
 }
 
 // ── Cellule éditable inline (HubSpot-style) ────────────────
-function InlineEditCell({ prospectId, col, value, customValues, enumLabels, distinctValues, onSaved }: {
+export function InlineEditCell({ prospectId, col, value, customValues, enumLabels, distinctValues, onSaved }: {
   prospectId: string; col: PropertyDefinition; value: string; customValues?: Record<string, string>; enumLabels?: Record<string, string>; distinctValues?: string[]; onSaved: () => void
 }) {
   const [editing, setEditing] = useState(false)
