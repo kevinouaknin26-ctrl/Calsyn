@@ -1364,6 +1364,18 @@ export default function Dialer() {
     }
   }, [cm.isConnected, cm.context.prospect, selectedProspect])
 
+  // Sync selectedProspect apres refetch : quand une action dans le modal
+  // (rappel, snooze, note, etc.) invalide la query prospects, le hook
+  // refetch mais selectedProspect garde l'ancienne reference figee. On
+  // resync pour que le modal voie la donnee fraiche.
+  useEffect(() => {
+    if (!selectedProspect || !prospects) return
+    const fresh = prospects.find(p => p.id === selectedProspect.id)
+    if (fresh && fresh !== selectedProspect) {
+      setSelectedProspect(fresh)
+    }
+  }, [prospects, selectedProspect])
+
   // ── Raccourci Cmd+P : raccrocher + passer au suivant (Minari exact) ──
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {

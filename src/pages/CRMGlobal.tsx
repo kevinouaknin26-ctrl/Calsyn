@@ -387,6 +387,20 @@ export default function CRMGlobal() {
     }
   }, [autoOpenId, mergedProspects, navigate, location.pathname])
 
+  // ── Sync selectedProspect apres un refetch ────────────────────────
+  // Quand une action dans le modal (rappel, snooze, note, etc.) invalide
+  // la query prospects, mergedProspects se met a jour. Mais selectedProspect
+  // garde l'ancienne reference figee → l'UI du modal affiche l'ancien
+  // state. Ce useEffect resync selectedProspect sur la nouvelle version
+  // du prospect dans mergedProspects.
+  useEffect(() => {
+    if (!selectedProspect) return
+    const fresh = mergedProspects.find(p => p.id === selectedProspect.id)
+    if (fresh && fresh !== selectedProspect) {
+      setSelectedProspect(fresh)
+    }
+  }, [mergedProspects, selectedProspect])
+
   // Custom field values
   const prospectIds = useMemo(() => mergedProspects.map(p => p.id), [mergedProspects])
   const { data: allCustomValues } = useCustomFieldValues(prospectIds)
