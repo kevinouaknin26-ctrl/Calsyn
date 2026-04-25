@@ -13,6 +13,7 @@ import { useCall } from '@/contexts/CallContext'
 import { useCallsByProspect } from '@/hooks/useCalls'
 import { useProspectLists } from '@/hooks/useProspects'
 import ProspectModal from '@/components/call/ProspectModal'
+import UpcomingRdvBar from '@/components/ui/UpcomingRdvBar'
 import type { Prospect } from '@/types/prospect'
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL
@@ -509,6 +510,11 @@ function CalendarInner() {
 
   return (
     <div className="h-screen bg-[#f5f3ff] p-4 pl-2 overflow-hidden flex flex-col">
+      {/* Bandeau RDV à venir — en haut (partagé Dialer/CRM/Calendar) */}
+      <div className="mb-3 -mx-2 px-2">
+        <UpcomingRdvBar onProspectClick={p => setSelectedProspect(p)} />
+      </div>
+
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-3">
@@ -697,40 +703,7 @@ function CalendarInner() {
         </div>
       </div>
 
-      {/* RDV à venir */}
-      {allUpcomingRdvs && allUpcomingRdvs.length > 0 && (() => {
-        const allRdvs = allUpcomingRdvs
-        return (
-          <div className="mt-2 bg-white rounded-xl border border-teal-100 px-4 py-2.5 flex-shrink-0">
-            <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
-              <div className="flex items-center gap-1.5 flex-shrink-0 pr-2 border-r border-teal-100">
-                <svg className="w-3.5 h-3.5 text-teal-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-                <span className="text-[11px] font-semibold text-teal-600">{allRdvs.length}</span>
-              </div>
-              {allRdvs.map((p, i) => {
-                const isReminder = !p.rdv_date && p.snoozed_until
-                const effectiveDate = new Date(p.rdv_date || p.snoozed_until || 0)
-                const time = effectiveDate.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
-                const day = effectiveDate.toLocaleDateString('fr-FR', { weekday: 'short', day: '2-digit', month: 'short' })
-                const isFirst = i === 0
-                return (
-                  <div key={p.id} onClick={() => setSelectedProspect(p as Prospect)}
-                    className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border flex-shrink-0 cursor-pointer hover:shadow-sm transition-all ${
-                      isFirst ? 'border-teal-300 bg-teal-50' :
-                      isReminder ? 'border-amber-200 bg-amber-50/50 hover:border-amber-300' :
-                      'border-gray-200 bg-white hover:border-teal-200'
-                    }`}>
-                    {isReminder && <svg className="w-3 h-3 text-amber-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>}
-                    <span className={`text-[9px] font-bold uppercase ${isReminder ? 'text-amber-400' : 'text-teal-400'}`}>{day}</span>
-                    <span className={`text-[11px] font-mono font-bold ${isFirst ? 'text-teal-700' : isReminder ? 'text-amber-600' : 'text-teal-600'}`}>{time}</span>
-                    <span className="text-[11px] font-medium text-gray-700 max-w-[120px] truncate">{p.name}</span>
-                  </div>
-                )
-              })}
-            </div>
-          </div>
-        )
-      })()}
+      {/* (RDV à venir : déplacé en haut via <UpcomingRdvBar /> au début du return) */}
       {/* ── Event Popup (for unmatched GCal events) ── */}
       {showEventPopup && clickedEvent && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20" onClick={() => { setShowEventPopup(false); setClickedEvent(null) }}>

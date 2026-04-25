@@ -20,6 +20,7 @@ import ConfirmModal from '@/components/ui/ConfirmModal'
 import { PlatformIcon } from '@/components/call/SocialLinks'
 import SelectListPage from '@/components/dialer/SelectListPage'
 import ProspectModal from '@/components/call/ProspectModal'
+import UpcomingRdvBar from '@/components/ui/UpcomingRdvBar'
 import { exportListWithAudios, type ExportProgress } from '@/services/exportList'
 import { usePermissions } from '@/hooks/usePermissions'
 import { useRealtimeProspects, useAmdResult } from '@/hooks/useRealtime'
@@ -2001,58 +2002,16 @@ export default function Dialer() {
         )
       })()}
 
-      {/* ── Bandeau RDV du jour — auto-scroll vers le prochain ── */}
-      {rdvToday && rdvToday.length > 0 && (() => {
-        const now = new Date()
-        const nextIdx = rdvToday.findIndex(r => r.rdv_date && new Date(r.rdv_date) > now)
-        return (
-        <div className="px-5 py-2 bg-gradient-to-r from-teal-50 to-emerald-50 border-b border-teal-100">
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-1.5 flex-shrink-0">
-              <svg className="w-4 h-4 text-teal-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-              <span className="text-[13px] font-semibold text-teal-700">RDV du jour</span>
-              <span className="text-[11px] text-teal-500 bg-teal-100 px-1.5 py-0.5 rounded-full font-bold">{rdvToday.length}</span>
-            </div>
-            <div className="flex items-center gap-2 flex-1 overflow-x-auto scrollbar-hide" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
-              ref={el => {
-                if (el && nextIdx >= 0) {
-                  const target = el.children[nextIdx] as HTMLElement
-                  if (target) el.scrollLeft = target.offsetLeft - 20
-                }
-              }}>
-              {rdvToday.map((rdv, idx) => {
-                const time = rdv.rdv_date ? new Date(rdv.rdv_date).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : ''
-                const isPast = rdv.rdv_date && new Date(rdv.rdv_date) < now
-                const isNext = idx === nextIdx
-                return (
-                  <button key={rdv.id} onClick={() => {
-                    if (rdv.list_id) {
-                      setActiveListId(rdv.list_id)
-                      setOpenTabIds(prev => prev.includes(rdv.list_id) ? prev : [...prev, rdv.list_id])
-                    }
-                    const p = prospects?.find(pr => pr.id === rdv.id) || rdv as unknown as Prospect
-                    if (cm.isDisconnected) cm.reset()
-                    setSelectedProspect(p)
-                  }}
-                    className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border transition-all flex-shrink-0 ${
-                      isNext
-                        ? 'bg-teal-100 border-teal-400 shadow-md ring-2 ring-teal-200'
-                        : isPast && rdv.last_call_outcome
-                          ? 'bg-emerald-50 border-emerald-200 hover:border-emerald-400 shadow-sm'
-                          : isPast
-                            ? 'bg-white border-amber-200 hover:border-amber-400 shadow-sm opacity-60'
-                            : 'bg-white border-teal-200 hover:border-teal-400 shadow-sm'
-                    }`}>
-                    <span className={`text-[12px] font-mono font-bold ${isPast && !isNext ? 'text-amber-600' : 'text-teal-600'}`}>{time}</span>
-                    <span className="text-[12px] text-gray-700 font-medium truncate max-w-[150px]">{rdv.name}</span>
-                  </button>
-                )
-              })}
-            </div>
-          </div>
-        </div>
-        )
-      })()}
+      {/* ── Bandeau RDV à venir (composant partagé) ── */}
+      <UpcomingRdvBar onProspectClick={p => {
+        if (p.list_id) {
+          setActiveListId(p.list_id)
+          setOpenTabIds(prev => prev.includes(p.list_id) ? prev : [...prev, p.list_id])
+        }
+        const matched = prospects?.find(pr => pr.id === p.id) || p
+        if (cm.isDisconnected) cm.reset()
+        setSelectedProspect(matched)
+      }} />
 
       {/* ── Filtres CRM actifs (colonnes) ── */}
       {filters.filter(f => f.propertyId !== '_call_status').length > 0 && (

@@ -18,6 +18,7 @@ import { useProspectLists } from '@/hooks/useProspects'
 import SocialLinks from '@/components/call/SocialLinks'
 import ProspectModal from '@/components/call/ProspectModal'
 import MultiSelectFilter from '@/components/ui/MultiSelectFilter'
+import UpcomingRdvBar from '@/components/ui/UpcomingRdvBar'
 import { InlineEditCell } from '@/pages/Dialer'
 import type { Prospect } from '@/types/prospect'
 import { normalizePhone } from '@/utils/phone'
@@ -986,6 +987,12 @@ export default function CRMGlobal() {
             </div>
           )}
         </div>
+
+        {/* ── Bandeau RDV à venir (composant partagé) ── */}
+        <UpcomingRdvBar onProspectClick={p => {
+          const matched = mergedProspects.find(mp => mp.id === p.id) as MergedProspect | undefined
+          setSelectedProspect(matched || (p as MergedProspect))
+        }} />
 
         {/* ── Filtres actifs (chips ambrés, style Dialer) ── */}
         {filters.length > 0 && (
