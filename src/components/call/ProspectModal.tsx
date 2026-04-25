@@ -771,6 +771,7 @@ function EmailsTab({ prospect }: { prospect: Prospect }) {
   const { user, profile } = useAuth()
   const myEmail = (user?.email || '').toLowerCase()
   const signature = profile?.email_signature || ''
+  const signatureImageUrl = profile?.email_signature_image_url || ''
   const { listThreads, getThread, sendEmail } = useGmail()
   const [threads, setThreads] = useState<GmailThread[] | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -816,11 +817,11 @@ function EmailsTab({ prospect }: { prospect: Prospect }) {
     const targetEmail = allEmails[0]
     if (!targetEmail || !draftSubject.trim() || !draftBody.trim()) return
     setSending(true)
-    // Append signature si configurée et pas déjà incluse dans le body
+    // Append signature texte si configurée et pas déjà incluse dans le body
     const finalBody = signature && !draftBody.includes(signature.trim().slice(0, 30))
       ? `${draftBody}\n\n${signature}`
       : draftBody
-    const r = await sendEmail({ to: targetEmail, subject: draftSubject, body: finalBody })
+    const r = await sendEmail({ to: targetEmail, subject: draftSubject, body: finalBody, signatureImageUrl })
     setSending(false)
     if (r.error) {
       alert(`Erreur envoi : ${r.error}`)

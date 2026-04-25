@@ -85,6 +85,8 @@ export interface Profile {
   voicemail_text: string | null
   /** Signature appendée automatiquement aux emails envoyés depuis Calsyn. Plain text. */
   email_signature: string | null
+  /** URL publique d'une image de signature (logo + coordonnées). Ajoutée en HTML au mail. */
+  email_signature_image_url: string | null
   created_at: string
 }
 
