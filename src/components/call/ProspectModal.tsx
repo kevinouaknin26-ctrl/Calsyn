@@ -16,6 +16,7 @@ import { useRecordingSignedUrl } from '@/hooks/useRecordingSignedUrl'
 import { useAuth } from '@/hooks/useAuth'
 import { useGoogleCalendar } from '@/hooks/useGoogleCalendar'
 import { useGmail, type GmailThread, type GmailMessage } from '@/hooks/useGmail'
+import { useSmsForProspect, useSendSms } from '@/hooks/useSms'
 import { CallDirectionBadge, getCallDirection } from '@/pages/History'
 import type { Prospect, CrmStatus } from '@/types/prospect'
 import type { Disposition, Call } from '@/types/call'
@@ -677,6 +678,94 @@ function MiniDropdown({ value, options, onChange, className }: {
 }
 
 // ── Onglet Notes : zone pour ajouter + liste des notes (appels + IA) ─
+// ── Onglet SMS (Twilio intégré) ──────────────────────────────────────
+function SmsTab({ prospect }: { prospect: Prospect }) {
+  const phoneNumbers = [prospect.phone, prospect.phone2, prospect.phone3, prospect.phone4, prospect.phone5].filter(Boolean) as string[]
+  const { data: messages, isLoading } = useSmsForProspect(prospect.id, phoneNumbers)
+  const sendSms = useSendSms()
+  const [draft, setDraft] = useState('')
+  const [sending, setSending] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+  const targetPhone = prospect.phone || phoneNumbers[0] || ''
+
+  const handleSend = async () => {
+    if (!draft.trim() || !targetPhone) return
+    setSending(true)
+    setErr(null)
+    const r = await sendSms({ to: targetPhone, body: draft.trim(), prospectId: prospect.id })
+    setSending(false)
+    if (r.error) {
+      setErr(r.error)
+      return
+    }
+    setDraft('')
+  }
+
+  if (!targetPhone) {
+    return (
+      <div className="text-center py-10">
+        <svg className="w-8 h-8 text-gray-300 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>
+        <p className="text-[13px] text-gray-400">Pas de numéro pour ce prospect</p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex flex-col h-[480px]">
+      {/* Liste messages (scroll) */}
+      <div className="flex-1 overflow-y-auto space-y-2 pr-1">
+        {isLoading && <p className="text-[12px] text-gray-400 text-center py-4">Chargement...</p>}
+        {!isLoading && (!messages || messages.length === 0) && (
+          <div className="text-center py-10">
+            <svg className="w-8 h-8 text-gray-300 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>
+            <p className="text-[13px] text-gray-400">Aucun SMS échangé</p>
+            <p className="text-[11px] text-gray-300 mt-1">Envoie le premier message ci-dessous</p>
+          </div>
+        )}
+        {messages && messages.map(m => {
+          const isOutbound = m.direction === 'outbound'
+          return (
+            <div key={m.id} className={`flex ${isOutbound ? 'justify-end' : 'justify-start'}`}>
+              <div className={`max-w-[80%] rounded-2xl px-3 py-2 ${
+                isOutbound ? 'bg-violet-500 text-white rounded-br-sm' : 'bg-gray-100 text-gray-800 rounded-bl-sm'
+              }`}>
+                <p className="text-[13px] whitespace-pre-wrap break-words">{m.body}</p>
+                <p className={`text-[9px] mt-1 ${isOutbound ? 'text-violet-100' : 'text-gray-400'}`}>
+                  {new Date(m.created_at).toLocaleString('fr-FR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                  {isOutbound && m.status && m.status !== 'delivered' && m.status !== 'sent' ? ` · ${m.status}` : ''}
+                </p>
+              </div>
+            </div>
+          )
+        })}
+      </div>
+
+      {/* Composer */}
+      <div className="border-t border-gray-100 pt-3 mt-2">
+        {err && (
+          <p className="text-[11px] text-red-500 bg-red-50 border border-red-100 rounded-lg px-2 py-1 mb-2">{err}</p>
+        )}
+        <p className="text-[10px] text-gray-400 mb-1">Vers <span className="font-mono text-gray-600">{targetPhone}</span></p>
+        <div className="flex items-end gap-2">
+          <textarea
+            value={draft}
+            onChange={e => setDraft(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); handleSend() } }}
+            rows={2}
+            placeholder="Tape ton message..."
+            className="flex-1 text-[13px] px-3 py-2 border border-gray-200 rounded-xl outline-none focus:border-violet-400 resize-none" />
+          <button onClick={handleSend} disabled={sending || !draft.trim()}
+            title="Envoyer (Cmd/Ctrl + Entrée)"
+            className="px-4 py-2 text-[13px] font-medium text-white bg-violet-600 hover:bg-violet-700 disabled:opacity-40 rounded-xl">
+            {sending ? '...' : 'Envoyer'}
+          </button>
+        </div>
+        <p className="text-[10px] text-gray-300 mt-1">Cmd+Entrée pour envoyer · {draft.length} caractères</p>
+      </div>
+    </div>
+  )
+}
+
 // ── Onglet Emails (Gmail intégré) ────────────────────────────────────
 function EmailsTab({ prospect }: { prospect: Prospect }) {
   const { listThreads, getThread, sendEmail } = useGmail()
@@ -1457,13 +1546,9 @@ export default function ProspectModal({
                 </div>
               )}
 
-              {/* ── Onglet SMS ── */}
+              {/* ── Onglet SMS (Twilio) ── */}
               {activeTab === 'sms' && (
-                <div className="text-center py-10">
-                  <svg className="w-8 h-8 text-gray-300 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>
-                  <p className="text-[13px] text-gray-400">Aucun SMS</p>
-                  <p className="text-[11px] text-gray-300 mt-1">L'envoi de SMS sera disponible prochainement</p>
-                </div>
+                <SmsTab prospect={prospect} />
               )}
 
               {/* ── Onglet Historique : timeline unifiée (logs + calls + notes) ── */}
