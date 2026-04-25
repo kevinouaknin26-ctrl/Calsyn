@@ -101,7 +101,7 @@ serve(async (req) => {
     // l'écraser avec l'outcome calculé depuis la durée brute.
     const { data: existingCall } = await supabase
       .from('calls')
-      .select('call_outcome')
+      .select('call_outcome, sdr_id')
       .eq('call_sid', callSid)
       .maybeSingle()
     const protectedOutcomes = ['voicemail', 'callback', 'not_interested', 'wrong_number', 'dnc']
@@ -109,6 +109,9 @@ serve(async (req) => {
       outcome = existingCall.call_outcome
       console.log(`[status-callback] preserving explicit outcome='${outcome}' for ${callSid}`)
     }
+    // CRUCIAL : préserver le sdr_id existant (set par initiate-call avec l'utilisateur
+    // authentifié qui a réellement passé l'appel). Ne JAMAIS l'écraser.
+    const existingSdrId: string | null = existingCall?.sdr_id || null
 
     // ── 1. Chercher le prospect ──
     // Priorité : prospectId passé par call-webhook > recherche par numéro
@@ -157,13 +160,23 @@ serve(async (req) => {
         prospectId = prospect.id
         organisationId = prospect.organisation_id
 
-        if (prospect.list_id) {
+        // sdr_id : si l'appel a déjà été créé (par initiate-call) avec un sdr_id,
+        // on le préserve absolument. Sinon (cas inbound ou call orphelin), heuristique :
+        // assigned_to[0] de la liste (commercial assigné) plutôt que created_by
+        // qui est souvent l'admin et pas celui qui appelle.
+        if (existingSdrId) {
+          sdrId = existingSdrId
+        } else if (prospect.list_id) {
           const { data: list } = await supabase
             .from('prospect_lists')
-            .select('created_by')
+            .select('assigned_to, created_by')
             .eq('id', prospect.list_id)
             .single()
-          if (list?.created_by) sdrId = list.created_by
+          if (list?.assigned_to && list.assigned_to.length > 0) {
+            sdrId = list.assigned_to[0]
+          } else if (list?.created_by) {
+            sdrId = list.created_by
+          }
         }
 
         // ── 2. Mettre a jour TOUS les prospects avec ce numero ──
@@ -226,6 +239,8 @@ serve(async (req) => {
       })
     }
 
+    // Sécurité : n'écrase jamais un sdr_id déjà défini par initiate-call.
+    const sdrIdToWrite = existingSdrId || sdrId
     const { error } = await supabase
       .from('calls')
       .upsert({
@@ -237,7 +252,7 @@ serve(async (req) => {
         prospect_name: prospectName,
         prospect_id: prospectId,
         organisation_id: organisationId,
-        sdr_id: sdrId,
+        sdr_id: sdrIdToWrite,
         from_number: from,
         provider: 'twilio',
       }, {

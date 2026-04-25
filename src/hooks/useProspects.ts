@@ -160,10 +160,21 @@ export function useProspects(listId: string | null) {
       }
 
       // ── Liste classique ──
+      // Source de vérité : prospect_list_memberships (un prospect peut être sur N listes).
+      // On récupère d'abord les memberships, puis les prospects correspondants.
+      const { data: memberships, error: mErr } = await supabase
+        .from('prospect_list_memberships')
+        .select('prospect_id')
+        .eq('list_id', listId)
+        .eq('organisation_id', orgId)
+      if (mErr) throw mErr
+      const ids = (memberships || []).map(m => m.prospect_id as string)
+      if (ids.length === 0) return []
+
       const { data, error } = await supabase
         .from('prospects')
         .select(PROSPECT_COLS)
-        .eq('list_id', listId)
+        .in('id', ids)
         .is('deleted_at', null)
         .order('created_at', { ascending: true })
       if (error) throw error
