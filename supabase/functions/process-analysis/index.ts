@@ -265,7 +265,11 @@ serve(async (req) => {
       'ce correspondant', 'actuellement indisponible', 'absence',
     ]
     const transcriptLower = formattedTranscript.toLowerCase()
-    const isVoicemail = vmKeywords.some(kw => transcriptLower.includes(kw))
+    // On ne classe en voicemail QUE si l'appel est court (< 90s).
+    // Un appel de 20 min qui mentionne "messagerie" dans la conversation n'est PAS un voicemail.
+    const callMeta = await supabase.from('calls').select('call_duration').eq('id', job.call_id).single()
+    const callDuration = callMeta.data?.call_duration || 0
+    const isVoicemail = callDuration < 90 && vmKeywords.some(kw => transcriptLower.includes(kw))
 
     if (isVoicemail) {
       console.log(`[process-analysis] Voicemail detected for call ${job.call_id} — auto-correcting status`)
