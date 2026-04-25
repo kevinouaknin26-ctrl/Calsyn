@@ -40,7 +40,8 @@ interface Props {
   providerReady: boolean
 }
 
-function formatPhone(phone: string): string {
+function formatPhone(phone: string | null | undefined): string {
+  if (!phone) return ''
   if (phone.startsWith('+33') && phone.length === 12)
     return `+33 ${phone[3]} ${phone.slice(4, 6)} ${phone.slice(6, 8)} ${phone.slice(8, 10)} ${phone.slice(10, 12)}`
   return phone
@@ -589,10 +590,10 @@ function NameEditor({ name, prospectId }: { name: string; prospectId: string }) 
 
 // ── Champ éditable (clic pour modifier, blur pour sauvegarder) ──
 function EditableField({ label, value, prospectId, field, copyable, mono }: {
-  label: string; value: string; prospectId: string; field: string; copyable?: boolean; mono?: boolean
+  label: string; value: string | null | undefined; prospectId: string; field: string; copyable?: boolean; mono?: boolean
 }) {
   const [editing, setEditing] = useState(false)
-  const [localVal, setLocalVal] = useState(value)
+  const [localVal, setLocalVal] = useState(value || '')
   const [copied, setCopied] = useState(false)
   const qc = useQueryClient()
 
@@ -1642,10 +1643,11 @@ export default function ProspectModal({
                   </div>
                 ) : (
                   <div className="flex-1 flex">
-                    <button onClick={() => onCall(prospect)} disabled={!providerReady}
+                    <button onClick={() => onCall(prospect)} disabled={!providerReady || !prospect.phone}
+                      title={!prospect.phone ? 'Aucun téléphone pour ce contact' : ''}
                       className={`flex-1 py-2 text-[12px] font-semibold bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-40 flex items-center justify-center gap-1.5 ${prospect.phone2 || prospect.phone3 || prospect.phone4 || prospect.phone5 ? 'rounded-l-lg' : 'rounded-lg'}`}>
                       <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" /></svg>
-                      Call {formatPhone(prospect.phone)}
+                      {prospect.phone ? <>Call {formatPhone(prospect.phone)}</> : <>Pas de téléphone</>}
                     </button>
                     {/* Dropdown sélection numéro */}
                     {(prospect.phone2 || prospect.phone3 || prospect.phone4 || prospect.phone5) && (
@@ -1780,7 +1782,7 @@ export default function ProspectModal({
 
               {/* ── Téléphones ── */}
               <div className="bg-violet-50/50 rounded-xl p-3 space-y-2">
-                <EditableField label="Téléphone" value={prospect.phone} prospectId={prospect.id} field="phone" copyable mono />
+                <EditableField label="Téléphone" value={prospect.phone || ''} prospectId={prospect.id} field="phone" copyable mono />
                 {(prospect.phone2 || showExtraPhone >= 2) && <EditableField label="Téléphone 2" value={prospect.phone2 || ''} prospectId={prospect.id} field="phone2" copyable mono />}
                 {(prospect.phone3 || showExtraPhone >= 3) && <EditableField label="Téléphone 3" value={prospect.phone3 || ''} prospectId={prospect.id} field="phone3" mono />}
                 {(prospect.phone4 || showExtraPhone >= 4) && <EditableField label="Téléphone 4" value={prospect.phone4 || ''} prospectId={prospect.id} field="phone4" mono />}
