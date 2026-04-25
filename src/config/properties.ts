@@ -73,10 +73,15 @@ export const SYSTEM_PROPERTIES: PropertyDefinition[] = [
     options: ['new', 'attempted_to_contact', 'connected', 'in_progress', 'callback', 'not_interested', 'mail_sent', 'rdv_pris', 'rdv_fait', 'en_attente_signature', 'signe', 'en_attente_paiement', 'paye'] },
   { id: 'system:meeting_booked', key: 'meeting_booked', name: 'RDV pris', type: 'system', fieldType: 'boolean', group: 'crm', groupLabel: 'CRM' },
   { id: 'system:do_not_call', key: 'do_not_call', name: 'Ne pas appeler', type: 'system', fieldType: 'boolean', group: 'crm', groupLabel: 'CRM' },
+
+  // Métadonnées dérivées (calculées côté CRMGlobal pour MergedProspect)
+  { id: 'system:list_names', key: 'list_names', name: 'Listes', type: 'system', fieldType: 'text', group: 'crm', groupLabel: 'CRM', isReadOnly: true },
+  { id: 'system:assigned_sdrs', key: 'assigned_sdrs', name: 'Commerciaux', type: 'system', fieldType: 'text', group: 'crm', groupLabel: 'CRM', isReadOnly: true },
 ]
 
 // Colonnes par défaut dans le tableau
 export const DEFAULT_VISIBLE_COLUMNS = [
+  'system:list_names', 'system:assigned_sdrs',
   'system:socials', 'system:phone', 'system:email', 'system:company', 'system:title', 'system:last_call_at', 'system:crm_status',
 ]
 

@@ -28,6 +28,9 @@ import { normalizePhone } from '@/utils/phone'
 interface MergedProspect extends Prospect {
   listNames: string[]
   listIds: string[]
+  // Versions string pour getPropertyValue (lecture system field via prospect[key])
+  list_names: string
+  assigned_sdrs: string
 }
 
 type FilterOp = 'eq' | 'neq' | 'contains' | 'not_contains' | 'starts' | 'empty' | 'not_empty' | 'gt' | 'lt' | 'in' | 'true' | 'false'
@@ -320,6 +323,13 @@ export default function CRMGlobal() {
         setVisibleColumnIds([...DEFAULT_VISIBLE_COLUMNS, 'system:call_count'])
       } else if (valid.length !== visibleColumnIds.length) {
         setVisibleColumnIds(valid)
+      } else {
+        // Migration auto : injecter list_names + assigned_sdrs en tête s'ils manquent
+        // (clients qui avaient une config sauvegardée avant l'ajout de ces 2 system fields)
+        const missing: string[] = []
+        if (!valid.includes('system:list_names')) missing.push('system:list_names')
+        if (!valid.includes('system:assigned_sdrs')) missing.push('system:assigned_sdrs')
+        if (missing.length > 0) setVisibleColumnIds([...missing, ...valid])
       }
     }
   }, [allProperties, visibleColumnIds])
@@ -387,20 +397,27 @@ export default function CRMGlobal() {
 
       const existing = byPhone.get(phone)
       if (!existing) {
-        byPhone.set(phone, { ...p, listNames: [listNameMap[p.list_id] || '?'], listIds: [p.list_id] })
+        byPhone.set(phone, { ...p, listNames: [listNameMap[p.list_id] || '?'], listIds: [p.list_id], list_names: '', assigned_sdrs: '' })
       } else {
         const existingScore = [existing.email, existing.company, existing.title, existing.sector, existing.linkedin_url].filter(Boolean).length
         const newScore = [p.email, p.company, p.title, p.sector, p.linkedin_url].filter(Boolean).length
         if (newScore > existingScore) {
-          byPhone.set(phone, { ...p, listNames: [...existing.listNames, listNameMap[p.list_id] || '?'], listIds: [...existing.listIds, p.list_id] })
+          byPhone.set(phone, { ...p, listNames: [...existing.listNames, listNameMap[p.list_id] || '?'], listIds: [...existing.listIds, p.list_id], list_names: '', assigned_sdrs: '' })
         } else {
           existing.listNames.push(listNameMap[p.list_id] || '?')
           existing.listIds.push(p.list_id)
         }
       }
     }
-    return Array.from(byPhone.values())
-  }, [allProspects, listNameMap])
+    // Post-process : calculer list_names et assigned_sdrs (string) pour getPropertyValue + filtre/tri.
+    return Array.from(byPhone.values()).map(mp => ({
+      ...mp,
+      list_names: mp.listNames.join(', '),
+      assigned_sdrs: Array.from(new Set(mp.listIds.flatMap(lid => listSdrsMap[lid] || [])))
+        .map(uid => memberNameMap[uid] || 'SDR')
+        .join(', '),
+    }))
+  }, [allProspects, listNameMap, listSdrsMap, memberNameMap])
 
   // ── Auto-open ProspectModal depuis un appel entrant ──────────────
   // Quand useIncomingCall.accept() navigue ici avec state.openProspectId,
@@ -586,6 +603,33 @@ export default function CRMGlobal() {
   // Render cell
   const renderCell = (prospect: MergedProspect, col: PropertyDefinition) => {
     if (col.key === 'socials') return <SocialLinks prospectId={prospect.id} compact />
+
+    if (col.key === 'list_names') {
+      if (prospect.listNames.length === 0) return <span className="text-[10px] text-gray-300">—</span>
+      return (
+        <div className="flex flex-wrap gap-0.5">
+          {prospect.listNames.slice(0, 2).map((name, i) => (
+            <span key={i} className="px-1.5 py-0.5 rounded text-[9px] font-medium bg-indigo-50 text-indigo-600 border border-indigo-100 whitespace-nowrap truncate max-w-[80px]">{name}</span>
+          ))}
+          {prospect.listNames.length > 2 && <span className="text-[9px] text-gray-400">+{prospect.listNames.length - 2}</span>}
+        </div>
+      )
+    }
+
+    if (col.key === 'assigned_sdrs') {
+      const sdrIds = Array.from(new Set(prospect.listIds.flatMap(lid => listSdrsMap[lid] || [])))
+      if (sdrIds.length === 0) return <span className="text-[10px] text-gray-300">—</span>
+      return (
+        <div className="flex flex-wrap gap-0.5">
+          {sdrIds.slice(0, 2).map(uid => (
+            <span key={uid} className="px-1.5 py-0.5 rounded text-[9px] font-medium bg-amber-50 text-amber-700 border border-amber-100 whitespace-nowrap truncate max-w-[100px]" title={memberNameMap[uid] || 'SDR'}>
+              {memberNameMap[uid] || 'SDR'}
+            </span>
+          ))}
+          {sdrIds.length > 2 && <span className="text-[9px] text-gray-400">+{sdrIds.length - 2}</span>}
+        </div>
+      )
+    }
 
     const value = getPropertyValue(prospect, allCustomValues?.[prospect.id], col)
 
@@ -809,10 +853,7 @@ export default function CRMGlobal() {
                     onClick={() => toggleSort('name')}>
                     <div className="flex items-center gap-1">Nom {sortBy === 'name' && (sortDir === 'asc' ? '↑' : '↓')}</div>
                   </th>
-                  {/* Lists */}
-                  <th className="py-2.5 px-3 text-left text-[10px] font-bold text-gray-400 uppercase tracking-wider border-r border-gray-100" style={{ width: 140 }}>Listes</th>
-                  {/* Commerciaux qui ont le contact dans leurs listes */}
-                  <th className="py-2.5 px-3 text-left text-[10px] font-bold text-gray-400 uppercase tracking-wider border-r border-gray-100" style={{ width: 160 }}>Commerciaux</th>
+                  {/* Listes + Commerciaux sont désormais des colonnes dynamiques (system:list_names, system:assigned_sdrs) */}
                   {/* Dynamic columns — drag, tri, filtre, masquer (style Dialer) */}
                   {activeColumns.map(col => {
                     const isSorted = sortBy === col.id
@@ -894,30 +935,7 @@ export default function CRMGlobal() {
                         </div>
                       </div>
                     </td>
-                    <td className="py-2 px-3 border-r border-gray-100" onClick={() => setSelectedProspect(p)}>
-                      <div className="flex flex-wrap gap-0.5">
-                        {p.listNames.slice(0, 2).map((name, i) => (
-                          <span key={i} className="px-1.5 py-0.5 rounded text-[9px] font-medium bg-indigo-50 text-indigo-600 border border-indigo-100 whitespace-nowrap truncate max-w-[60px]">{name}</span>
-                        ))}
-                        {p.listNames.length > 2 && <span className="text-[9px] text-gray-400">+{p.listNames.length - 2}</span>}
-                      </div>
-                    </td>
-                    <td className="py-2 px-3 border-r border-gray-100" onClick={() => setSelectedProspect(p)}>
-                      {(() => {
-                        const sdrIds = Array.from(new Set(p.listIds.flatMap(lid => listSdrsMap[lid] || [])))
-                        if (sdrIds.length === 0) return <span className="text-[10px] text-gray-300">—</span>
-                        return (
-                          <div className="flex flex-wrap gap-0.5">
-                            {sdrIds.slice(0, 2).map(uid => (
-                              <span key={uid} className="px-1.5 py-0.5 rounded text-[9px] font-medium bg-amber-50 text-amber-700 border border-amber-100 whitespace-nowrap truncate max-w-[80px]" title={memberNameMap[uid] || 'SDR'}>
-                                {memberNameMap[uid] || 'SDR'}
-                              </span>
-                            ))}
-                            {sdrIds.length > 2 && <span className="text-[9px] text-gray-400">+{sdrIds.length - 2}</span>}
-                          </div>
-                        )
-                      })()}
-                    </td>
+                    {/* Listes + Commerciaux sont rendus via renderCell (system:list_names + system:assigned_sdrs) */}
                     {activeColumns.map(col => (
                       <td key={col.id} className="py-2 px-3 border-r border-gray-100 cursor-pointer" onClick={() => setSelectedProspect(p)}>
                         {renderCell(p, col)}
