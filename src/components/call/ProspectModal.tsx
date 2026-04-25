@@ -2084,6 +2084,8 @@ function DealSidebar({ prospect }: { prospect: Prospect }) {
   const [addMeetLink, setAddMeetLink] = useState(false)
   const [customReminderDate, setCustomReminderDate] = useState('')
   const [conflictEvents, setConflictEvents] = useState<Array<{ summary: string; time: string }>>([])
+  // Slots disponibles du jour sélectionné (pour le picker visuel)
+  const [busySlots, setBusySlots] = useState<Array<{ start: number; end: number }>>([])
   const [showRdvPicker, setShowRdvPicker] = useState(false)
   const [rdvDate, setRdvDate] = useState('')
   const [rdvTime, setRdvTime] = useState('10:00')
@@ -2147,36 +2149,40 @@ function DealSidebar({ prospect }: { prospect: Prospect }) {
     ])
   }
 
-  // Check des conflits agenda Google quand date/heure change pour un RDV
+  // Fetch les events Google de la journée sélectionnée → busy slots + conflits
   useEffect(() => {
     const isRdvMotif = reminderMotif === 'rdv' || reminderMotif === 'rdv_2' || reminderMotif === 'rdv_3'
     if (!settingReminder || !isRdvMotif || !customReminderDate || !gcalConnected) {
       setConflictEvents([])
+      setBusySlots([])
       return
     }
     let alive = true
-    const dt = new Date(`${customReminderDate}T${rdvTime}:00`)
-    const end = new Date(dt.getTime() + 30 * 60 * 1000)
+    const dayStart = new Date(`${customReminderDate}T00:00:00`)
+    const dayEnd = new Date(`${customReminderDate}T23:59:59`)
     const t = setTimeout(async () => {
-      const list = await gcalListEvents(
-        new Date(dt.getTime() - 5 * 60 * 1000).toISOString(),
-        new Date(end.getTime() + 5 * 60 * 1000).toISOString(),
-      )
+      const list = await gcalListEvents(dayStart.toISOString(), dayEnd.toISOString())
       if (!alive) return
       const events = (list?.items || []) as Array<{ id?: string; summary?: string; start?: { dateTime?: string }; end?: { dateTime?: string }; transparency?: string }>
+      const busy = events
+        .filter(ev => ev.transparency !== 'transparent' && ev.start?.dateTime && ev.end?.dateTime)
+        .map(ev => ({ start: new Date(ev.start!.dateTime!).getTime(), end: new Date(ev.end!.dateTime!).getTime() }))
+      setBusySlots(busy)
+      // Conflits = busy qui chevauche le slot choisi (rdvTime, +30min)
+      const dt = new Date(`${customReminderDate}T${rdvTime}:00`)
+      const slotEnd = new Date(dt.getTime() + 30 * 60 * 1000)
       const conflicts = events.filter(ev => {
-        if (ev.transparency === 'transparent') return false // disponible (Free) → pas un conflit
+        if (ev.transparency === 'transparent') return false
         if (!ev.start?.dateTime || !ev.end?.dateTime) return false
         const evStart = new Date(ev.start.dateTime).getTime()
         const evEnd = new Date(ev.end.dateTime).getTime()
-        // Overlap : evStart < end && evEnd > dt
-        return evStart < end.getTime() && evEnd > dt.getTime()
+        return evStart < slotEnd.getTime() && evEnd > dt.getTime()
       }).map(ev => ({
         summary: ev.summary || '(sans titre)',
         time: `${new Date(ev.start!.dateTime!).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}–${new Date(ev.end!.dateTime!).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}`,
       }))
       setConflictEvents(conflicts)
-    }, 400) // debounce
+    }, 400)
     return () => { alive = false; clearTimeout(t) }
   }, [settingReminder, reminderMotif, customReminderDate, rdvTime, gcalConnected, gcalListEvents])
 
@@ -2453,6 +2459,42 @@ function DealSidebar({ prospect }: { prospect: Prospect }) {
               <>
                 <input type="time" value={rdvTime} onChange={e => setRdvTime(e.target.value)}
                   className="w-full min-w-0 text-[12px] border border-amber-200 rounded-lg px-2 py-1.5 outline-none bg-white" />
+                {/* Picker de créneaux dispo (slots 30 min de 9h à 19h) */}
+                {customReminderDate && gcalConnected && (() => {
+                  const slots: Array<{ time: string; busy: boolean }> = []
+                  for (let h = 9; h < 19; h++) {
+                    for (const m of [0, 30]) {
+                      const slotStart = new Date(`${customReminderDate}T${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:00`).getTime()
+                      const slotEnd = slotStart + 30 * 60 * 1000
+                      const busy = busySlots.some(b => b.start < slotEnd && b.end > slotStart)
+                      slots.push({ time: `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`, busy })
+                    }
+                  }
+                  return (
+                    <div className="bg-white border border-amber-200 rounded-lg p-2">
+                      <p className="text-[10px] font-bold text-gray-400 uppercase mb-1.5">Créneaux du jour</p>
+                      <div className="grid grid-cols-4 gap-1 max-h-[160px] overflow-y-auto">
+                        {slots.map(s => {
+                          const selected = rdvTime === s.time
+                          return (
+                            <button key={s.time} type="button"
+                              disabled={s.busy}
+                              onClick={() => setRdvTime(s.time)}
+                              title={s.busy ? 'Occupé' : 'Disponible'}
+                              className={`text-[11px] font-mono py-1 rounded transition-colors ${
+                                selected ? 'bg-amber-500 text-white font-bold' :
+                                s.busy ? 'bg-gray-100 text-gray-300 line-through cursor-not-allowed' :
+                                'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200'
+                              }`}>
+                              {s.time}
+                            </button>
+                          )
+                        })}
+                      </div>
+                      <p className="text-[9px] text-gray-400 mt-1">Vert = libre · Gris = occupé</p>
+                    </div>
+                  )
+                })()}
                 {/* Inviter le client : ajoute le prospect en attendee Google + envoie l'invite par email */}
                 <label className={`flex items-start gap-2 px-2 py-1.5 text-[11px] rounded-lg border ${prospect.email ? 'border-amber-200 bg-white cursor-pointer' : 'border-gray-100 bg-gray-50 opacity-60 cursor-not-allowed'}`}>
                   <input type="checkbox" checked={inviteClient && !!prospect.email}
