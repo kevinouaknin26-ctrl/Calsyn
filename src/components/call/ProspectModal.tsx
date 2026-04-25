@@ -119,8 +119,10 @@ function Celebration() {
 
 // ── Badge outcome ───────────────────────────────────────────────
 function OutcomeBadge({ outcome, meeting }: { outcome: string | null; meeting: boolean }) {
+  // Normaliser : connected_incoming → connected, missed_incoming/rejected_incoming → conservé
+  const baseOutcome = (outcome || '').replace(/_incoming$/, '') || outcome
   // meeting_booked + connected = "RDV pris" (teal, Minari exact)
-  if (meeting && (outcome === 'connected' || outcome === 'meeting_booked' || outcome === 'rdv_pris' || !outcome)) {
+  if (meeting && (baseOutcome === 'connected' || baseOutcome === 'meeting_booked' || baseOutcome === 'rdv_pris' || !outcome)) {
     return <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-teal-100 text-teal-600">RDV pris</span>
   }
   const map: Record<string, string> = {
@@ -133,9 +135,15 @@ function OutcomeBadge({ outcome, meeting }: { outcome: string | null; meeting: b
     cancelled: 'bg-gray-100 text-gray-500',
     failed: 'bg-red-100 text-red-500',
     wrong_number: 'bg-red-100 text-red-500',
+    missed_incoming: 'bg-red-100 text-red-500',
+    rejected_incoming: 'bg-gray-100 text-gray-500',
   }
-  const label = DISPOSITIONS.find(d => d.value === outcome)?.label || outcome || 'Pas de réponse'
-  return <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-semibold ${map[outcome || ''] || 'bg-gray-100 text-gray-500'}`}>{label}</span>
+  const incomingLabels: Record<string, string> = {
+    missed_incoming: 'Manqué',
+    rejected_incoming: 'Rejeté',
+  }
+  const label = incomingLabels[outcome || ''] || DISPOSITIONS.find(d => d.value === baseOutcome)?.label || outcome || 'Pas de réponse'
+  return <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-semibold ${map[outcome || ''] || map[baseOutcome] || 'bg-gray-100 text-gray-500'}`}>{label}</span>
 }
 
 // ── Player audio custom (Minari exact — ▶ barre + durée + download + vitesse) ──
