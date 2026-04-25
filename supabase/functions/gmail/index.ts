@@ -217,20 +217,37 @@ serve(async (req) => {
     // ── ACTION: send ──────────────────────────────────────────────────
     if (action === 'send' && req.method === 'POST') {
       const body = await req.json()
-      const { to, subject, body: emailBody, threadId } = body
-      if (!to || !subject || !emailBody) {
-        return new Response(JSON.stringify({ error: 'Missing to/subject/body' }), {
+      let { to, subject, body: emailBody, threadId, thread_id, prospect_id } = body
+      // Channel registry envoie thread_id (snake_case) ; fallback sur threadId (camel)
+      threadId = threadId || thread_id
+
+      // Si pas de 'to' explicite, lookup via prospect_id (cas messagerie unifiée)
+      let prospectInfo: { id: string; email: string | null; organisation_id: string } | null = null
+      if (prospect_id) {
+        const { data: p } = await admin
+          .from('prospects')
+          .select('id, email, organisation_id')
+          .eq('id', prospect_id)
+          .single()
+        if (p) prospectInfo = p
+        if (!to) to = p?.email
+      }
+
+      if (!to || !emailBody) {
+        return new Response(JSON.stringify({ error: 'Missing to/body' }), {
           status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         })
       }
-      // Récupère l'adresse "me" pour le From
+      // Subject vide accepté pour les replies (Gmail garde le subject original via threadId)
+      const finalSubject = subject || ''
+
       const profileRes = await fetch(`${GMAIL_API}/profile`, {
         headers: { Authorization: `Bearer ${accessToken}` },
       })
       const profileData = await profileRes.json()
       const fromAddress = profileData.emailAddress || user.email || ''
 
-      const raw = buildRFC2822(to, subject, emailBody, fromAddress)
+      const raw = buildRFC2822(to, finalSubject, emailBody, fromAddress)
       const sendRes = await fetch(`${GMAIL_API}/messages/send`, {
         method: 'POST',
         headers: {
@@ -245,7 +262,82 @@ serve(async (req) => {
           status: sendRes.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         })
       }
+
+      // INSERT direct dans messages (channel='email', direction='out') pour
+      // affichage instantané sans attendre le cron gmail-ingest.
+      if (prospectInfo) {
+        try {
+          await admin.from('messages').insert({
+            organisation_id: prospectInfo.organisation_id,
+            prospect_id: prospectInfo.id,
+            user_id: user.id,
+            channel: 'email',
+            direction: 'out',
+            external_id: sendData.id,
+            external_thread_id: sendData.threadId,
+            from_address: fromAddress,
+            to_address: to,
+            subject: finalSubject || null,
+            body: emailBody,
+            sent_at: new Date().toISOString(),
+            status: 'sent',
+            is_read: true,
+            metadata: { sent_via: 'calsyn' },
+          })
+        } catch (insErr) {
+          console.error('[gmail/send] insert messages failed:', insErr)
+          // Pas bloquant : le mail est parti, le cron gmail-ingest le ramassera plus tard.
+        }
+      }
+
       return new Response(JSON.stringify({ ok: true, messageId: sendData.id, threadId: sendData.threadId }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
+    // ── ACTION: mark-read ─────────────────────────────────────────────
+    // Retire le label UNREAD sur Gmail + update is_read=true en local pour
+    // tous les messages email du prospect (direction='in', is_read=false).
+    if (action === 'mark-read' && req.method === 'POST') {
+      const body = await req.json()
+      const { prospect_id } = body
+      if (!prospect_id) {
+        return new Response(JSON.stringify({ error: 'Missing prospect_id' }), {
+          status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        })
+      }
+
+      // Récupère les messages email non-lus de ce prospect
+      const { data: msgs } = await admin
+        .from('messages')
+        .select('id, external_id')
+        .eq('prospect_id', prospect_id)
+        .eq('channel', 'email')
+        .eq('direction', 'in')
+        .eq('is_read', false)
+      if (!msgs || msgs.length === 0) {
+        return new Response(JSON.stringify({ ok: true, updated: 0 }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        })
+      }
+
+      // Batch modify Gmail (retire UNREAD) — max 1000 par appel
+      const ids = msgs.map(m => m.external_id).filter(Boolean) as string[]
+      if (ids.length > 0) {
+        await fetch(`${GMAIL_API}/messages/batchModify`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ids: ids.slice(0, 1000), removeLabelIds: ['UNREAD'] }),
+        }).catch(err => console.error('[gmail/mark-read] batchModify failed:', err))
+      }
+
+      // Update local
+      const { data: updated } = await admin
+        .from('messages')
+        .update({ is_read: true })
+        .in('id', msgs.map(m => m.id))
+        .select('id')
+      return new Response(JSON.stringify({ ok: true, updated: updated?.length || 0 }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
     }

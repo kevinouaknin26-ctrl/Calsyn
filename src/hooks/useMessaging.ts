@@ -52,15 +52,7 @@ export function useConversations() {
         .limit(300)
       if (error) throw error
 
-      // 2. Pull message_reads de l'user pour calcul unread
-      const { data: reads } = await supabase
-        .from('message_reads')
-        .select('prospect_id, last_seen_at')
-        .eq('user_id', userId || '')
-      const readsMap = new Map<string, string>()
-      for (const r of reads || []) readsMap.set(r.prospect_id, r.last_seen_at)
-
-      // 3. Group by prospect_id
+      // 2. Group by prospect_id (unread = is_read=false sur message_reads obsolète)
       const byProspect = new Map<string, UnifiedMessage[]>()
       for (const m of (msgs || []) as UnifiedMessage[]) {
         if (!m.prospect_id) continue
@@ -70,7 +62,7 @@ export function useConversations() {
       }
       if (byProspect.size === 0) return []
 
-      // 4. Fetch prospect info en bulk
+      // 3. Fetch prospect info en bulk
       const pids = Array.from(byProspect.keys())
       const { data: prospects } = await supabase
         .from('prospects')
@@ -78,14 +70,12 @@ export function useConversations() {
         .in('id', pids)
       const pInfo = new Map((prospects || []).map(p => [p.id, p]))
 
-      // 5. Composer les summaries
+      // 4. Composer les summaries — unread = direction='in' AND is_read=false
+      // (sync avec Gmail labels pour les emails, manuel pour SMS/WA)
       const summaries: ConversationSummary[] = []
       for (const [pid, list] of byProspect) {
         const last = list[0] // déjà trié desc
-        const lastSeenAt = readsMap.get(pid)
-        const unread_count = list.filter(m =>
-          m.direction === 'in' && (!lastSeenAt || new Date(m.sent_at) > new Date(lastSeenAt))
-        ).length
+        const unread_count = list.filter(m => m.direction === 'in' && !(m as any).is_read).length
         const p = pInfo.get(pid) || { id: pid, name: null, phone: null, email: null }
         summaries.push({
           prospect_id: pid,
@@ -160,15 +150,46 @@ export function useConversation(prospectId: string | null) {
 
   const markAsReadMutation = useMutation({
     mutationFn: async () => {
-      if (!prospectId || !user?.id || !organisation?.id) return
-      await supabase.from('message_reads').upsert({
-        user_id: user.id,
-        prospect_id: prospectId,
-        organisation_id: organisation.id,
-        last_seen_at: new Date().toISOString(),
-      }, { onConflict: 'user_id,prospect_id' })
+      if (!prospectId) return
+      // 1. Marque tous les messages inbound de cette conv comme lus en local
+      await supabase
+        .from('messages')
+        .update({ is_read: true })
+        .eq('prospect_id', prospectId)
+        .eq('direction', 'in')
+        .eq('is_read', false)
+
+      // 2. Sync vers Gmail : retire le label UNREAD des messages email concernés
+      const hasUnreadEmail = (messagesQuery.data || []).some(m => m.channel === 'email' && m.direction === 'in' && !(m as any).is_read)
+      if (hasUnreadEmail) {
+        try {
+          const { data: { session } } = await supabase.auth.getSession()
+          if (session?.access_token) {
+            const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string
+            await fetch(`${SUPABASE_URL}/functions/v1/gmail?action=mark-read`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${session.access_token}`,
+              },
+              body: JSON.stringify({ prospect_id: prospectId }),
+            })
+          }
+        } catch (e) {
+          console.warn('[markAsRead] gmail sync failed:', e)
+        }
+      }
+
+      // 3. Update aussi le legacy message_reads pour compat
+      if (user?.id && organisation?.id) {
+        await supabase.from('message_reads').upsert({
+          user_id: user.id, prospect_id: prospectId, organisation_id: organisation.id,
+          last_seen_at: new Date().toISOString(),
+        }, { onConflict: 'user_id,prospect_id' })
+      }
     },
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['conversation', prospectId] })
       queryClient.invalidateQueries({ queryKey: ['conversations'] })
     },
   })

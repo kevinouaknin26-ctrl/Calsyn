@@ -7,7 +7,7 @@
 
 SELECT cron.schedule(
   'gmail-ingest',
-  '*/5 * * * *',
+  '* * * * *', -- toutes les minutes (fallback si push Pub/Sub pas encore configuré)
   $$
   SELECT net.http_post(
     url := 'https://enrpuayypjnpfmdgpfhs.supabase.co/functions/v1/gmail-ingest',
