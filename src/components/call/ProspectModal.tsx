@@ -1546,7 +1546,10 @@ function DealSidebar({ prospect }: { prospect: Prospect }) {
       details: `${motifLabel[reminderMotif]} programmé(e) le ${datetime.toLocaleDateString('fr-FR')}${isRdv ? ` à ${datetime.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}` : ''}`,
     })
 
-    // Sync Google Calendar (si connecté) — bloque les chevauchements futurs
+    // Sync Google Calendar (si connecté) — bloque les chevauchements
+    // transparency: 'opaque' + status: 'confirmed' = créneau marqué occupé
+    // dans Google Appointment Schedules / "Find a time" et donc invisible
+    // pour les outils de booking externes (Calendly, etc.)
     if (gcalConnected) {
       const endTime = new Date(datetime.getTime() + (isRdv ? 30 : 15) * 60 * 1000)
       const phoneInfo = prospect.phone ? `\nTéléphone : ${prospect.phone}` : ''
@@ -1557,6 +1560,9 @@ function DealSidebar({ prospect }: { prospect: Prospect }) {
         description: `${motifLabel[reminderMotif]} planifié depuis Calsyn.${phoneInfo}${emailInfo}${companyInfo}`,
         start: { dateTime: datetime.toISOString() },
         end: { dateTime: endTime.toISOString() },
+        transparency: 'opaque',  // bloque le créneau dans Google
+        status: 'confirmed',
+        colorId: isRdv ? '10' : '5',  // 10 = vert basilic (RDV), 5 = jaune banane (rappel)
       }).catch(err => console.warn('[saveTask] GCal create failed', err))
     }
 
