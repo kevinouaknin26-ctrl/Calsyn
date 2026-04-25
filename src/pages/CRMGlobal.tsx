@@ -369,6 +369,26 @@ export default function CRMGlobal() {
   // Properties
   const { properties: allProperties } = usePropertyDefinitions()
   const { data: crmStatuses } = useCrmStatuses()
+
+  // Fallback : si l'org n'a pas de crm_statuses configurés, dériver depuis les options enum
+  // de system:crm_status (sinon le Kanban est vide même avec des prospects).
+  const effectiveStatuses = useMemo(() => {
+    if (crmStatuses && crmStatuses.length > 0) return crmStatuses
+    const defaultKeys = (SYSTEM_PROPERTIES.find(p => p.key === 'crm_status')?.options) || []
+    const colorByKey: Record<string, string> = {
+      new: '#9ca3af', attempted_to_contact: '#f59e0b', connected: '#10b981',
+      in_progress: '#6366f1', callback: '#a78bfa', not_interested: '#6b7280',
+      mail_sent: '#3b82f6', rdv_pris: '#0d9488', rdv_fait: '#06b6d4',
+      en_attente_signature: '#f59e0b', signe: '#10b981',
+      en_attente_paiement: '#f59e0b', paye: '#22c55e',
+    }
+    return defaultKeys.map((key, i) => ({
+      key,
+      label: CRM_STATUS_LABELS[key] || key,
+      color: colorByKey[key] || '#6b7280',
+      priority: i,
+    }))
+  }, [crmStatuses])
   const { data: lists } = useProspectLists()
 
   const crmLabels = useMemo(() => {
@@ -912,7 +932,7 @@ export default function CRMGlobal() {
             onDrop={stopAutoScroll}
             className="flex-1 min-h-0 overflow-x-auto p-4">
             <div className="flex gap-3 h-full">
-              {(crmStatuses || []).map(stage => {
+              {effectiveStatuses.map(stage => {
                 // Tri intelligent SDR : à appeler en haut (jamais appelé, snooze expiré),
                 // puis déjà appelés (par dernier appel le plus ancien), puis snoozés futurs, puis DNC en bas.
                 const callPriority = (p: MergedProspect): number => {
