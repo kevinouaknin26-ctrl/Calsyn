@@ -246,7 +246,6 @@ function EmailSignatureEditor() {
   const [saving, setSaving] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [saved, setSaved] = useState(false)
-  const fileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     setSignature(profile?.email_signature || '')
@@ -297,19 +296,18 @@ function EmailSignatureEditor() {
         placeholder="Cordialement,&#10;Kevin Ouaknin"
         className="w-full text-[12px] px-3 py-2 border border-gray-200 rounded-lg outline-none focus:border-indigo-300 resize-none font-mono" />
 
-      {/* Image */}
+      {/* Image — utilise <label> natif (plus robuste que ref.click() qui peut être bloqué) */}
       <div className="mt-3">
-        <input ref={fileInputRef} type="file" accept="image/*" className="hidden"
-          onChange={e => { const f = e.target.files?.[0]; if (f) uploadImage(f); if (e.target) e.target.value = '' }} />
         {imageUrl ? (
           <div className="border border-gray-200 rounded-lg p-3 bg-gray-50">
             <p className="text-[10px] text-gray-400 uppercase tracking-wider mb-2">Image signature</p>
             <img src={imageUrl} alt="Signature" className="max-h-24 max-w-full rounded border border-gray-200 bg-white" />
             <div className="flex gap-2 mt-2">
-              <button onClick={() => fileInputRef.current?.click()} disabled={uploading}
-                className="text-[11px] px-2 py-1 rounded bg-white border border-gray-200 hover:border-indigo-300 text-gray-600">
+              <label className={`text-[11px] px-2 py-1 rounded bg-white border border-gray-200 hover:border-indigo-300 text-gray-600 ${uploading ? 'opacity-50' : 'cursor-pointer'}`}>
                 Remplacer
-              </button>
+                <input type="file" accept="image/*" className="hidden" disabled={uploading}
+                  onChange={e => { const f = e.target.files?.[0]; if (f) uploadImage(f); if (e.target) e.target.value = '' }} />
+              </label>
               <button onClick={removeImage}
                 className="text-[11px] px-2 py-1 rounded bg-white border border-gray-200 hover:border-red-300 text-red-500">
                 Retirer
@@ -317,11 +315,12 @@ function EmailSignatureEditor() {
             </div>
           </div>
         ) : (
-          <button onClick={() => fileInputRef.current?.click()} disabled={uploading}
-            className="w-full px-3 py-3 border border-dashed border-gray-300 rounded-lg text-[12px] text-gray-500 hover:border-indigo-400 hover:bg-indigo-50/30 transition-colors flex items-center justify-center gap-2">
+          <label className={`w-full px-3 py-3 border border-dashed border-gray-300 rounded-lg text-[12px] text-gray-500 hover:border-indigo-400 hover:bg-indigo-50/30 transition-colors flex items-center justify-center gap-2 ${uploading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}>
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" /></svg>
             {uploading ? 'Upload en cours...' : 'Ajouter une image (PNG/JPG, max 2 Mo)'}
-          </button>
+            <input type="file" accept="image/*" className="hidden" disabled={uploading}
+              onChange={e => { const f = e.target.files?.[0]; if (f) uploadImage(f); if (e.target) e.target.value = '' }} />
+          </label>
         )}
       </div>
 
