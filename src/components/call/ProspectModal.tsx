@@ -704,8 +704,15 @@ function TasksTab({ prospect, onUpdate }: { prospect: Prospect; onUpdate: () => 
   const fetchEvent = useCallback(async () => {
     if (!gcalConnected || !eventId || !hasRdv) { setEventDetails(null); return }
     const ev = await gcalGetEvent(eventId)
-    if (!ev) return
-    // Match attendee par email (case-insensitive, sur tous les emails du prospect)
+    if (!ev) {
+      console.warn('[TasksTab] getEvent returned null (event_id:', eventId, ')')
+      return
+    }
+    if (ev.error) {
+      console.warn('[TasksTab] getEvent error:', ev.error)
+      return
+    }
+    console.log('[TasksTab] event attendees:', ev.attendees, 'looking for emails:', allProspectEmails)
     const attendee = ev.attendees?.find((a: { email?: string; responseStatus?: string }) =>
       a.email && allProspectEmails.includes(a.email.toLowerCase())
     )
