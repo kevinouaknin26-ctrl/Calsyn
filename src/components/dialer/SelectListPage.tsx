@@ -4,10 +4,12 @@
  * S'affiche quand on clique "Nouvelle liste" dans le Dialer.
  */
 
-import { useState, useRef, useCallback, useEffect, type ChangeEvent } from 'react'
+import { useState, useRef, useCallback, useEffect, useMemo, type ChangeEvent } from 'react'
 import ConfirmModal from '@/components/ui/ConfirmModal'
-import { useQueryClient } from '@tanstack/react-query'
+import ShareListDialog from '@/components/ShareListDialog'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/config/supabase'
+import { useAuth } from '@/hooks/useAuth'
 import { useProspectLists, useCreateList, useImportProspects, useProspectFields, useCreateProspectField, saveCustomFieldValues, SYSTEM_FIELDS } from '@/hooks/useProspects'
 import { extractSocialsFromValues } from '@/components/call/SocialLinks'
 
@@ -439,6 +441,39 @@ export default function SelectListPage({ onSelect, onClose }: Props) {
 
   // Confirm modal state (suppression de liste)
   const [confirmDelete, setConfirmDelete] = useState<{ id: string; name: string } | null>(null)
+  // Share dialog state
+  const [shareList, setShareList] = useState<{ id: string; name: string; assignedTo: string[] } | null>(null)
+
+  // ── Permissions + membres de l'org ──
+  const { profile } = useAuth()
+  const isAdmin = profile?.role === 'super_admin' || profile?.role === 'admin' || profile?.role === 'manager'
+
+  const { data: orgMembers } = useQuery({
+    queryKey: ['org-members', profile?.organisation_id],
+    queryFn: async () => {
+      if (!profile?.organisation_id) return []
+      const { data } = await supabase
+        .from('profiles')
+        .select('id, full_name, email, role')
+        .eq('organisation_id', profile.organisation_id)
+        .is('deactivated_at', null)
+      return data || []
+    },
+    enabled: !!profile?.organisation_id,
+  })
+
+  const memberMap = useMemo(() => {
+    const m: Record<string, { name: string; role: string }> = {}
+    for (const u of orgMembers || []) m[u.id] = { name: u.full_name || u.email.split('@')[0], role: u.role }
+    return m
+  }, [orgMembers])
+
+  const removeSdrFromList = useCallback(async (listId: string, currentAssigned: string[], sdrId: string) => {
+    const next = currentAssigned.filter(id => id !== sdrId)
+    const { error } = await supabase.from('prospect_lists').update({ assigned_to: next }).eq('id', listId)
+    if (error) { alert(`Erreur : ${error.message}`); return }
+    queryClient.invalidateQueries({ queryKey: ['prospect-lists'] })
+  }, [queryClient])
 
   const filtered = lists?.filter(l => !search || l.name.toLowerCase().includes(search.toLowerCase()))
 
@@ -897,22 +932,58 @@ export default function SelectListPage({ onSelect, onClose }: Props) {
               </button>
             )}
 
-            {filtered?.map(l => (
-              <div key={l.id} className="flex items-center gap-1">
-                <button onClick={() => onSelect(l.id)}
-                  className="flex-1 text-left px-3 py-2.5 rounded-xl bg-white border border-gray-100 hover:border-indigo-200 hover:bg-indigo-50/30 transition-colors">
-                  <p className="text-[13px] font-medium text-gray-800">{l.name}</p>
-                  <p className="text-[11px] text-gray-400">contacts</p>
-                </button>
-                <button onClick={e => {
-                  e.stopPropagation()
-                  setConfirmDelete({ id: l.id, name: l.name })
-                }} title="Supprimer la liste"
-                  className="w-7 h-7 rounded-lg flex items-center justify-center text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors flex-shrink-0">
-                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                </button>
-              </div>
-            ))}
+            {filtered?.map(l => {
+              const assignedIds = (l.assigned_to || []) as string[]
+              const sdrAssignments = assignedIds.filter(id => id !== profile?.id)
+              return (
+                <div key={l.id} className="rounded-xl bg-white border border-gray-100 hover:border-indigo-200 hover:bg-indigo-50/30 transition-colors px-3 py-2.5">
+                  <div className="flex items-center gap-1">
+                    <button onClick={() => onSelect(l.id)} className="flex-1 text-left">
+                      <p className="text-[13px] font-medium text-gray-800">{l.name}</p>
+                      <p className="text-[11px] text-gray-400">contacts</p>
+                    </button>
+                    {isAdmin && (
+                      <>
+                        <button onClick={e => {
+                          e.stopPropagation()
+                          setShareList({ id: l.id, name: l.name, assignedTo: assignedIds })
+                        }} title="Gérer les SDR partagés"
+                          className="w-7 h-7 rounded-lg flex items-center justify-center text-gray-300 hover:text-indigo-500 hover:bg-indigo-50 transition-colors flex-shrink-0">
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 12a4 4 0 10-8 0 4 4 0 008 0zm6 8a6 6 0 00-12 0M8 12a4 4 0 108 0" /></svg>
+                        </button>
+                        <button onClick={e => {
+                          e.stopPropagation()
+                          setConfirmDelete({ id: l.id, name: l.name })
+                        }} title="Supprimer la liste"
+                          className="w-7 h-7 rounded-lg flex items-center justify-center text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors flex-shrink-0">
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                        </button>
+                      </>
+                    )}
+                  </div>
+                  {sdrAssignments.length > 0 && (
+                    <div className="flex flex-wrap gap-1 mt-2">
+                      {sdrAssignments.map(uid => {
+                        const m = memberMap[uid]
+                        if (!m) return null
+                        return (
+                          <span key={uid} className="text-[10px] px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-100 inline-flex items-center gap-1 max-w-[140px]">
+                            <span className="truncate">{m.name}</span>
+                            {isAdmin && (
+                              <button onClick={e => {
+                                e.stopPropagation()
+                                removeSdrFromList(l.id, assignedIds, uid)
+                              }} title={`Retirer ${m.name}`}
+                                className="text-amber-500 hover:text-red-500 transition-colors leading-none -mr-0.5">×</button>
+                            )}
+                          </span>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+              )
+            })}
             {!filtered?.length && <p className="text-[12px] text-gray-400 py-4 text-center">Aucune liste</p>}
           </div>
         </div>
@@ -1177,6 +1248,16 @@ export default function SelectListPage({ onSelect, onClose }: Props) {
           setConfirmDelete(null)
         }}
       />
+
+      {/* Modal Partager la liste avec des SDR */}
+      {shareList && (
+        <ShareListDialog
+          listId={shareList.id}
+          listName={shareList.name}
+          currentAssignedTo={shareList.assignedTo}
+          onClose={() => setShareList(null)}
+        />
+      )}
     </div>
   )
 }
