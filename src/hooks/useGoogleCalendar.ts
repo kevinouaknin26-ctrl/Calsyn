@@ -76,6 +76,19 @@ export function useGoogleCalendar() {
     return res.json()
   }, [])
 
+  const getEvent = useCallback(async (eventId: string) => {
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session) return null
+    const url = new URL(`${SUPABASE_URL}/functions/v1/google-calendar`)
+    url.searchParams.set('action', 'get')
+    url.searchParams.set('eventId', eventId)
+    const res = await fetch(url.toString(), {
+      headers: { Authorization: `Bearer ${session.access_token}` },
+    })
+    if (!res.ok) return null
+    return res.json()
+  }, [])
+
   const deleteEvent = useCallback(async (eventId: string, sendUpdates?: 'all' | 'externalOnly' | 'none') => {
     const { data: { session } } = await supabase.auth.getSession()
     if (!session) return null
@@ -91,5 +104,5 @@ export function useGoogleCalendar() {
     return res.json()
   }, [])
 
-  return { connected: status?.connected || false, connect, disconnect, listEvents, createEvent, deleteEvent }
+  return { connected: status?.connected || false, connect, disconnect, listEvents, createEvent, getEvent, deleteEvent }
 }

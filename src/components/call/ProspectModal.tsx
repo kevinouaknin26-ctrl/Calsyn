@@ -681,7 +681,7 @@ function MiniDropdown({ value, options, onChange, className }: {
 // ── Onglet Notes : zone pour ajouter + liste des notes (appels + IA) ─
 // ── Onglet Tâches (RDV + rappels avec actions) ──────────────────────
 function TasksTab({ prospect, onUpdate }: { prospect: Prospect; onUpdate: () => void }) {
-  const { connected: gcalConnected, deleteEvent: gcalDeleteEvent } = useGoogleCalendar()
+  const { connected: gcalConnected, getEvent: gcalGetEvent, deleteEvent: gcalDeleteEvent } = useGoogleCalendar()
   const motifLabels: Record<string, string> = {
     rappel: 'Rappel',
     retour_demande: 'Retour sur demande',
@@ -695,6 +695,27 @@ function TasksTab({ prospect, onUpdate }: { prospect: Prospect; onUpdate: () => 
   const eventId = (prospect as Prospect & { next_action_gcal_event_id?: string }).next_action_gcal_event_id
   const wasInvited = (prospect as Prospect & { next_action_invited_client?: boolean }).next_action_invited_client
   const motif = (prospect as Prospect & { next_action_type?: string }).next_action_type
+
+  // Fetch l'event Google pour récupérer le statut RSVP + Meet link
+  const [eventDetails, setEventDetails] = useState<{ rsvp?: string; meetLink?: string } | null>(null)
+  useEffect(() => {
+    if (!gcalConnected || !eventId || !hasRdv) { setEventDetails(null); return }
+    let alive = true
+    gcalGetEvent(eventId).then(ev => {
+      if (!alive || !ev) return
+      const attendee = ev.attendees?.find((a: { email: string; responseStatus?: string }) => a.email === prospect.email)
+      const meetLink = ev.hangoutLink || ev.conferenceData?.entryPoints?.find((e: { entryPointType: string; uri: string }) => e.entryPointType === 'video')?.uri
+      setEventDetails({ rsvp: attendee?.responseStatus, meetLink })
+    }).catch(() => {})
+    return () => { alive = false }
+  }, [eventId, gcalConnected, hasRdv, prospect.email, gcalGetEvent])
+
+  const rsvpLabel: Record<string, { text: string; color: string; bg: string }> = {
+    accepted: { text: '✓ Accepté', color: 'text-emerald-700', bg: 'bg-emerald-100' },
+    declined: { text: '✗ Décliné', color: 'text-red-700', bg: 'bg-red-100' },
+    tentative: { text: '? Peut-être', color: 'text-amber-700', bg: 'bg-amber-100' },
+    needsAction: { text: '⏳ En attente', color: 'text-gray-600', bg: 'bg-gray-100' },
+  }
 
   const cancel = async (kind: 'rdv' | 'reminder') => {
     const msg = kind === 'rdv'
@@ -738,8 +759,23 @@ function TasksTab({ prospect, onUpdate }: { prospect: Prospect; onUpdate: () => 
                 {' à '}
                 {new Date(prospect.rdv_date!).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
               </p>
-              {wasInvited && <p className="text-[10px] text-teal-500 mt-0.5">✉ Client invité par email</p>}
+              {wasInvited && eventDetails?.rsvp && rsvpLabel[eventDetails.rsvp] && (
+                <span className={`inline-block mt-1 text-[10px] font-semibold px-1.5 py-0.5 rounded ${rsvpLabel[eventDetails.rsvp].bg} ${rsvpLabel[eventDetails.rsvp].color}`}>
+                  {rsvpLabel[eventDetails.rsvp].text}
+                </span>
+              )}
+              {wasInvited && !eventDetails?.rsvp && <p className="text-[10px] text-teal-500 mt-0.5">✉ Client invité par email</p>}
               {!wasInvited && eventId && <p className="text-[10px] text-teal-500 mt-0.5">📌 Bloqué sur ton Google Calendar</p>}
+              {eventDetails?.meetLink && (
+                <a href={eventDetails.meetLink} target="_blank" rel="noopener noreferrer"
+                  className="mt-1.5 inline-flex items-center gap-1 px-2 py-1 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded text-[11px] font-medium text-blue-700">
+                  <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none">
+                    <path d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14v-4z" fill="#1a73e8"/>
+                    <rect x="3" y="6" width="12" height="12" rx="2" fill="#1a73e8"/>
+                  </svg>
+                  Rejoindre Meet
+                </a>
+              )}
             </div>
             <button onClick={() => cancel('rdv')} title="Annuler le RDV"
               className="text-[11px] font-medium text-red-500 hover:text-red-700 px-2 py-1 rounded hover:bg-red-50">
@@ -1970,6 +2006,7 @@ function DealSidebar({ prospect }: { prospect: Prospect }) {
   const [reminderDays, setReminderDays] = useState('7')
   const [reminderMotif, setReminderMotif] = useState<'rappel' | 'retour_demande' | 'rdv' | 'rdv_2' | 'rdv_3'>('rappel')
   const [inviteClient, setInviteClient] = useState(false)
+  const [addMeetLink, setAddMeetLink] = useState(false)
   const [customReminderDate, setCustomReminderDate] = useState('')
   const [showRdvPicker, setShowRdvPicker] = useState(false)
   const [rdvDate, setRdvDate] = useState('')
@@ -2083,6 +2120,15 @@ function DealSidebar({ prospect }: { prospect: Prospect }) {
         eventBody.guestsCanModify = false
         eventBody.guestsCanInviteOthers = false
       }
+      if (addMeetLink && isRdv) {
+        // Génère un Google Meet automatiquement (requestId unique)
+        eventBody.conferenceData = {
+          createRequest: {
+            requestId: `calsyn-${prospect.id}-${Date.now()}`,
+            conferenceSolutionKey: { type: 'hangoutsMeet' },
+          },
+        }
+      }
       try {
         const ev = await gcalCreateEvent(eventBody, inviteClient ? 'all' : 'none')
         if (ev?.id) gcalEventId = ev.id
@@ -2108,6 +2154,7 @@ function DealSidebar({ prospect }: { prospect: Prospect }) {
     setCustomReminderDate('')
     setReminderMotif('rappel')
     setInviteClient(false)
+    setAddMeetLink(false)
   }
 
   const clearReminder = async () => {
@@ -2277,6 +2324,16 @@ function DealSidebar({ prospect }: { prospect: Prospect }) {
                     Inviter le client par email
                     {!prospect.email && <span className="block text-[10px] text-gray-400">(pas d'email)</span>}
                     {prospect.email && <span className="block text-[10px] text-gray-400 truncate">{prospect.email}</span>}
+                  </span>
+                </label>
+                {/* Ajouter un lien Meet : génère un Google Meet auto attaché à l'event */}
+                <label className="flex items-start gap-2 px-2 py-1.5 text-[11px] rounded-lg border border-amber-200 bg-white cursor-pointer">
+                  <input type="checkbox" checked={addMeetLink}
+                    onChange={e => setAddMeetLink(e.target.checked)}
+                    className="w-3.5 h-3.5 mt-0.5 rounded border-gray-300 accent-amber-600" />
+                  <span className="flex-1 leading-tight">
+                    Ajouter un lien Meet
+                    <span className="block text-[10px] text-gray-400">{addMeetLink ? 'Visio Google Meet' : 'Par téléphone'}</span>
                   </span>
                 </label>
               </>
