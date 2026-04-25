@@ -320,6 +320,13 @@ export default function CRMGlobal() {
     try { return JSON.parse(localStorage.getItem('calsyn_crm_stage_order') || '[]') } catch { return [] }
   })
   useEffect(() => { localStorage.setItem('calsyn_crm_stage_order', JSON.stringify(stageOrder)) }, [stageOrder])
+
+  // Stages masqués (par key, persist localStorage)
+  const [hiddenStageKeys, setHiddenStageKeys] = useState<string[]>(() => {
+    try { return JSON.parse(localStorage.getItem('calsyn_crm_hidden_stages') || '[]') } catch { return [] }
+  })
+  useEffect(() => { localStorage.setItem('calsyn_crm_hidden_stages', JSON.stringify(hiddenStageKeys)) }, [hiddenStageKeys])
+  const [showStageVisibilityMenu, setShowStageVisibilityMenu] = useState(false)
   const [quickAdd, setQuickAdd] = useState<{ stageKey: string; stageLabel: string; name: string; phone: string; listId: string } | null>(null)
   const [quickAddSaving, setQuickAddSaving] = useState(false)
   // viewAsUserId : null = tous les contacts (toute l'org), 'me' = mes contacts, sinon = user_id d'un SDR (admin only)
@@ -906,6 +913,46 @@ export default function CRMGlobal() {
             </>
           )}
 
+          {/* Stages visibles (pipeline only) */}
+          {viewMode === 'board' && (
+            <div className="relative">
+              <button onClick={() => setShowStageVisibilityMenu(v => !v)}
+                title="Choisir les statuts à afficher dans le pipeline"
+                className={`flex items-center gap-1.5 text-[13px] px-3 py-1.5 rounded-lg border transition-colors ${
+                  hiddenStageKeys.length > 0 ? 'bg-violet-50 border-violet-200 text-violet-700 font-medium' : 'bg-white border-gray-200 text-gray-500 hover:text-gray-700'
+                }`}>
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
+                Stages{hiddenStageKeys.length > 0 && <span className="text-[10px] text-violet-500 font-bold">−{hiddenStageKeys.length}</span>}
+                <svg className="w-3 h-3 opacity-60" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+              </button>
+              {showStageVisibilityMenu && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setShowStageVisibilityMenu(false)} />
+                  <div className="absolute right-0 top-10 w-[260px] bg-white rounded-xl shadow-xl border border-gray-200 z-50 py-1 max-h-[400px] overflow-y-auto animate-slide-down">
+                    <div className="px-3 py-1.5 flex items-center gap-2 border-b border-gray-100">
+                      <button onClick={() => setHiddenStageKeys([])} className="text-[10px] text-indigo-600 hover:underline">Tout afficher</button>
+                      <span className="text-gray-300 text-[10px]">·</span>
+                      <button onClick={() => setHiddenStageKeys(effectiveStatuses.map(s => s.key))} className="text-[10px] text-gray-500 hover:underline">Tout masquer</button>
+                      <span className="ml-auto text-[10px] text-gray-400">{effectiveStatuses.length - hiddenStageKeys.length}/{effectiveStatuses.length}</span>
+                    </div>
+                    {effectiveStatuses.map(s => {
+                      const isHidden = hiddenStageKeys.includes(s.key)
+                      return (
+                        <label key={s.key} className="flex items-center gap-2 px-3 py-1.5 hover:bg-gray-50 cursor-pointer">
+                          <input type="checkbox" checked={!isHidden}
+                            onChange={() => setHiddenStageKeys(prev => isHidden ? prev.filter(k => k !== s.key) : [...prev, s.key])}
+                            className="w-3.5 h-3.5 rounded border-gray-300 accent-indigo-600" />
+                          <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: s.color }} />
+                          <span className={`text-[12px] truncate flex-1 ${isHidden ? 'text-gray-400' : 'text-gray-700 font-medium'}`}>{s.label}</span>
+                        </label>
+                      )
+                    })}
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+
           {/* Filtre par liste (dropdown) */}
           <div className="relative">
             <button onClick={() => setShowListMenu(v => !v)}
@@ -1066,8 +1113,13 @@ export default function CRMGlobal() {
             <div className="flex gap-3 h-full">
               {(() => {
                 // Si recherche active, on n'affiche que les colonnes avec au moins un résultat
-                if (!search.trim()) return effectiveStatuses
-                return effectiveStatuses.filter(s => filtered.some(p => (p.crm_status || 'new') === s.key))
+                // 1) Cacher les stages explicitement masqués via le menu Visibilité
+                let visibleStages = effectiveStatuses.filter(s => !hiddenStageKeys.includes(s.key))
+                // 2) En mode recherche, masquer aussi les colonnes sans match
+                if (search.trim()) {
+                  visibleStages = visibleStages.filter(s => filtered.some(p => (p.crm_status || 'new') === s.key))
+                }
+                return visibleStages
               })().map(stage => {
                 // Tri intelligent SDR : à appeler en haut (jamais appelé, snooze expiré),
                 // puis déjà appelés (par dernier appel le plus ancien), puis snoozés futurs, puis DNC en bas.
