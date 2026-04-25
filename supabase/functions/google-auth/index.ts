@@ -22,6 +22,9 @@ const GOOGLE_TOKEN_URL = 'https://oauth2.googleapis.com/token'
 const SCOPES = [
   'https://www.googleapis.com/auth/calendar.readonly',
   'https://www.googleapis.com/auth/calendar.events',
+  // Gmail : lecture + envoi (modify inclut readonly + send + drafts + labels)
+  'https://www.googleapis.com/auth/gmail.modify',
+  'https://www.googleapis.com/auth/gmail.send',
 ].join(' ')
 
 function getRedirectUri(): string {
