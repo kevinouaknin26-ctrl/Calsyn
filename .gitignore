@@ -7,3 +7,6 @@ dist
 migrations/**/prod/*.json
 migrations/**/restore/*.json
 migrations/**/merge.sql
+
+# Playwright MCP artefacts (snapshots, audio extraits) — locaux uniquement
+.playwright-mcp/

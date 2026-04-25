@@ -1,9 +1,0 @@
-- generic [ref=e4]:
-  - generic [ref=e5]:
-    - img "Calsyn" [ref=e6]
-    - heading "Calsyn" [level=1] [ref=e7]
-    - paragraph [ref=e8]: Connectez-vous pour continuer
-  - generic [ref=e9]:
-    - textbox "Email" [ref=e10]
-    - textbox "Mot de passe" [ref=e11]
-    - button "Se connecter" [ref=e12] [cursor=pointer]
