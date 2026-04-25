@@ -145,8 +145,9 @@ function NowLine({ weekDays }: { weekDays: Date[] }) {
   if (hour < firstHour || hour >= lastHour) return null
 
   const top = (hour - firstHour) * 80 + (minutes / 60) * 80
-  const left = `calc(56px + ${(todayIdx / 7)} * (100% - 56px))`
-  const width = `calc((100% - 56px) / 7)`
+  const colCount = weekDays.length || 7
+  const left = `calc(56px + ${(todayIdx / colCount)} * (100% - 56px))`
+  const width = `calc((100% - 56px) / ${colCount})`
 
   return (
     <div className="absolute z-20 pointer-events-none" style={{ top, left, width }}>
@@ -165,6 +166,12 @@ function CalendarInner() {
   const cm = useCall()
   const [currentDate, setCurrentDate] = useState(getDayStart(new Date()))
   const [view, setView] = useState<'day' | 'week' | 'month'>('week')
+  const [showWeekends, setShowWeekends] = useState<boolean>(() => {
+    try { return localStorage.getItem('cal-show-weekends') !== '0' } catch { return true }
+  })
+  useEffect(() => {
+    try { localStorage.setItem('cal-show-weekends', showWeekends ? '1' : '0') } catch { /* */ }
+  }, [showWeekends])
   const [selectedProspect, setSelectedProspect] = useState<Prospect | null>(null)
   const { data: callHistory } = useCallsByProspect(selectedProspect?.id || null, selectedProspect?.phone)
 
@@ -513,6 +520,14 @@ function CalendarInner() {
             <button onClick={() => setView('month')}
               className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-all ${view === 'month' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-400'}`}>Mois</button>
           </div>
+          {/* Toggle weekends */}
+          {view !== 'day' && (
+            <button onClick={() => setShowWeekends(v => !v)}
+              title={showWeekends ? 'Masquer les week-ends' : 'Afficher les week-ends'}
+              className={`px-2.5 py-1 rounded-lg text-[11px] font-medium transition-all border ${showWeekends ? 'bg-white text-gray-700 border-gray-200' : 'bg-gray-100 text-gray-400 border-gray-200'}`}>
+              {showWeekends ? 'Week-ends' : 'Sem.'}
+            </button>
+          )}
           <div className="flex items-center gap-1">
             <button onClick={prevWeek} className="w-7 h-7 rounded-lg bg-white border border-gray-200 flex items-center justify-center text-gray-500 hover:bg-gray-50">
               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
@@ -569,17 +584,22 @@ function CalendarInner() {
           }
           for (const k in byDayMonth) byDayMonth[k].sort((a, b) => a.time.localeCompare(b.time))
 
+          const isWeekendD = (d: Date) => { const x = d.getDay(); return x === 0 || x === 6 }
+          const monthDayNames = showWeekends ? dayNames : dayNames.slice(0, 5)
+          const visibleGridDays = showWeekends ? gridDays : gridDays.filter(d => !isWeekendD(d))
+          const monthCols = showWeekends ? 'grid-cols-7' : 'grid-cols-5'
+
           return (
             <div className="flex-1 flex flex-col overflow-hidden">
               {/* Header jours */}
-              <div className="grid grid-cols-7 border-b border-gray-100 bg-gray-50/50">
-                {dayNames.map(n => (
+              <div className={`grid ${monthCols} border-b border-gray-100 bg-gray-50/50`}>
+                {monthDayNames.map(n => (
                   <div key={n} className="py-2 text-center text-[10px] uppercase text-gray-400 font-bold tracking-wider border-r border-gray-100 last:border-r-0">{n}</div>
                 ))}
               </div>
               {/* Grille 6 semaines */}
-              <div className="flex-1 grid grid-cols-7 grid-rows-6 overflow-hidden">
-                {gridDays.map((d, i) => {
+              <div className={`flex-1 grid ${monthCols} grid-rows-6 overflow-hidden`}>
+                {visibleGridDays.map((d, i) => {
                   const inMonth = d.getMonth() === currentDate.getMonth()
                   const k = d.toISOString()
                   const events = byDayMonth[k] || []
@@ -616,8 +636,13 @@ function CalendarInner() {
         })()}
         {view !== 'month' && (() => {
           // En mode 'day', on n'affiche que la date courante. En 'week', toute la semaine.
-          const renderDays = view === 'day' ? [currentDate] : weekDays
-          const cols = view === 'day' ? 'grid-cols-1' : 'grid-cols-7'
+          // Optionnel : masquer Sam/Dim si showWeekends=false (vue semaine uniquement).
+          const isWeekend = (d: Date) => { const x = d.getDay(); return x === 0 || x === 6 }
+          const renderDays = view === 'day'
+            ? [currentDate]
+            : (showWeekends ? weekDays : weekDays.filter(d => !isWeekend(d)))
+          const colCount = renderDays.length
+          const cols = colCount === 1 ? 'grid-cols-1' : colCount === 5 ? 'grid-cols-5' : 'grid-cols-7'
           return (
           <>
         {/* Header jours */}
