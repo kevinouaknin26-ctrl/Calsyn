@@ -892,7 +892,26 @@ export default function CRMGlobal() {
             className="flex-1 min-h-0 overflow-x-auto p-4">
             <div className="flex gap-3 h-full">
               {(crmStatuses || []).map(stage => {
-                const stageProspects = filtered.filter(p => (p.crm_status || 'new') === stage.key)
+                // Tri intelligent SDR : à appeler en haut (jamais appelé, snooze expiré),
+                // puis déjà appelés (par dernier appel le plus ancien), puis snoozés futurs, puis DNC en bas.
+                const callPriority = (p: MergedProspect): number => {
+                  if (p.do_not_call) return 4
+                  const isSnoozedNow = !!p.snoozed_until && new Date(p.snoozed_until) > new Date()
+                  if (isSnoozedNow) return 3
+                  if (!p.last_call_at) return 0
+                  return 2
+                }
+                const stageProspects = filtered
+                  .filter(p => (p.crm_status || 'new') === stage.key)
+                  .sort((a, b) => {
+                    const pa = callPriority(a), pb = callPriority(b)
+                    if (pa !== pb) return pa - pb
+                    // Plus ancien dernier appel en haut (plus urgent à rappeler)
+                    const ta = a.last_call_at ? new Date(a.last_call_at).getTime() : 0
+                    const tb = b.last_call_at ? new Date(b.last_call_at).getTime() : 0
+                    if (ta !== tb) return ta - tb
+                    return (a.name || '').localeCompare(b.name || '')
+                  })
                 const rdvCount = stageProspects.filter(p => p.meeting_booked).length
                 const totalCalls = stageProspects.reduce((s, p) => s + (p.call_count || 0), 0)
                 return (
