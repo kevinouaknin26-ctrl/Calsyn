@@ -2083,6 +2083,7 @@ function DealSidebar({ prospect }: { prospect: Prospect }) {
   const [inviteClient, setInviteClient] = useState(false)
   const [addMeetLink, setAddMeetLink] = useState(false)
   const [customReminderDate, setCustomReminderDate] = useState('')
+  const [conflictEvents, setConflictEvents] = useState<Array<{ summary: string; time: string }>>([])
   const [showRdvPicker, setShowRdvPicker] = useState(false)
   const [rdvDate, setRdvDate] = useState('')
   const [rdvTime, setRdvTime] = useState('10:00')
@@ -2145,6 +2146,39 @@ function DealSidebar({ prospect }: { prospect: Prospect }) {
       queryClient.refetchQueries({ queryKey: ['rdv-today'] }),
     ])
   }
+
+  // Check des conflits agenda Google quand date/heure change pour un RDV
+  useEffect(() => {
+    const isRdvMotif = reminderMotif === 'rdv' || reminderMotif === 'rdv_2' || reminderMotif === 'rdv_3'
+    if (!settingReminder || !isRdvMotif || !customReminderDate || !gcalConnected) {
+      setConflictEvents([])
+      return
+    }
+    let alive = true
+    const dt = new Date(`${customReminderDate}T${rdvTime}:00`)
+    const end = new Date(dt.getTime() + 30 * 60 * 1000)
+    const t = setTimeout(async () => {
+      const list = await gcalListEvents(
+        new Date(dt.getTime() - 5 * 60 * 1000).toISOString(),
+        new Date(end.getTime() + 5 * 60 * 1000).toISOString(),
+      )
+      if (!alive) return
+      const events = (list?.items || []) as Array<{ id?: string; summary?: string; start?: { dateTime?: string }; end?: { dateTime?: string }; transparency?: string }>
+      const conflicts = events.filter(ev => {
+        if (ev.transparency === 'transparent') return false // disponible (Free) → pas un conflit
+        if (!ev.start?.dateTime || !ev.end?.dateTime) return false
+        const evStart = new Date(ev.start.dateTime).getTime()
+        const evEnd = new Date(ev.end.dateTime).getTime()
+        // Overlap : evStart < end && evEnd > dt
+        return evStart < end.getTime() && evEnd > dt.getTime()
+      }).map(ev => ({
+        summary: ev.summary || '(sans titre)',
+        time: `${new Date(ev.start!.dateTime!).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}–${new Date(ev.end!.dateTime!).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}`,
+      }))
+      setConflictEvents(conflicts)
+    }, 400) // debounce
+    return () => { alive = false; clearTimeout(t) }
+  }, [settingReminder, reminderMotif, customReminderDate, rdvTime, gcalConnected, gcalListEvents])
 
   const motifLabel: Record<string, string> = {
     rappel: 'Rappel',
@@ -2441,6 +2475,22 @@ function DealSidebar({ prospect }: { prospect: Prospect }) {
                     <span className="block text-[10px] text-gray-400">{addMeetLink ? 'Visio Google Meet' : 'Par téléphone'}</span>
                   </span>
                 </label>
+                {/* Warning conflit agenda */}
+                {conflictEvents.length > 0 && (
+                  <div className="bg-red-50 border border-red-200 rounded-lg p-2">
+                    <p className="text-[11px] font-semibold text-red-700 flex items-center gap-1 mb-1">
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" /></svg>
+                      Conflit agenda
+                    </p>
+                    <ul className="space-y-0.5 ml-1">
+                      {conflictEvents.slice(0, 3).map((c, i) => (
+                        <li key={i} className="text-[10px] text-red-600 truncate">
+                          <span className="font-mono">{c.time}</span> · {c.summary}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
               </>
             )}
             <div className="flex gap-1.5">
