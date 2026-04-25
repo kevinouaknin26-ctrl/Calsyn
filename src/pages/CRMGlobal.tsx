@@ -338,6 +338,7 @@ export default function CRMGlobal() {
         .from('prospects')
         .select('id, list_id, organisation_id, name, phone, phone2, phone3, phone4, phone5, email, company, title, sector, linkedin_url, website_url, status, crm_status, call_count, last_call_at, last_call_outcome, snoozed_until, rdv_date, do_not_call, meeting_booked, address, city, postal_code, country, created_at')
         .eq('organisation_id', orgId)
+        .is('deleted_at', null)
         .order('created_at', { ascending: true })
       if (error) throw error
       return data as Prospect[]
