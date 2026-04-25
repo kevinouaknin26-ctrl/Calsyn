@@ -780,8 +780,39 @@ function EmailsTab({ prospect }: { prospect: Prospect }) {
   const [draftSubject, setDraftSubject] = useState('')
   const [draftBody, setDraftBody] = useState('')
   const [sending, setSending] = useState(false)
+  const [suggesting, setSuggesting] = useState(false)
   const [attachments, setAttachments] = useState<Array<{ filename: string; mimeType: string; base64: string; sizeKB: number }>>([])
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const suggestReply = async () => {
+    if (!threadMessages || threadMessages.length === 0) return
+    setSuggesting(true)
+    try {
+      const context = threadMessages
+        .slice(-6) // dernières 6 messages max pour limiter le contexte
+        .map(m => `[${m.from}] ${new Date(m.date).toLocaleString('fr-FR')}\n${m.body || m.snippet}`)
+        .join('\n\n')
+      const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL
+      const { data: { session } } = await supabase.auth.getSession()
+      const res = await fetch(`${SUPABASE_URL}/functions/v1/ai-suggest-reply`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${session?.access_token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ context, prospectName: prospect.name, lang: 'fr' }),
+      })
+      const data = await res.json()
+      if (data.error) {
+        alert(`Suggestion : ${data.error}`)
+      } else if (data.suggestion) {
+        // Pré-pend la suggestion (avant la signature si déjà présente)
+        const sigStart = signature ? '\n\n' + signature : ''
+        setDraftBody(data.suggestion + sigStart)
+      }
+    } catch (e) {
+      alert(`Erreur : ${(e as Error).message}`)
+    } finally {
+      setSuggesting(false)
+    }
+  }
 
   const addAttachment = async (file: File) => {
     if (file.size > 20_000_000) { alert('Pièce jointe trop lourde (max 20 Mo)'); return }
@@ -884,7 +915,17 @@ function EmailsTab({ prospect }: { prospect: Prospect }) {
             className="w-full mt-1 text-[13px] px-3 py-2 border border-gray-200 rounded-lg outline-none focus:border-indigo-300" />
         </div>
         <div>
-          <label className="text-[10px] font-bold text-gray-400 uppercase">Message</label>
+          <div className="flex items-center justify-between mb-1">
+            <label className="text-[10px] font-bold text-gray-400 uppercase">Message</label>
+            {threadMessages && threadMessages.length > 0 && (
+              <button onClick={suggestReply} disabled={suggesting}
+                title="Génère une réponse basée sur le thread (Claude)"
+                className="text-[11px] font-medium text-violet-600 hover:text-violet-700 flex items-center gap-1 disabled:opacity-50">
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" /></svg>
+                {suggesting ? 'Réflexion...' : 'Suggérer une réponse'}
+              </button>
+            )}
+          </div>
           <textarea value={draftBody} onChange={e => setDraftBody(e.target.value)} rows={10}
             className="w-full mt-1 text-[13px] px-3 py-2 border border-gray-200 rounded-lg outline-none focus:border-indigo-300 resize-none" />
         </div>
