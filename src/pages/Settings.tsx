@@ -230,6 +230,48 @@ function CallSettings({ org, save }: { org: any; save: (u: Record<string, unknow
       <div className="pt-4 mt-2 border-t border-gray-100">
         <VoicemailRecorder />
       </div>
+
+      {/* Signature email */}
+      <div className="pt-4 mt-2 border-t border-gray-100">
+        <EmailSignatureEditor />
+      </div>
+    </div>
+  )
+}
+
+function EmailSignatureEditor() {
+  const { profile, refreshProfile } = useAuth()
+  const [signature, setSignature] = useState(profile?.email_signature || '')
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
+
+  useEffect(() => { setSignature(profile?.email_signature || '') }, [profile?.email_signature])
+
+  const save = async () => {
+    if (!profile?.id) return
+    setSaving(true)
+    const { error } = await supabase.from('profiles').update({ email_signature: signature || null }).eq('id', profile.id)
+    setSaving(false)
+    if (error) { alert(`Erreur : ${error.message}`); return }
+    setSaved(true)
+    setTimeout(() => setSaved(false), 2000)
+    if (refreshProfile) refreshProfile()
+  }
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-2">
+        <label className="text-xs font-semibold text-gray-600">Signature email</label>
+        {saved && <span className="text-[11px] text-emerald-500 font-medium">Enregistrée ✓</span>}
+      </div>
+      <p className="text-[11px] text-gray-400 mb-2">Appendée automatiquement à chaque email envoyé depuis Calsyn.</p>
+      <textarea value={signature} onChange={e => setSignature(e.target.value)} rows={5}
+        placeholder="Cordialement,&#10;Kevin Ouaknin&#10;Calsyn — 06 12 34 56 78"
+        className="w-full text-[12px] px-3 py-2 border border-gray-200 rounded-lg outline-none focus:border-indigo-300 resize-none font-mono" />
+      <button onClick={save} disabled={saving || signature === (profile?.email_signature || '')}
+        className="mt-2 px-3 py-1.5 text-[12px] font-medium text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 rounded-lg">
+        {saving ? 'Enregistrement...' : 'Enregistrer la signature'}
+      </button>
     </div>
   )
 }

@@ -83,6 +83,8 @@ export interface Profile {
   voicemail_url: string | null
   /** Fallback texte (joué via Polly.Lea-Neural) si pas d'audio enregistré. null = message générique. */
   voicemail_text: string | null
+  /** Signature appendée automatiquement aux emails envoyés depuis Calsyn. Plain text. */
+  email_signature: string | null
   created_at: string
 }
 
