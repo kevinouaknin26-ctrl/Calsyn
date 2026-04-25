@@ -59,8 +59,9 @@ async function fetchTwilioAudio(
   if (contentLength) responseHeaders['Content-Length'] = contentLength
   if (contentRange) responseHeaders['Content-Range'] = contentRange
 
-  const body = await res.arrayBuffer()
-  return new Response(body, { status: res.status, headers: responseHeaders })
+  // Stream le body directement (pas de buffer) → le <audio> reçoit les premiers
+  // bytes immédiatement et peut démarrer la lecture pendant que le reste arrive.
+  return new Response(res.body, { status: res.status, headers: responseHeaders })
 }
 
 serve(async (req) => {
