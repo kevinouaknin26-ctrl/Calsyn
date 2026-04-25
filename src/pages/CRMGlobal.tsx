@@ -585,19 +585,21 @@ export default function CRMGlobal() {
     const namesFor = (ids: string[]) => ids.map(id => listNameMap[id] || '?')
 
     for (const p of allProspects) {
+      // Dedupe key : phone normalisé en priorité, fallback email lowercase, fallback id
+      // Comme ça les prospects email-only (créés depuis Gmail) restent visibles.
       const phone = normalizePhone(p.phone)
-      if (!phone) continue
+      const dedupeKey = phone || (p.email ? `email:${p.email.trim().toLowerCase()}` : `id:${p.id}`)
 
       const pListIds = getListIds(p)
-      const existing = byPhone.get(phone)
+      const existing = byPhone.get(dedupeKey)
       if (!existing) {
-        byPhone.set(phone, { ...p, listNames: namesFor(pListIds), listIds: pListIds, list_names: '', assigned_sdrs: '' })
+        byPhone.set(dedupeKey, { ...p, listNames: namesFor(pListIds), listIds: pListIds, list_names: '', assigned_sdrs: '' })
       } else {
         const existingScore = [existing.email, existing.company, existing.title, existing.sector, existing.linkedin_url].filter(Boolean).length
         const newScore = [p.email, p.company, p.title, p.sector, p.linkedin_url].filter(Boolean).length
         const mergedListIds = Array.from(new Set([...existing.listIds, ...pListIds]))
         if (newScore > existingScore) {
-          byPhone.set(phone, { ...p, listNames: namesFor(mergedListIds), listIds: mergedListIds, list_names: '', assigned_sdrs: '' })
+          byPhone.set(dedupeKey, { ...p, listNames: namesFor(mergedListIds), listIds: mergedListIds, list_names: '', assigned_sdrs: '' })
         } else {
           existing.listIds = mergedListIds
           existing.listNames = namesFor(mergedListIds)

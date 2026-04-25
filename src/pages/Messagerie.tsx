@@ -35,21 +35,35 @@ function formatTimeFull(iso: string): string {
   return d.toLocaleString('fr-FR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })
 }
 
+type ReadFilter = 'all' | 'unread' | 'read'
+
 export default function Messagerie() {
   const { data: conversations, isLoading } = useConversations()
   const [selectedProspectId, setSelectedProspectId] = useState<string | null>(null)
   const [search, setSearch] = useState('')
+  const [readFilter, setReadFilter] = useState<ReadFilter>('all')
+  const [channelFilter, setChannelFilter] = useState<ChannelId | 'all'>('all')
 
   const filtered = useMemo(() => {
     const s = search.trim().toLowerCase()
-    if (!s) return conversations || []
-    return (conversations || []).filter(c =>
-      (c.prospect_name || '').toLowerCase().includes(s) ||
-      (c.last_message.body || '').toLowerCase().includes(s) ||
-      (c.prospect_phone || '').includes(s) ||
-      (c.prospect_email || '').toLowerCase().includes(s)
-    )
-  }, [conversations, search])
+    return (conversations || []).filter(c => {
+      // Filtre lu/non-lu
+      if (readFilter === 'unread' && c.unread_count === 0) return false
+      if (readFilter === 'read' && c.unread_count > 0) return false
+      // Filtre canal (sur le dernier message)
+      if (channelFilter !== 'all' && c.last_channel !== channelFilter) return false
+      // Recherche : nom prospect, phone, email, body, from/to du dernier message
+      if (s) {
+        const hay = [
+          c.prospect_name, c.prospect_phone, c.prospect_email,
+          c.last_message.body, c.last_message.subject,
+          c.last_message.from_address, c.last_message.to_address,
+        ].filter(Boolean).join(' ').toLowerCase()
+        if (!hay.includes(s)) return false
+      }
+      return true
+    })
+  }, [conversations, search, readFilter, channelFilter])
 
   // Auto-select première conv si rien sélectionné
   useEffect(() => {
@@ -62,12 +76,36 @@ export default function Messagerie() {
     <div className="h-full flex bg-[#f8f9fa] dark:bg-[#e8e0f0]">
       {/* Liste conversations */}
       <div className="w-[340px] flex-shrink-0 bg-white dark:bg-[#f0eaf5] border-r border-gray-200 dark:border-[#d4cade] flex flex-col">
-        <div className="px-4 py-3 border-b border-gray-100">
-          <h1 className="text-base font-bold text-gray-800 mb-2">Messagerie</h1>
+        <div className="px-4 py-3 border-b border-gray-100 space-y-2">
+          <h1 className="text-base font-bold text-gray-800">Messagerie</h1>
           <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-gray-200 bg-white">
             <svg className="w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
-            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Chercher…"
+            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Nom, email, contenu…"
               className="text-[12px] bg-transparent outline-none text-gray-700 placeholder:text-gray-400 w-full" />
+          </div>
+          {/* Filtres */}
+          <div className="flex items-center gap-1 flex-wrap">
+            {(['all', 'unread', 'read'] as ReadFilter[]).map(f => (
+              <button key={f} onClick={() => setReadFilter(f)}
+                className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border ${readFilter === f ? 'bg-indigo-50 text-indigo-700 border-indigo-200' : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'}`}>
+                {f === 'all' ? 'Tous' : f === 'unread' ? 'Non lus' : 'Lus'}
+              </button>
+            ))}
+            <span className="w-px h-4 bg-gray-200 mx-1" />
+            <button onClick={() => setChannelFilter('all')}
+              className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border ${channelFilter === 'all' ? 'bg-indigo-50 text-indigo-700 border-indigo-200' : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'}`}>
+              Tous
+            </button>
+            {ENABLED_CHANNELS.map(id => {
+              const c = CHANNELS[id]
+              const active = channelFilter === id
+              return (
+                <button key={id} onClick={() => setChannelFilter(id)}
+                  className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border ${active ? c.pillClass : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'}`}>
+                  {c.icon}
+                </button>
+              )
+            })}
           </div>
         </div>
 
