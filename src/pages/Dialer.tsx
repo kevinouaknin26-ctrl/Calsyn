@@ -9,7 +9,7 @@ import { createPortal } from 'react-dom'
 import { useQueryClient, useQuery } from '@tanstack/react-query'
 import { useCall } from '@/contexts/CallContext'
 import { useCallBarVisibility } from '@/components/layout/CallBarVisibilityContext'
-import { useProspectLists, useProspects, useAddProspect, useCreateProspectField, useRdvToday, SMART_LIST_LABELS } from '@/hooks/useProspects'
+import { useProspectLists, useProspects, useAddProspect, useCreateProspectField, useRdvToday, SMART_LIST_LABELS, SMART_LIST_IDS } from '@/hooks/useProspects'
 import { usePropertyDefinitions, useCustomFieldValues, groupProperties, updatePropertyValue, useCrmStatuses, type CrmStatusDef } from '@/hooks/useProperties'
 import { SYSTEM_PROPERTIES, DEFAULT_VISIBLE_COLUMNS, getPropertyValue, matchesSearch, CRM_STATUS_LABELS, type PropertyDefinition } from '@/config/properties'
 import { useCallsByProspect } from '@/hooks/useCalls'
@@ -1240,6 +1240,16 @@ export default function Dialer() {
     try { return JSON.parse(localStorage.getItem('calsyn_open_tabs') || '[]') } catch { return [] }
   })
   const [showCallSettings, setShowCallSettings] = useState(false)
+  const [showHiddenListsMenu, setShowHiddenListsMenu] = useState(false)
+  const hiddenListsMenuRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!showHiddenListsMenu) return
+    const handler = (e: MouseEvent) => {
+      if (hiddenListsMenuRef.current && !hiddenListsMenuRef.current.contains(e.target as Node)) setShowHiddenListsMenu(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [showHiddenListsMenu])
   const { data: prospects } = useProspects(activeListId)
   const { data: callHistory } = useCallsByProspect(selectedProspect?.id ?? null, selectedProspect?.phone)
 
@@ -1587,9 +1597,55 @@ export default function Dialer() {
             </div>
           )
         })}
-        {(lists?.length || 0) > 8 && (
-          <span className="px-2 py-2.5 text-[12px] text-gray-400 whitespace-nowrap flex-shrink-0">+{(lists?.length || 0) - 8} ▾</span>
-        )}
+        {(() => {
+          const closedUserLists = (lists || []).filter(l => !openTabIds.includes(l.id))
+          const closedSmartLists = SMART_LIST_IDS.filter(id => !openTabIds.includes(id))
+          const hiddenCount = closedUserLists.length + closedSmartLists.length
+          if (hiddenCount === 0) return null
+          return (
+            <div className="relative flex-shrink-0" ref={hiddenListsMenuRef}>
+              <button onClick={() => setShowHiddenListsMenu(v => !v)}
+                className="px-2 py-2.5 text-[12px] text-gray-500 hover:text-violet-600 whitespace-nowrap transition-colors">
+                +{hiddenCount} ▾
+              </button>
+              {showHiddenListsMenu && (
+                <div className="absolute top-full left-0 mt-1 bg-white rounded-xl shadow-xl border border-gray-200 z-50 py-1 min-w-[240px] max-h-[320px] overflow-y-auto animate-slide-down">
+                  {closedSmartLists.length > 0 && (
+                    <>
+                      <div className="px-3 py-1.5 text-[10px] font-bold text-gray-400 uppercase tracking-wider">Vues intelligentes</div>
+                      {closedSmartLists.map(sid => (
+                        <button key={sid} onClick={() => {
+                          setOpenTabIds(prev => [...prev, sid])
+                          setActiveListId(sid)
+                          localStorage.setItem('calsyn_active_list', sid)
+                          setShowHiddenListsMenu(false)
+                        }} className="w-full text-left px-3 py-1.5 text-[12px] italic text-gray-600 hover:bg-violet-50 hover:text-violet-600 transition-colors">
+                          {SMART_LIST_LABELS[sid] || sid}
+                        </button>
+                      ))}
+                      {closedUserLists.length > 0 && <div className="border-t border-gray-100 my-1" />}
+                    </>
+                  )}
+                  {closedUserLists.length > 0 && (
+                    <>
+                      <div className="px-3 py-1.5 text-[10px] font-bold text-gray-400 uppercase tracking-wider">Listes</div>
+                      {closedUserLists.map(l => (
+                        <button key={l.id} onClick={() => {
+                          setOpenTabIds(prev => [...prev, l.id])
+                          setActiveListId(l.id)
+                          localStorage.setItem('calsyn_active_list', l.id)
+                          setShowHiddenListsMenu(false)
+                        }} className="w-full text-left px-3 py-1.5 text-[12px] text-gray-700 hover:bg-violet-50 hover:text-violet-600 transition-colors truncate">
+                          {l.name}
+                        </button>
+                      ))}
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+          )
+        })()}
       </div>
 
       {/* ── List header ── */}
