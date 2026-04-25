@@ -2493,11 +2493,22 @@ export default function Dialer() {
         variant="danger"
         onCancel={() => setConfirmDeleteProspects(false)}
         onConfirm={async () => {
-          // Soft-delete (archive) : plus de hard DELETE, trigger DB bloque de toute façon
-          await supabase.rpc('archive_prospects', { p_ids: Array.from(selectedIds) })
+          // Soft-delete via UPDATE direct (la RPC archive_prospects n'existe pas en DB)
+          const ids = Array.from(selectedIds)
+          const { error } = await supabase
+            .from('prospects')
+            .update({ deleted_at: new Date().toISOString() })
+            .in('id', ids)
+          if (error) {
+            console.error('[bulk-delete-prospects]', error)
+            alert(`Erreur suppression : ${error.message}`)
+            return
+          }
           setSelectedIds(new Set())
           setConfirmDeleteProspects(false)
-          queryClient.invalidateQueries({ queryKey: ['prospects', activeListId] })
+          await queryClient.invalidateQueries({ queryKey: ['prospects', activeListId] })
+          await queryClient.invalidateQueries({ queryKey: ['all-prospects'] })
+          await queryClient.invalidateQueries({ queryKey: ['prospect-lists'] })
         }}
       />
     </div>
