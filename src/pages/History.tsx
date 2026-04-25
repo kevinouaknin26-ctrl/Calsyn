@@ -35,6 +35,9 @@ const OUTCOME_COLORS: Record<string, string> = {
   rdv: '#059669', connected: '#0ea5e9', callback: '#f59e0b',
   not_interested: '#ef4444', no_answer: '#9ca3af', voicemail: '#9ca3af',
   busy: '#9ca3af', wrong_number: '#ef4444', failed: '#ef4444', cancelled: '#9ca3af',
+  // Appels entrants (depuis le 25 avril 2026)
+  ringing_incoming: '#6366f1', connected_incoming: '#0ea5e9',
+  missed_incoming: '#ef4444', rejected_incoming: '#9ca3af',
 }
 
 const OUTCOME_LABELS: Record<string, string> = {
@@ -42,6 +45,45 @@ const OUTCOME_LABELS: Record<string, string> = {
   not_interested: 'Pas intéressé', no_answer: 'Pas de réponse',
   voicemail: 'Messagerie', busy: 'Occupé', wrong_number: 'Mauvais numéro',
   failed: 'Échec', cancelled: 'Annulé',
+  ringing_incoming: 'Sonnerie',
+  connected_incoming: 'Entrant décroché',
+  missed_incoming: 'Appel manqué',
+  rejected_incoming: 'Entrant rejeté',
+}
+
+// Sens d'appel : entrant (↙), sortant (↗), manqué (❌). Derivé du call_outcome.
+// Les outcomes '*_incoming' sont marques entrant ; le reste = sortant (legacy).
+export function getCallDirection(outcome: string | null | undefined): 'incoming' | 'outgoing' | 'missed' {
+  const o = (outcome || '').toLowerCase()
+  if (o === 'missed_incoming' || o === 'rejected_incoming') return 'missed'
+  if (o.endsWith('_incoming')) return 'incoming'
+  return 'outgoing'
+}
+
+export function CallDirectionBadge({ outcome }: { outcome: string | null | undefined }) {
+  const dir = getCallDirection(outcome)
+  if (dir === 'incoming') {
+    return (
+      <span title="Appel entrant" className="inline-flex items-center gap-1 text-[10px] font-bold text-sky-600 bg-sky-50 border border-sky-200 rounded px-1.5 py-0.5">
+        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 13l-6-6m0 0L7 13m6-6v18" transform="rotate(225 12 12)" /></svg>
+        Entrant
+      </span>
+    )
+  }
+  if (dir === 'missed') {
+    return (
+      <span title="Appel manqué" className="inline-flex items-center gap-1 text-[10px] font-bold text-red-600 bg-red-50 border border-red-200 rounded px-1.5 py-0.5">
+        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+        Manqué
+      </span>
+    )
+  }
+  return (
+    <span title="Appel sortant" className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-600 bg-emerald-50 border border-emerald-200 rounded px-1.5 py-0.5">
+      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 13l-6-6m0 0L7 13m6-6v18" transform="rotate(45 12 12)" /></svg>
+      Sortant
+    </span>
+  )
 }
 
 const FILTERS = [
@@ -178,6 +220,7 @@ function CallRow({ call }: { call: Call }) {
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
             <span className="font-semibold text-gray-800 text-sm truncate">{call.prospect_name || 'Inconnu'}</span>
+            <CallDirectionBadge outcome={call.call_outcome} />
             {call.meeting_booked && <span className="text-[9px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded">📅 RDV</span>}
           </div>
           <div className="text-[11px] text-gray-400 font-mono">{call.prospect_phone}</div>
@@ -214,7 +257,7 @@ function CallRow({ call }: { call: Call }) {
               {downloading ? 'Export en cours…' : 'Télécharger ZIP'}
             </button>
             {call.prospect_id && (
-              <button onClick={() => navigate(`/app/dialer?prospectId=${call.prospect_id}`)}
+              <button onClick={() => navigate('/app/contacts', { state: { openProspectId: call.prospect_id } })}
                 className="px-3 py-1.5 rounded-lg text-[11px] font-semibold bg-white border border-gray-200 text-gray-700 hover:bg-gray-100">
                 Fiche prospect →
               </button>

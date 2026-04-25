@@ -38,9 +38,16 @@ export function TwilioDeviceProvider({ children }: { children: ReactNode }) {
   const [device, setDevice] = useState<Device | null>(null)
   const [deviceReady, setDeviceReady] = useState(false)
   const [incoming, setIncoming] = useState<IncomingCallState | null>(null)
-  // acceptedCallRef retient la row calls.id creee quand on accept,
-  // pour pouvoir l'updater au disconnect avec duration + outcome.
-  const acceptedCallRef = useRef<{ callRowId: string; acceptedAt: number } | null>(null)
+  // callRowRef retient la row calls.id creee a la SONNERIE, pour pouvoir
+  // l'updater au disconnect avec le bon outcome (connected/missed/rejected)
+  // et la duration. Garantit que meme les appels manques sont traces.
+  const callRowRef = useRef<{
+    callRowId: string
+    sid: string
+    accepted: boolean
+    rejected: boolean
+    acceptedAt: number | null
+  } | null>(null)
 
   const orgId = organisation?.id
   const voiceProvider = organisation?.voice_provider || 'twilio'
@@ -111,37 +118,83 @@ export function TwilioDeviceProvider({ children }: { children: ReactNode }) {
           const sid = call.parameters.CallSid || ''
           console.log(`[TwilioDevice] INCOMING from ${fromNum} to ${toNum}`)
 
-          // Lookup prospect par numero (phone + phone2..5). Async, on set d'abord
-          // avec prospect=null puis on met a jour si trouve.
+          // Lookup prospect par numero (phone + phone2..5). On fait 5 queries
+          // paralleles .eq() plutot qu'un .or(). Raison : le `+` dans un numero
+          // E.164 dans le filter .or() est interprete comme un espace par
+          // PostgREST URL decode → match fail silencieusement. Les .eq()
+          // individuels sont encodes proprement par supabase-js.
           setIncoming({ from: fromNum, to: toNum, callSid: sid, _call: call, prospect: null })
+          let matchedProspect: { id: string; name: string | null; phone: string; company: string | null } | null = null
           if (fromNum) {
-            const { data: matches } = await supabase
-              .from('prospects')
-              .select('id, name, phone, company')
-              .or(`phone.eq.${fromNum},phone2.eq.${fromNum},phone3.eq.${fromNum},phone4.eq.${fromNum},phone5.eq.${fromNum}`)
-              .limit(1)
-            if (matches && matches.length > 0) {
-              const p = matches[0]
-              setIncoming(prev => prev && prev.callSid === sid ? { ...prev, prospect: p } : prev)
+            const cols = ['phone', 'phone2', 'phone3', 'phone4', 'phone5'] as const
+            const results = await Promise.all(cols.map(col =>
+              supabase.from('prospects').select('id, name, phone, company').eq(col, fromNum).limit(1)
+            ))
+            const firstHit = results.flatMap(r => r.data || [])[0]
+            if (firstHit) {
+              matchedProspect = firstHit
+              setIncoming(prev => prev && prev.callSid === sid ? { ...prev, prospect: matchedProspect } : prev)
             }
           }
 
-          call.on('cancel', () => {
-            console.log('[TwilioDevice] Caller cancelled')
+          // INSERT IMMEDIAT a la sonnerie. Outcome initial = 'ringing_incoming'.
+          // Au disconnect on updatera avec l'outcome reel (connected / missed /
+          // rejected). Ca garantit qu'on a une trace meme pour les appels manques.
+          try {
+            const { data: row, error } = await supabase.from('calls').insert({
+              sdr_id: profile?.id,
+              prospect_id: matchedProspect?.id || null,
+              prospect_name: matchedProspect?.name || null,
+              prospect_phone: fromNum,
+              from_number: toNum,
+              call_sid: sid,
+              provider: 'twilio',
+              call_duration: 0,
+              call_outcome: 'ringing_incoming',
+              note: '📞 Appel entrant',
+            }).select('id').single()
+            if (error) {
+              console.warn('[TwilioDevice] Failed to insert incoming ringing row', error)
+            } else if (row) {
+              callRowRef.current = { callRowId: row.id, sid, accepted: false, rejected: false, acceptedAt: null }
+            }
+          } catch (e) {
+            console.error('[TwilioDevice] Insert ringing row threw', e)
+          }
+
+          call.on('cancel', async () => {
+            console.log('[TwilioDevice] Caller cancelled (missed call)')
             setIncoming(null)
+            // Appel raccroche par l'appelant avant qu'on decroche = manque
+            const tracked = callRowRef.current
+            if (tracked && tracked.sid === sid && !tracked.accepted && !tracked.rejected) {
+              await supabase.from('calls').update({
+                call_outcome: 'missed_incoming',
+              }).eq('id', tracked.callRowId)
+              callRowRef.current = null
+            }
           })
 
           call.on('disconnect', async () => {
             setIncoming(null)
-            // Update call row avec duration + outcome si l'appel etait accepte
-            const tracked = acceptedCallRef.current
-            if (tracked) {
-              const duration = Math.round((Date.now() - tracked.acceptedAt) / 1000)
-              await supabase.from('calls').update({
-                call_duration: duration,
-                call_outcome: 'connected',
-              }).eq('id', tracked.callRowId)
-              acceptedCallRef.current = null
+            const tracked = callRowRef.current
+            if (tracked && tracked.sid === sid) {
+              if (tracked.accepted && tracked.acceptedAt) {
+                // Accepte puis raccroche : update duration + outcome connecte
+                const duration = Math.round((Date.now() - tracked.acceptedAt) / 1000)
+                await supabase.from('calls').update({
+                  call_duration: duration,
+                  call_outcome: 'connected_incoming',
+                }).eq('id', tracked.callRowId)
+              } else if (tracked.rejected) {
+                // Deja update par reject()
+              } else {
+                // Fallback : disconnect sans cancel ni accept (timeout, error)
+                await supabase.from('calls').update({
+                  call_outcome: 'missed_incoming',
+                }).eq('id', tracked.callRowId)
+              }
+              callRowRef.current = null
             }
           })
         })
@@ -168,46 +221,40 @@ export function TwilioDeviceProvider({ children }: { children: ReactNode }) {
 
   const accept = useCallback(async () => {
     if (!incoming) return
-    const { from, to, callSid, prospect } = incoming
+    const { prospect } = incoming
     incoming._call.accept()
     console.log('[TwilioDevice] Accepted incoming')
     setIncoming(null)
 
-    // 1. INSERT une row calls pour tracer l'appel entrant. On laisse
-    //    call_duration / call_outcome a 0/pending, mis a jour au disconnect.
-    try {
-      const { data: callRow, error } = await supabase.from('calls').insert({
-        sdr_id: profile?.id,
-        prospect_id: prospect?.id || null,
-        prospect_name: prospect?.name || null,
-        prospect_phone: from,
-        from_number: to,
-        call_sid: callSid,
-        provider: 'twilio',
-        call_duration: 0,
-        call_outcome: 'connected',
-        note: '📞 Appel entrant',
-      }).select('id').single()
-      if (error) {
-        console.warn('[TwilioDevice] Failed to insert incoming call row', error)
-      } else if (callRow) {
-        acceptedCallRef.current = { callRowId: callRow.id, acceptedAt: Date.now() }
-      }
-    } catch (e) {
-      console.error('[TwilioDevice] Insert call row threw', e)
+    // La row calls a deja ete creee a la sonnerie. On la marque accepted.
+    if (callRowRef.current) {
+      callRowRef.current.accepted = true
+      callRowRef.current.acceptedAt = Date.now()
     }
 
-    // 2. Si prospect connu : ouvrir sa fiche.
+    // Si prospect connu : ouvrir sa fiche. Sinon, rediriger vers
+    // /app/history pour que le SDR voie au moins le call qu'il vient
+    // de prendre (et puisse l'assigner a un prospect si besoin).
     if (prospect?.id) {
       navigate('/app/contacts', { state: { openProspectId: prospect.id } })
+    } else {
+      navigate('/app/history')
     }
-  }, [incoming, profile?.id, navigate])
+  }, [incoming, navigate])
 
-  const reject = useCallback(() => {
+  const reject = useCallback(async () => {
     if (!incoming) return
     incoming._call.reject()
     console.log('[TwilioDevice] Rejected incoming')
     setIncoming(null)
+    // Update la row creee a la sonnerie avec outcome 'rejected_incoming'
+    const tracked = callRowRef.current
+    if (tracked && tracked.sid === incoming.callSid) {
+      tracked.rejected = true
+      await supabase.from('calls').update({
+        call_outcome: 'rejected_incoming',
+      }).eq('id', tracked.callRowId)
+    }
   }, [incoming])
 
   return (
