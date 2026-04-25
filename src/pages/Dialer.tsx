@@ -2495,13 +2495,20 @@ export default function Dialer() {
         onConfirm={async () => {
           // Soft-delete via UPDATE direct (la RPC archive_prospects n'existe pas en DB)
           const ids = Array.from(selectedIds)
-          const { error } = await supabase
+          console.log('[bulk-delete-prospects] requesting', ids.length, 'ids')
+          const { data, error, count } = await supabase
             .from('prospects')
-            .update({ deleted_at: new Date().toISOString() })
+            .update({ deleted_at: new Date().toISOString() }, { count: 'exact' })
             .in('id', ids)
+            .select('id')
+          console.log('[bulk-delete-prospects] result', { error, count, returned: data?.length, requested: ids.length })
           if (error) {
             console.error('[bulk-delete-prospects]', error)
             alert(`Erreur suppression : ${error.message}`)
+            return
+          }
+          if ((data?.length || 0) === 0) {
+            alert(`0 contact supprimé sur ${ids.length} demandé(s) — RLS bloque (probablement liste non assignée). Vérifie que tu es bien super_admin/admin sur cette org.`)
             return
           }
           setSelectedIds(new Set())
