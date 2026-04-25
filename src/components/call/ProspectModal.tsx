@@ -119,8 +119,10 @@ function Celebration() {
 
 // ── Badge outcome ───────────────────────────────────────────────
 function OutcomeBadge({ outcome, meeting }: { outcome: string | null; meeting: boolean }) {
+  // Normaliser : connected_incoming → connected, missed_incoming/rejected_incoming → conservé
+  const baseOutcome = (outcome || '').replace(/_incoming$/, '') || outcome
   // meeting_booked + connected = "RDV pris" (teal, Minari exact)
-  if (meeting && (outcome === 'connected' || outcome === 'meeting_booked' || outcome === 'rdv_pris' || !outcome)) {
+  if (meeting && (baseOutcome === 'connected' || baseOutcome === 'meeting_booked' || baseOutcome === 'rdv_pris' || !outcome)) {
     return <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-teal-100 text-teal-600">RDV pris</span>
   }
   const map: Record<string, string> = {
@@ -133,9 +135,15 @@ function OutcomeBadge({ outcome, meeting }: { outcome: string | null; meeting: b
     cancelled: 'bg-gray-100 text-gray-500',
     failed: 'bg-red-100 text-red-500',
     wrong_number: 'bg-red-100 text-red-500',
+    missed_incoming: 'bg-red-100 text-red-500',
+    rejected_incoming: 'bg-gray-100 text-gray-500',
   }
-  const label = DISPOSITIONS.find(d => d.value === outcome)?.label || outcome || 'Pas de réponse'
-  return <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-semibold ${map[outcome || ''] || 'bg-gray-100 text-gray-500'}`}>{label}</span>
+  const incomingLabels: Record<string, string> = {
+    missed_incoming: 'Manqué',
+    rejected_incoming: 'Rejeté',
+  }
+  const label = incomingLabels[outcome || ''] || DISPOSITIONS.find(d => d.value === baseOutcome)?.label || outcome || 'Pas de réponse'
+  return <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-semibold ${map[outcome || ''] || map[baseOutcome] || 'bg-gray-100 text-gray-500'}`}>{label}</span>
 }
 
 // ── Player audio custom (Minari exact — ▶ barre + durée + download + vitesse) ──
@@ -272,20 +280,32 @@ function CallCard({ call, defaultOpen, onUpdate, onCelebrate }: { call: Call; de
       {/* Contenu — visible quand ouvert */}
       {open && (
         <div className="px-4 pb-4 animate-fade-in">
-          {/* From → To */}
-          <p className="text-[12px] text-gray-400 mb-3">{call.from_number || ''} (vous) → {call.prospect_phone || ''}</p>
+          {/* From → To (sens d'appel : entrant inverse l'affichage) */}
+          <p className="text-[12px] text-gray-400 mb-3">
+            {getCallDirection(call.call_outcome) === 'incoming' || getCallDirection(call.call_outcome) === 'missed'
+              ? <>{call.prospect_phone || ''} (prospect) → {call.from_number || ''} (vous)</>
+              : <>{call.from_number || ''} (vous) → {call.prospect_phone || ''}</>}
+          </p>
 
           {/* Outcome dropdown + Meeting booked checkbox + Duration (Minari Jonathan DIAS exact) */}
           <div className="flex items-center gap-5 mb-3">
             <div>
               <p className="text-[11px] text-gray-400 mb-1">Résultat</p>
-              <MiniDropdown value={call.call_outcome || 'no_answer'} options={DISPOSITIONS}
+              <MiniDropdown
+                // Le dropdown ne connaît que les variantes sortantes (DISPOSITIONS).
+                // Pour un entrant (connected_incoming), on strip le suffixe afin que le label "Connecté" s'affiche.
+                value={((call.call_outcome || 'no_answer').replace(/_incoming$/, '')) || 'no_answer'}
+                options={DISPOSITIONS}
                 onChange={async newOutcome => {
-                  await supabase.from('calls').update({ call_outcome: newOutcome }).eq('id', call.id)
+                  // Préserver la direction entrante : si l'appel était _incoming et user choisit 'connected',
+                  // on stocke 'connected_incoming' pour garder le badge Entrant.
+                  const wasIncoming = (call.call_outcome || '').endsWith('_incoming')
+                  const finalOutcome = wasIncoming && newOutcome === 'connected' ? 'connected_incoming' : newOutcome
+                  await supabase.from('calls').update({ call_outcome: finalOutcome }).eq('id', call.id)
                   if (call.prospect_id) {
                     const { data: allCalls } = await supabase.from('calls').select('call_outcome').eq('prospect_id', call.prospect_id)
-                    const priority: Record<string, number> = { connected: 100, callback: 60, not_interested: 50, voicemail: 40, busy: 35, no_answer: 30, cancelled: 20, failed: 10, wrong_number: 5 }
-                    let best = newOutcome, bestP = priority[newOutcome] || 0
+                    const priority: Record<string, number> = { connected: 100, connected_incoming: 100, callback: 60, not_interested: 50, voicemail: 40, busy: 35, no_answer: 30, missed_incoming: 25, rejected_incoming: 20, cancelled: 20, failed: 10, wrong_number: 5 }
+                    let best = finalOutcome, bestP = priority[finalOutcome] || 0
                     for (const c of (allCalls || [])) { const p = priority[c.call_outcome || ''] || 0; if (p > bestP) { bestP = p; best = c.call_outcome || newOutcome } }
                     await supabase.from('prospects').update({ last_call_outcome: best }).eq('id', call.prospect_id)
                   }
@@ -298,8 +318,14 @@ function CallCard({ call, defaultOpen, onUpdate, onCelebrate }: { call: Call; de
                   const checked = e.target.checked
                   // meeting_booked est un boolean séparé — ne change PAS le call_outcome
                   const updates: Record<string, unknown> = { meeting_booked: checked }
-                  if (checked && call.call_outcome !== 'connected') {
-                    updates.call_outcome = 'connected' // meeting implique connected
+                  // Cocher RDV implique "connecté" — mais préserver la direction entrante (connected_incoming).
+                  if (checked) {
+                    const o = call.call_outcome || ''
+                    if (o.endsWith('_incoming')) {
+                      if (o !== 'connected_incoming') updates.call_outcome = 'connected_incoming'
+                    } else if (o !== 'connected') {
+                      updates.call_outcome = 'connected'
+                    }
                   }
                   await supabase.from('calls').update(updates).eq('id', call.id)
                   if (call.prospect_id) {
