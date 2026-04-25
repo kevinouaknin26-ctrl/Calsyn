@@ -934,19 +934,29 @@ function EmailsTab({ prospect }: { prospect: Prospect }) {
       {!loading && threads && threads.length === 0 && !error && (
         <p className="text-[12px] text-gray-400 text-center py-6">Aucune conversation avec ce prospect</p>
       )}
-      {threads && threads.map(t => (
-        <button key={t.id} onClick={() => openThreadDetails(t.id)}
-          className="w-full text-left bg-white border border-gray-100 hover:border-indigo-200 hover:bg-indigo-50/30 rounded-xl px-3 py-2.5 transition-colors">
-          <div className="flex items-center justify-between gap-2 mb-0.5">
-            <p className={`text-[13px] truncate flex-1 ${t.unread ? 'font-semibold text-gray-800' : 'text-gray-700'}`}>
-              {t.subject || '(sans objet)'}
-            </p>
-            <span className="text-[10px] text-gray-400 flex-shrink-0">{new Date(t.date).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })}</span>
-          </div>
-          <p className="text-[11px] text-gray-400 truncate">{t.snippet}</p>
-          {t.messageCount > 1 && <span className="text-[9px] text-indigo-500 font-bold mt-0.5 inline-block">{t.messageCount} msgs</span>}
-        </button>
-      ))}
+      {threads && threads.map(t => {
+        const fromLower = (t.from || '').toLowerCase()
+        const isFromProspect = allEmails.some(e => fromLower.includes(e.toLowerCase()))
+        const isMine = !isFromProspect
+        return (
+          <button key={t.id} onClick={() => openThreadDetails(t.id)}
+            className={`w-full text-left rounded-xl px-3 py-2.5 transition-colors border ${
+              isMine
+                ? 'bg-violet-50/70 border-violet-200 hover:border-violet-300 hover:bg-violet-100/60'
+                : 'bg-white border-gray-100 hover:border-indigo-200 hover:bg-indigo-50/30'
+            }`}>
+            <div className="flex items-center justify-between gap-2 mb-0.5">
+              <p className={`text-[13px] truncate flex-1 ${t.unread ? 'font-semibold text-gray-800' : 'text-gray-700'}`}>
+                {isMine && <span className="text-[9px] font-bold text-violet-600 mr-1 uppercase">Vous</span>}
+                {t.subject || '(sans objet)'}
+              </p>
+              <span className="text-[10px] text-gray-400 flex-shrink-0">{new Date(t.date).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })}</span>
+            </div>
+            <p className="text-[11px] text-gray-400 truncate">{t.snippet}</p>
+            {t.messageCount > 1 && <span className={`text-[9px] font-bold mt-0.5 inline-block ${isMine ? 'text-violet-500' : 'text-indigo-500'}`}>{t.messageCount} msgs</span>}
+          </button>
+        )
+      })}
     </div>
   )
 }
