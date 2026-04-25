@@ -11,6 +11,7 @@
 
 import { useState, useMemo, useEffect, useRef } from 'react'
 import { useConversations, useConversation } from '@/hooks/useMessaging'
+import { useChatDock } from '@/contexts/ChatDockContext'
 import { CHANNELS, ENABLED_CHANNELS, getChannel, type ChannelId, type UnifiedMessage } from '@/services/channels'
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '@/config/supabase'
@@ -132,6 +133,7 @@ export default function Messagerie() {
 // ────────────────────────────────────────────────────────────────────
 
 function ConversationView({ prospectId }: { prospectId: string }) {
+  const { openChat } = useChatDock()
   const { messages, send, sending, defaultReplyChannel, markAsRead } = useConversation(prospectId)
   const [draft, setDraft] = useState('')
   const [draftSubject, setDraftSubject] = useState('')
@@ -204,6 +206,12 @@ function ConversationView({ prospectId }: { prospectId: string }) {
             {prospect?.email && <span className="truncate">{prospect.email}</span>}
           </div>
         </div>
+        <button onClick={() => openChat(prospectId)} title="Ouvrir en bulle flottante (suit la navigation)"
+          className="text-gray-400 hover:text-indigo-600 p-1.5 rounded-lg hover:bg-indigo-50">
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 10l7-7m0 0v6m0-6h-6M5 5h6M5 5v6M5 5l7 7" transform="rotate(45 12 12)" />
+          </svg>
+        </button>
       </div>
 
       {/* Messages */}
