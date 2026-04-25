@@ -1498,13 +1498,23 @@ export default function ProspectModal({
   const { data: prospectLists } = useQuery({
     queryKey: ['prospect-lists-for', prospect.id, prospect.phone],
     queryFn: async () => {
-      // Chercher toutes les listes qui contiennent ce prospect (par phone pour cross-listes)
+      // 1. Memberships du prospect canonique (source de vérité)
+      const { data: directMemberships } = await supabase
+        .from('prospect_list_memberships')
+        .select('list_id')
+        .eq('prospect_id', prospect.id)
+
+      // 2. Fallback : autres prospects au même phone (avant merge des doublons)
       const { data: allMatches } = await supabase
         .from('prospects')
         .select('list_id')
         .eq('phone', prospect.phone)
-      if (!allMatches?.length) return []
-      const listIds = [...new Set(allMatches.map(m => m.list_id))]
+
+      const listIds = [...new Set([
+        ...(directMemberships || []).map(m => m.list_id as string),
+        ...(allMatches || []).map(m => m.list_id as string).filter(Boolean),
+      ])]
+      if (listIds.length === 0) return []
       const { data: lists } = await supabase
         .from('prospect_lists')
         .select('id, name, assigned_to')

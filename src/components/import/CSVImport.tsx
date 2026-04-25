@@ -268,17 +268,15 @@ export default function CSVImport({ listId, onClose, onSuccess }: Props) {
         }
       }
 
-      // 2. Import prospects natifs
-      await importMutation.mutateAsync({ listId, prospects: prospectsNative.map(({ _row, ...p }) => p) })
+      // 2. Import prospects (dedupe cross-list : crée nouveaux + merge existants + memberships)
+      const importResult = await importMutation.mutateAsync({
+        listId,
+        prospects: prospectsNative.map(({ _row, ...p }) => p),
+      })
+      const phoneToId = importResult.phoneToId
 
-      // 3. Re-fetch les prospects par phone pour mapper phone→id (robuste même avec déduplication)
+      // 3. Custom field values (pour nouveaux + mergés, tous présents dans phoneToId)
       if (newFieldMap.size + existingFieldMap.size > 0) {
-        const phones = prospectsNative.map(p => p.phone)
-        const { data: inserted } = await supabase.from('prospects')
-          .select('id, phone').eq('organisation_id', organisation.id).eq('list_id', listId).in('phone', phones)
-        const phoneToId = new Map<string, string>()
-        ;(inserted || []).forEach(p => { if (p.phone) phoneToId.set(p.phone, p.id) })
-
         const valueRows: Array<{ prospect_id: string; field_id: string; value: string }> = []
         prospectsNative.forEach(p => {
           const pid = phoneToId.get(p.phone)
@@ -292,13 +290,16 @@ export default function CSVImport({ listId, onClose, onSuccess }: Props) {
         if (valueRows.length > 0) {
           const batchSize = 500
           for (let i = 0; i < valueRows.length; i += batchSize) {
-            const { error: errV } = await supabase.from('prospect_field_values').insert(valueRows.slice(i, i + batchSize))
+            // upsert pour éviter les conflits sur les prospects mergés (qui ont déjà des values)
+            const { error: errV } = await supabase
+              .from('prospect_field_values')
+              .upsert(valueRows.slice(i, i + batchSize), { onConflict: 'prospect_id,field_id' })
             if (errV) throw new Error(`Échec import valeurs custom : ${errV.message}`)
           }
         }
       }
 
-      onSuccess(prospectsNative.length)
+      onSuccess(importResult.newCount + importResult.mergedCount)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erreur import')
     } finally {

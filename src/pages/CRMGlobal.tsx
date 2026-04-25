@@ -546,26 +546,61 @@ export default function CRMGlobal() {
     enabled: !!orgId,
   })
 
+  // ── Memberships : 1 prospect peut être sur plusieurs listes ──
+  const { data: allMemberships } = useQuery({
+    queryKey: ['prospect-list-memberships', orgId],
+    queryFn: async () => {
+      if (!orgId) return []
+      const { data, error } = await supabase
+        .from('prospect_list_memberships')
+        .select('prospect_id, list_id')
+        .eq('organisation_id', orgId)
+      if (error) throw error
+      return data as Array<{ prospect_id: string; list_id: string }>
+    },
+    enabled: !!orgId,
+  })
+
+  const membershipsByProspect = useMemo(() => {
+    const m = new Map<string, string[]>()
+    for (const r of allMemberships || []) {
+      const arr = m.get(r.prospect_id) || []
+      arr.push(r.list_id)
+      m.set(r.prospect_id, arr)
+    }
+    return m
+  }, [allMemberships])
+
   // ── Deduplicate by normalized phone ──
   const mergedProspects = useMemo(() => {
     if (!allProspects) return []
     const byPhone = new Map<string, MergedProspect>()
 
+    // Récupère listIds pour 1 prospect en cumulant memberships + list_id legacy
+    const getListIds = (p: Prospect): string[] => {
+      const ms = membershipsByProspect.get(p.id) || []
+      if (ms.length > 0) return ms
+      return p.list_id ? [p.list_id] : []
+    }
+    const namesFor = (ids: string[]) => ids.map(id => listNameMap[id] || '?')
+
     for (const p of allProspects) {
       const phone = normalizePhone(p.phone)
       if (!phone) continue
 
+      const pListIds = getListIds(p)
       const existing = byPhone.get(phone)
       if (!existing) {
-        byPhone.set(phone, { ...p, listNames: [listNameMap[p.list_id] || '?'], listIds: [p.list_id], list_names: '', assigned_sdrs: '' })
+        byPhone.set(phone, { ...p, listNames: namesFor(pListIds), listIds: pListIds, list_names: '', assigned_sdrs: '' })
       } else {
         const existingScore = [existing.email, existing.company, existing.title, existing.sector, existing.linkedin_url].filter(Boolean).length
         const newScore = [p.email, p.company, p.title, p.sector, p.linkedin_url].filter(Boolean).length
+        const mergedListIds = Array.from(new Set([...existing.listIds, ...pListIds]))
         if (newScore > existingScore) {
-          byPhone.set(phone, { ...p, listNames: [...existing.listNames, listNameMap[p.list_id] || '?'], listIds: [...existing.listIds, p.list_id], list_names: '', assigned_sdrs: '' })
+          byPhone.set(phone, { ...p, listNames: namesFor(mergedListIds), listIds: mergedListIds, list_names: '', assigned_sdrs: '' })
         } else {
-          existing.listNames.push(listNameMap[p.list_id] || '?')
-          existing.listIds.push(p.list_id)
+          existing.listIds = mergedListIds
+          existing.listNames = namesFor(mergedListIds)
         }
       }
     }
@@ -577,7 +612,7 @@ export default function CRMGlobal() {
         .map(uid => memberNameMap[uid] || 'SDR')
         .join(', '),
     }))
-  }, [allProspects, listNameMap, listSdrsMap, memberNameMap])
+  }, [allProspects, listNameMap, listSdrsMap, memberNameMap, membershipsByProspect])
 
   // ── Auto-open ProspectModal depuis un appel entrant ──────────────
   // Quand useIncomingCall.accept() navigue ici avec state.openProspectId,

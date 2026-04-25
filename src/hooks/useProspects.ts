@@ -243,7 +243,7 @@ export function useImportProspects() {
   const { organisation } = useAuth()
 
   return useMutation({
-    mutationFn: async ({ listId, prospects }: { listId: string; prospects: Array<{ name: string; phone: string; phone2?: string; email?: string; company?: string; title?: string; sector?: string; address?: string; city?: string; postal_code?: string; country?: string; linkedin_url?: string; website_url?: string }> }) => {
+    mutationFn: async ({ listId, prospects }: { listId: string; prospects: Array<{ name: string; phone: string; phone2?: string; email?: string; company?: string; title?: string; sector?: string; address?: string; city?: string; postal_code?: string; country?: string; linkedin_url?: string; website_url?: string }> }): Promise<{ phoneToId: Map<string, string>; newCount: number; mergedCount: number }> => {
       if (!organisation?.id) throw new Error('No organisation')
 
       // Normaliser un numéro au format E.164 pour comparaison
@@ -254,66 +254,120 @@ export function useImportProspects() {
         return n
       }
 
-      // Dédupliquer intra-liste uniquement : un même prospect peut apparaître dans
-      // plusieurs listes (ex. candidature inbound + liste dédiée SDR). On ne filtre
-      // que les doublons DANS la liste cible, pas contre toute l'org.
+      // Dédupliquer intra-CSV (premier gagnant) et normaliser
+      const seen = new Set<string>()
+      const csvRows = [] as typeof prospects
+      for (const p of prospects) {
+        const np = normalizePhone(p.phone)
+        if (!np || seen.has(np)) continue
+        seen.add(np)
+        csvRows.push({ ...p, phone: np })
+      }
+      if (csvRows.length === 0) return { phoneToId: new Map(), newCount: 0, mergedCount: 0 }
+
+      // Dedupe cross-org : chercher tous les prospects actifs déjà dans l'org par phone
+      const phones = csvRows.map(p => p.phone)
       const { data: existing } = await supabase
         .from('prospects')
-        .select('phone')
-        .eq('list_id', listId)
-      const existingPhones = new Set((existing || []).map(p => normalizePhone(p.phone || '')).filter(Boolean))
+        .select('id, phone, name, email, company, title, sector, address, city, postal_code, country, linkedin_url, website_url, phone2')
+        .eq('organisation_id', organisation.id)
+        .is('deleted_at', null)
+        .in('phone', phones)
 
-      // Dédupliquer dans le CSV (garder le premier) + contre l'existant
-      const seen = new Set<string>()
-      const unique = prospects.filter(p => {
-        const norm = normalizePhone(p.phone)
-        if (!norm || existingPhones.has(norm) || seen.has(norm)) return false
-        seen.add(norm)
-        return true
-      })
+      const existingByPhone = new Map<string, { id: string } & Record<string, string | null>>()
+      for (const e of existing || []) existingByPhone.set(e.phone as string, e as { id: string } & Record<string, string | null>)
 
-      // Normaliser les numéros avant insertion
-      unique.forEach(p => { p.phone = normalizePhone(p.phone) })
+      const phoneToId = new Map<string, string>()
+      const updatesToMerge: Array<{ id: string; patch: Record<string, string> }> = []
+      const newRows: Array<Record<string, string | null>> = []
+      const newRowPhones: string[] = []
 
-      if (unique.length === 0) return
+      for (const p of csvRows) {
+        const e = existingByPhone.get(p.phone)
+        if (e) {
+          phoneToId.set(p.phone, e.id)
+          // Merger les champs vides depuis le CSV
+          const patch: Record<string, string> = {}
+          const fillIfEmpty = (key: string, val?: string) => { if (!e[key] && val) patch[key] = val }
+          fillIfEmpty('name', p.name)
+          fillIfEmpty('email', p.email)
+          fillIfEmpty('company', p.company)
+          fillIfEmpty('title', p.title)
+          fillIfEmpty('sector', p.sector)
+          fillIfEmpty('address', p.address)
+          fillIfEmpty('city', p.city)
+          fillIfEmpty('postal_code', p.postal_code)
+          fillIfEmpty('country', p.country)
+          fillIfEmpty('linkedin_url', p.linkedin_url)
+          fillIfEmpty('website_url', p.website_url)
+          fillIfEmpty('phone2', p.phone2)
+          if (Object.keys(patch).length > 0) updatesToMerge.push({ id: e.id, patch })
+        } else {
+          newRows.push({
+            list_id: listId,
+            organisation_id: organisation.id,
+            name: p.name,
+            phone: p.phone,
+            phone2: p.phone2 || null,
+            email: p.email || null,
+            company: p.company || null,
+            title: p.title || null,
+            sector: p.sector || null,
+            address: p.address || null,
+            city: p.city || null,
+            postal_code: p.postal_code || null,
+            country: p.country || null,
+            linkedin_url: p.linkedin_url || null,
+            website_url: p.website_url || null,
+          })
+          newRowPhones.push(p.phone)
+        }
+      }
 
-      const rows = unique.map(p => ({
-        list_id: listId,
-        organisation_id: organisation.id,
-        name: p.name,
-        phone: p.phone,
-        phone2: p.phone2 || null,
-        email: p.email || null,
-        company: p.company || null,
-        title: p.title || null,
-        sector: p.sector || null,
-        address: p.address || null,
-        city: p.city || null,
-        postal_code: p.postal_code || null,
-        country: p.country || null,
-        linkedin_url: p.linkedin_url || null,
-        website_url: p.website_url || null,
-      }))
-      const { data: inserted, error } = await supabase.from('prospects').insert(rows).select('id')
-      if (error) throw error
-      const insertedIds = inserted?.map(r => r.id) || []
+      // INSERT nouveaux prospects
+      let inserted: Array<{ id: string; phone: string }> = []
+      if (newRows.length > 0) {
+        const { data, error } = await supabase.from('prospects').insert(newRows).select('id, phone')
+        if (error) throw error
+        inserted = (data || []) as Array<{ id: string; phone: string }>
+        for (const ip of inserted) {
+          if (ip.phone) phoneToId.set(ip.phone, ip.id)
+        }
+      }
 
-      // ── Sync socials : détecter les URLs dans linkedin_url, website_url ──
-      if (insertedIds.length > 0) {
+      // UPDATE merges
+      for (const u of updatesToMerge) {
+        const { error } = await supabase.from('prospects').update(u.patch).eq('id', u.id)
+        if (error) throw error
+      }
+
+      // Memberships : ajouter chaque prospect (existant ou nouveau) à la liste cible
+      const memberships: Array<{ prospect_id: string; list_id: string; organisation_id: string }> = []
+      for (const [, id] of phoneToId) {
+        memberships.push({ prospect_id: id, list_id: listId, organisation_id: organisation.id })
+      }
+      if (memberships.length > 0) {
+        const { error: errM } = await supabase
+          .from('prospect_list_memberships')
+          .upsert(memberships, { onConflict: 'prospect_id,list_id', ignoreDuplicates: true })
+        if (errM) throw errM
+      }
+
+      // Sync socials uniquement pour les nouveaux prospects
+      if (inserted.length > 0) {
         const socialRows: Array<{ prospect_id: string; platform: string; url: string }> = []
-        unique.forEach((p, i) => {
-          const pid = insertedIds[i]
-          if (!pid) return
+        const insertedByPhone = new Map<string, string>()
+        for (const ip of inserted) insertedByPhone.set(ip.phone, ip.id)
+        for (const p of csvRows) {
+          const pid = insertedByPhone.get(p.phone)
+          if (!pid) continue
           const urls: Array<{ value: string }> = []
           if (p.linkedin_url) urls.push({ value: p.linkedin_url })
           if (p.website_url) urls.push({ value: p.website_url })
           const socials = extractSocialsFromValues(urls)
-          for (const s of socials) {
-            socialRows.push({ prospect_id: pid, platform: s.platform, url: s.url })
-          }
-        })
+          for (const s of socials) socialRows.push({ prospect_id: pid, platform: s.platform, url: s.url })
+        }
         if (socialRows.length > 0) {
-          // Batch insert socials (ignore duplicates)
           const batchSize = 500
           for (let i = 0; i < socialRows.length; i += batchSize) {
             await supabase.from('prospect_socials').insert(socialRows.slice(i, i + batchSize))
@@ -321,10 +375,12 @@ export function useImportProspects() {
         }
       }
 
-      return insertedIds
+      return { phoneToId, newCount: newRows.length, mergedCount: updatesToMerge.length }
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['prospects', variables.listId] })
+      queryClient.invalidateQueries({ queryKey: ['prospects'] })
+      queryClient.invalidateQueries({ queryKey: ['prospect-list-memberships'] })
     },
   })
 }
