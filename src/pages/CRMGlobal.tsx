@@ -298,7 +298,11 @@ export default function CRMGlobal() {
   const cm = useCall()
 
   // State
-  const [viewMode, setViewMode] = useState<'table' | 'board'>('table')
+  const [viewMode, setViewMode] = useState<'table' | 'board'>(() => {
+    const saved = localStorage.getItem('calsyn_crm_view_mode')
+    return saved === 'table' || saved === 'board' ? saved : 'board'
+  })
+  useEffect(() => { localStorage.setItem('calsyn_crm_view_mode', viewMode) }, [viewMode])
   const [search, setSearch] = useState('')
   const [sortBy, setSortBy] = useState('created_at')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
