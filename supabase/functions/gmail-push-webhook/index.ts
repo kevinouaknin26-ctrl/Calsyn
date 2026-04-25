@@ -2,15 +2,15 @@
  * gmail-push-webhook — Reçoit les push notifications Pub/Sub Gmail.
  *
  * Pub/Sub envoie un POST avec un payload JSON :
- *   { message: { data: base64(JSON({ emailAddress, historyId })), messageId, ... }, subscription: ... }
+ *   { message: { data: base64(JSON({ emailAddress, historyId })), ... }, subscription: ... }
  *
- * On decode → on récupère le user via emailAddress (= profile.email) → on
- * appelle Gmail history.list depuis le dernier historyId stocké → pour chaque
- * change (messageAdded/messageDeleted/labelsAdded/labelsRemoved) on
- * synchronise la table messages.
+ * Decode → user via emailAddress → fetch via history.list depuis le dernier
+ * historyId stocké → pour chaque change, sync messages (insert nouveau OU
+ * update is_read si labels changés).
  *
- * Sécurité : le secret est passé en query string ?secret=XYZ et comparé
- * à GMAIL_PUBSUB_SECRET côté env.
+ * Auto-création de prospects depuis emails inconnus (liste "Mails").
+ *
+ * Sécurité : ?secret=XYZ comparé à GMAIL_PUBSUB_SECRET env.
  */
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
@@ -23,6 +23,7 @@ const corsHeaders = {
 }
 
 const GMAIL_API = 'https://gmail.googleapis.com/gmail/v1/users/me'
+const MAIL_LIST_NAME = 'Mails'
 
 function getAdmin() {
   return createClient(
@@ -85,22 +86,53 @@ function extractEmail(addr: string): string {
   return (m ? m[1] : addr).trim().toLowerCase()
 }
 
-async function syncMessage(userId: string, organisationId: string, messageId: string, accessToken: string,
-                           emailToProspect: Map<string, string>) {
+function extractName(addr: string): string {
+  const m = addr.match(/^\s*"?([^<"]+?)"?\s*<[^>]+>/)
+  if (m) return m[1].trim()
+  return extractEmail(addr).split('@')[0]
+}
+
+async function getOrCreateMailList(organisationId: string, ownerUserId: string): Promise<string | null> {
   const admin = getAdmin()
-  // Skip si déjà en DB et labels inchangés (lazy update via fetch)
-  const fullRes = await fetch(`${GMAIL_API}/messages/${messageId}?format=full`, {
-    headers: { 'Authorization': `Bearer ${accessToken}` },
-  })
+  const { data: existing } = await admin.from('prospect_lists')
+    .select('id').eq('organisation_id', organisationId).eq('name', MAIL_LIST_NAME).is('deleted_at', null).maybeSingle()
+  if (existing) return existing.id
+  const { data: created, error } = await admin.from('prospect_lists').insert({
+    organisation_id: organisationId, name: MAIL_LIST_NAME, created_by: ownerUserId, assigned_to: [ownerUserId],
+  }).select('id').single()
+  if (error) { console.error('[gmail-push] create Mails list:', error); return null }
+  return created.id
+}
+
+async function createProspectFromEmail(organisationId: string, mailListId: string, email: string, displayName: string): Promise<string | null> {
+  const admin = getAdmin()
+  const { data: maybeExisting } = await admin.from('prospects').select('id')
+    .eq('organisation_id', organisationId).eq('email', email).is('deleted_at', null).maybeSingle()
+  if (maybeExisting) return maybeExisting.id
+  const { data: created, error } = await admin.from('prospects').insert({
+    organisation_id: organisationId, list_id: mailListId,
+    name: displayName || email.split('@')[0], email, phone: null, crm_status: 'new',
+  }).select('id').single()
+  if (error) { console.error(`[gmail-push] create prospect ${email}:`, error); return null }
+  await admin.from('prospect_list_memberships').insert({
+    prospect_id: created.id, list_id: mailListId, organisation_id: organisationId,
+  }).then(() => {}, () => {})
+  return created.id
+}
+
+async function syncMessage(
+  userId: string, organisationId: string, messageId: string, accessToken: string,
+  emailToProspect: Map<string, string>, myEmail: string,
+  mailListIdGetter: () => Promise<string | null>
+) {
+  const admin = getAdmin()
+  const fullRes = await fetch(`${GMAIL_API}/messages/${messageId}?format=full`, { headers: { 'Authorization': `Bearer ${accessToken}` } })
   if (!fullRes.ok) return
   const msg = await fullRes.json()
   const labelIds = (msg.labelIds || []) as string[]
   const isUnread = labelIds.includes('UNREAD')
 
-  // Existant ? Update is_read si change.
-  const { data: existing } = await admin
-    .from('messages').select('id, is_read')
-    .eq('channel', 'email').eq('external_id', messageId).maybeSingle()
+  const { data: existing } = await admin.from('messages').select('id, is_read').eq('channel', 'email').eq('external_id', messageId).maybeSingle()
   if (existing) {
     if (existing.is_read === isUnread) {
       await admin.from('messages').update({ is_read: !isUnread, metadata: { label_ids: labelIds } }).eq('id', existing.id)
@@ -108,7 +140,6 @@ async function syncMessage(userId: string, organisationId: string, messageId: st
     return
   }
 
-  // Nouveau message — match prospect
   const headers = msg.payload?.headers || []
   const from = getHeader(headers, 'From')
   const to = getHeader(headers, 'To')
@@ -131,13 +162,24 @@ async function syncMessage(userId: string, organisationId: string, messageId: st
       }
     }
   }
-  if (!prospectId) return
+
+  // Auto-création si pas de match
+  if (!prospectId) {
+    const isFromMe = myEmail && fromEmail === myEmail
+    const candidateEmail = isFromMe ? toEmails.find(e => e && e !== myEmail) : fromEmail
+    const candidateName = isFromMe ? '' : extractName(from)
+    if (!candidateEmail) return
+    const mailListId = await mailListIdGetter()
+    if (!mailListId) return
+    const newProspectId = await createProspectFromEmail(organisationId, mailListId, candidateEmail, candidateName)
+    if (!newProspectId) return
+    emailToProspect.set(candidateEmail, newProspectId)
+    prospectId = newProspectId
+    direction = isFromMe ? 'out' : 'in'
+  }
 
   const { text, html } = extractBody(msg.payload)
-  const sentAt = msg.internalDate
-    ? new Date(parseInt(msg.internalDate, 10)).toISOString()
-    : (dateHeader ? new Date(dateHeader).toISOString() : new Date().toISOString())
-
+  const sentAt = msg.internalDate ? new Date(parseInt(msg.internalDate, 10)).toISOString() : (dateHeader ? new Date(dateHeader).toISOString() : new Date().toISOString())
   await admin.from('messages').insert({
     organisation_id: organisationId, prospect_id: prospectId, user_id: userId,
     channel: 'email', direction,
@@ -153,64 +195,32 @@ async function syncMessage(userId: string, organisationId: string, messageId: st
 serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
   if (req.method !== 'POST') return new Response('Method not allowed', { status: 405, headers: corsHeaders })
-
-  // Validation secret
   const url = new URL(req.url)
   const secret = url.searchParams.get('secret')
   const expectedSecret = Deno.env.get('GMAIL_PUBSUB_SECRET') || ''
-  if (!expectedSecret || secret !== expectedSecret) {
-    return new Response('Forbidden', { status: 403, headers: corsHeaders })
-  }
-
+  if (!expectedSecret || secret !== expectedSecret) return new Response('Forbidden', { status: 403, headers: corsHeaders })
   try {
     const body = await req.json() as { message?: { data?: string } }
     const dataB64 = body.message?.data
     if (!dataB64) return new Response('OK', { status: 204, headers: corsHeaders })
-
     const payload = JSON.parse(decodeBase64Url(dataB64)) as { emailAddress: string; historyId: string }
     const { emailAddress, historyId: newHistoryId } = payload
-
     const admin = getAdmin()
-
-    // Trouve le user via son email
-    const { data: profile } = await admin
-      .from('profiles').select('id, organisation_id').eq('email', emailAddress).single()
-    if (!profile) {
-      console.warn(`[gmail-push] no profile for ${emailAddress}`)
-      return new Response('OK', { headers: corsHeaders })
-    }
-
+    const { data: profile } = await admin.from('profiles').select('id, organisation_id').eq('email', emailAddress).single()
+    if (!profile) return new Response('OK', { headers: corsHeaders })
     const userId = profile.id
     const organisationId = profile.organisation_id
     if (!organisationId) return new Response('OK', { headers: corsHeaders })
-
     const accessToken = await getValidAccessToken(userId)
     if (!accessToken) return new Response('OK', { headers: corsHeaders })
-
-    // Récupère l'historyId stocké
-    const { data: ig } = await admin
-      .from('user_integrations').select('gmail_history_id')
-      .eq('user_id', userId).eq('provider', 'google_calendar').single()
+    const { data: ig } = await admin.from('user_integrations').select('gmail_history_id').eq('user_id', userId).eq('provider', 'google_calendar').single()
     const startHistoryId = ig?.gmail_history_id ? String(ig.gmail_history_id) : newHistoryId
-
-    // Liste les changements depuis startHistoryId
-    const histRes = await fetch(`${GMAIL_API}/history?startHistoryId=${startHistoryId}&historyTypes=messageAdded&historyTypes=labelAdded&historyTypes=labelRemoved`, {
-      headers: { 'Authorization': `Bearer ${accessToken}` },
-    })
+    const histRes = await fetch(`${GMAIL_API}/history?startHistoryId=${startHistoryId}&historyTypes=messageAdded&historyTypes=labelAdded&historyTypes=labelRemoved`, { headers: { 'Authorization': `Bearer ${accessToken}` } })
     if (!histRes.ok) {
-      const err = await histRes.text()
-      // 404 = historyId trop ancien, on relance une watch
-      if (histRes.status === 404) {
-        console.warn(`[gmail-push] historyId expired for ${userId}, need re-watch`)
-      } else {
-        console.error(`[gmail-push] history failed: ${err}`)
-      }
-      // Update historyId quand même pour ne pas re-process le même
-      await admin.from('user_integrations').update({ gmail_history_id: parseInt(newHistoryId, 10) })
-        .eq('user_id', userId).eq('provider', 'google_calendar')
+      console.error(`[gmail-push] history failed: ${histRes.status}`)
+      await admin.from('user_integrations').update({ gmail_history_id: parseInt(newHistoryId, 10) }).eq('user_id', userId).eq('provider', 'google_calendar')
       return new Response('OK', { headers: corsHeaders })
     }
-
     const histData = await histRes.json() as { history?: any[] }
     const messageIds = new Set<string>()
     for (const h of histData.history || []) {
@@ -219,29 +229,21 @@ serve(async (req) => {
       for (const la of (h.labelsAdded || [])) if (la.message?.id) messageIds.add(la.message.id)
       for (const lr of (h.labelsRemoved || [])) if (lr.message?.id) messageIds.add(lr.message.id)
     }
-
     if (messageIds.size > 0) {
-      // Pull prospects pour matcher
-      const { data: prospects } = await admin
-        .from('prospects').select('id, email, email2, email3')
-        .eq('organisation_id', organisationId).is('deleted_at', null)
+      const { data: prospects } = await admin.from('prospects').select('id, email, email2, email3').eq('organisation_id', organisationId).is('deleted_at', null)
       const emailToProspect = new Map<string, string>()
-      for (const p of prospects || []) {
-        for (const e of [p.email, p.email2, p.email3]) {
-          if (e) emailToProspect.set(e.trim().toLowerCase(), p.id)
-        }
-      }
-
+      for (const p of prospects || []) for (const e of [p.email, p.email2, p.email3]) if (e) emailToProspect.set(e.trim().toLowerCase(), p.id)
+      const profileRes = await fetch(`${GMAIL_API}/profile`, { headers: { 'Authorization': `Bearer ${accessToken}` } })
+      const profileData = await profileRes.json().catch(() => ({}))
+      const myEmail = (profileData.emailAddress || '').toLowerCase()
+      let mailListId: string | null = null
+      const mailListGetter = async () => { if (!mailListId) mailListId = await getOrCreateMailList(organisationId, userId); return mailListId }
       for (const mid of messageIds) {
-        try { await syncMessage(userId, organisationId, mid, accessToken, emailToProspect) }
+        try { await syncMessage(userId, organisationId, mid, accessToken, emailToProspect, myEmail, mailListGetter) }
         catch (err) { console.error(`[gmail-push] sync msg ${mid}:`, err) }
       }
     }
-
-    // Update historyId
-    await admin.from('user_integrations').update({ gmail_history_id: parseInt(newHistoryId, 10) })
-      .eq('user_id', userId).eq('provider', 'google_calendar')
-
+    await admin.from('user_integrations').update({ gmail_history_id: parseInt(newHistoryId, 10) }).eq('user_id', userId).eq('provider', 'google_calendar')
     return new Response('OK', { headers: corsHeaders })
   } catch (err) {
     console.error('[gmail-push-webhook] Error:', err)
