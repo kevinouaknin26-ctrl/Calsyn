@@ -668,11 +668,15 @@ export default function ProspectModal({
     // Décocher ne change PAS la disposition
   }
 
-  const invalidateAfterSnooze = () => {
-    queryClient.invalidateQueries({ queryKey: ['prospects'] })
-    queryClient.invalidateQueries({ queryKey: ['rdv-upcoming'] })
-    queryClient.invalidateQueries({ queryKey: ['reminders-calendar'] })
-    queryClient.invalidateQueries({ queryKey: ['rdv-today'] })
+  const invalidateAfterSnooze = async () => {
+    // refetchQueries (awaited) au lieu de invalidateQueries pour que l'UI
+    // ne reste pas sur l'ancien state jusqu'au next cache refresh.
+    await Promise.all([
+      queryClient.refetchQueries({ queryKey: ['prospects'] }),
+      queryClient.refetchQueries({ queryKey: ['rdv-upcoming'] }),
+      queryClient.refetchQueries({ queryKey: ['reminders-calendar'] }),
+      queryClient.refetchQueries({ queryKey: ['rdv-today'] }),
+    ])
   }
 
   async function handleSnooze(days: number) {
@@ -682,14 +686,14 @@ export default function ProspectModal({
     await supabase.from('activity_logs').insert({ prospect_id: prospect.id, action: 'snoozed', details: `En pause jusqu'au ${until.toLocaleDateString('fr-FR')}` })
     setLocalSnoozedUntil(until.toISOString())
     setShowSnoozeMenu(false)
-    invalidateAfterSnooze()
+    await invalidateAfterSnooze()
   }
 
   async function handleRemoveSnooze() {
     await supabase.from('prospects').update({ snoozed_until: null }).eq('id', prospect.id)
     await supabase.from('activity_logs').insert({ prospect_id: prospect.id, action: 'snooze_removed', details: 'Pause retirée' })
     setLocalSnoozedUntil(null)
-    invalidateAfterSnooze()
+    await invalidateAfterSnooze()
   }
 
   async function handleToggleDNC() {
@@ -697,7 +701,7 @@ export default function ProspectModal({
     await supabase.from('prospects').update({ do_not_call: newValue }).eq('id', prospect.id)
     await supabase.from('activity_logs').insert({ prospect_id: prospect.id, action: newValue ? 'calls_disabled' : 'calls_enabled', details: newValue ? 'Appels désactivés' : 'Appels réactivés' })
     setLocalDoNotCall(newValue)
-    queryClient.invalidateQueries({ queryKey: ['prospects'] })
+    await queryClient.refetchQueries({ queryKey: ['prospects'] })
   }
 
   // Téléphones supplémentaires : afficher seulement si remplis ou si l'utilisateur clique "Ajouter"
@@ -1307,11 +1311,18 @@ function DealSidebar({ prospect }: { prospect: Prospect }) {
     queryClient.invalidateQueries({ queryKey: ['activity-logs'] })
   }
 
-  const invalidateSnooze = () => {
-    queryClient.invalidateQueries({ queryKey: ['prospects'] })
-    queryClient.invalidateQueries({ queryKey: ['rdv-upcoming'] })
-    queryClient.invalidateQueries({ queryKey: ['reminders-calendar'] })
-    queryClient.invalidateQueries({ queryKey: ['rdv-today'] })
+  const invalidateSnooze = async () => {
+    // On utilise refetchQueries (pas invalidateQueries) pour que l'UI
+    // attende les donnees fraiches avant de rendre le nouveau state. Sans
+    // ca, apres save, le prop `prospect` reste sur l'ancienne valeur le
+    // temps du refetch → l'UI reste sur l'ancien state, obligeant l'user
+    // a fermer/rouvrir le modal pour voir la mise a jour.
+    await Promise.all([
+      queryClient.refetchQueries({ queryKey: ['prospects'] }),
+      queryClient.refetchQueries({ queryKey: ['rdv-upcoming'] }),
+      queryClient.refetchQueries({ queryKey: ['reminders-calendar'] }),
+      queryClient.refetchQueries({ queryKey: ['rdv-today'] }),
+    ])
   }
 
   const setReminder = async () => {
@@ -1326,7 +1337,7 @@ function DealSidebar({ prospect }: { prospect: Prospect }) {
     setLocalSnoozed(d.toISOString())
     await supabase.from('prospects').update({ snoozed_until: d.toISOString() }).eq('id', prospect.id)
     await supabase.from('activity_logs').insert({ prospect_id: prospect.id, action: 'snoozed', details: `Rappel programmé le ${d.toLocaleDateString('fr-FR')}` })
-    invalidateSnooze()
+    await invalidateSnooze()
     setSettingReminder(false)
     setCustomReminderDate('')
   }
@@ -1335,7 +1346,7 @@ function DealSidebar({ prospect }: { prospect: Prospect }) {
     setLocalSnoozed(null)
     await supabase.from('prospects').update({ snoozed_until: null }).eq('id', prospect.id)
     await supabase.from('activity_logs').insert({ prospect_id: prospect.id, action: 'snooze_removed', details: 'Rappel supprimé' })
-    invalidateSnooze()
+    await invalidateSnooze()
   }
 
   return (
