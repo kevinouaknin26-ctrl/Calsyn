@@ -47,21 +47,24 @@ async function fetchTwilioAudio(
     return new Response(`Twilio error: ${res.status}`, { status: res.status, headers: cors })
   }
 
+  // On lit le buffer complet pour pouvoir renvoyer un Content-Length précis.
+  // Streamer res.body forcerait Deno en Transfer-Encoding: chunked → le <audio>
+  // ne connaît plus la durée totale et perd la seek bar. Le buffer garde un coût
+  // ~1-2s pour 5 min d'audio mais permet le scrub.
+  const buffer = await res.arrayBuffer()
+
   const responseHeaders: Record<string, string> = {
     ...cors,
     'Content-Type': 'audio/mpeg',
     'Content-Disposition': 'inline',
     'Cache-Control': 'private, max-age=600',
     'Accept-Ranges': 'bytes',
+    'Content-Length': buffer.byteLength.toString(),
   }
-  const contentLength = res.headers.get('content-length')
   const contentRange = res.headers.get('content-range')
-  if (contentLength) responseHeaders['Content-Length'] = contentLength
   if (contentRange) responseHeaders['Content-Range'] = contentRange
 
-  // Stream le body directement (pas de buffer) → le <audio> reçoit les premiers
-  // bytes immédiatement et peut démarrer la lecture pendant que le reste arrive.
-  return new Response(res.body, { status: res.status, headers: responseHeaders })
+  return new Response(buffer, { status: res.status, headers: responseHeaders })
 }
 
 serve(async (req) => {
