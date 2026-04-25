@@ -216,35 +216,79 @@ export function useAddProspect() {
   const { organisation } = useAuth()
 
   return useMutation({
-    mutationFn: async (prospect: { listId: string; name: string; phone: string; email?: string; company?: string; sector?: string }) => {
+    mutationFn: async (prospect: { listId: string; name: string; phone?: string; email?: string; company?: string; sector?: string }) => {
       if (!organisation?.id) throw new Error('No organisation')
-      // Vérifier doublon dans la même liste
-      const { data: existing } = await supabase
-        .from('prospects')
-        .select('id')
-        .eq('list_id', prospect.listId)
-        .eq('phone', prospect.phone)
-        .limit(1)
-      if (existing && existing.length > 0) throw new Error('Ce numéro existe déjà dans cette liste')
+      const phone = (prospect.phone || '').trim() || null
+      const email = (prospect.email || '').trim() || null
+      if (!phone && !email) throw new Error('Au moins un téléphone ou un email requis')
 
+      // 1. Cherche s'il existe déjà dans l'org (par phone OU email)
+      let existing: { id: string; list_id: string | null } | null = null
+      if (phone) {
+        const { data } = await supabase.from('prospects')
+          .select('id, list_id')
+          .eq('organisation_id', organisation.id)
+          .eq('phone', phone)
+          .is('deleted_at', null)
+          .limit(1).maybeSingle()
+        if (data) existing = data
+      }
+      if (!existing && email) {
+        const { data } = await supabase.from('prospects')
+          .select('id, list_id')
+          .eq('organisation_id', organisation.id)
+          .eq('email', email)
+          .is('deleted_at', null)
+          .limit(1).maybeSingle()
+        if (data) existing = data
+      }
+
+      // 2. Si déjà existe → ajoute juste au membership de la liste cible
+      if (existing) {
+        // Check si déjà dans cette liste via memberships
+        const { data: memb } = await supabase
+          .from('prospect_list_memberships')
+          .select('prospect_id')
+          .eq('prospect_id', existing.id).eq('list_id', prospect.listId).maybeSingle()
+        if (memb) {
+          throw new Error('Ce contact est déjà dans cette liste')
+        }
+        // Ajoute au membership
+        await supabase.from('prospect_list_memberships').insert({
+          prospect_id: existing.id, list_id: prospect.listId, organisation_id: organisation.id,
+        })
+        queryClient.invalidateQueries({ queryKey: ['prospects', prospect.listId] })
+        queryClient.invalidateQueries({ queryKey: ['prospect-list-memberships'] })
+        queryClient.invalidateQueries({ queryKey: ['all-prospects'] })
+        // Retourne le prospect existant
+        const { data } = await supabase.from('prospects').select('*').eq('id', existing.id).single()
+        return data as Prospect
+      }
+
+      // 3. Sinon création complète + membership
       const { data, error } = await supabase
         .from('prospects')
         .insert({
           list_id: prospect.listId,
           organisation_id: organisation.id,
           name: prospect.name,
-          phone: prospect.phone,
-          email: prospect.email || null,
+          phone, email,
           company: prospect.company || null,
           sector: prospect.sector || null,
         })
         .select()
         .single()
       if (error) throw error
+      // Add membership pour cohérence
+      await supabase.from('prospect_list_memberships').insert({
+        prospect_id: data.id, list_id: prospect.listId, organisation_id: organisation.id,
+      }).then(() => {}, () => {})
       return data as Prospect
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['prospects', variables.listId] })
+      queryClient.invalidateQueries({ queryKey: ['prospect-list-memberships'] })
+      queryClient.invalidateQueries({ queryKey: ['all-prospects'] })
     },
   })
 }
