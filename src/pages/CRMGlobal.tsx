@@ -312,8 +312,17 @@ export default function CRMGlobal() {
   const [dragColId, setDragColId] = useState<string | null>(null)
   const [quickAdd, setQuickAdd] = useState<{ stageKey: string; stageLabel: string; name: string; phone: string; listId: string } | null>(null)
   const [quickAddSaving, setQuickAddSaving] = useState(false)
-  const [myOnly, setMyOnly] = useState<boolean>(() => localStorage.getItem('calsyn_crm_my_only') === '1')
-  useEffect(() => { localStorage.setItem('calsyn_crm_my_only', myOnly ? '1' : '0') }, [myOnly])
+  // viewAsUserId : null = tous les contacts (toute l'org), 'me' = mes contacts, sinon = user_id d'un SDR (admin only)
+  const [viewAsUserId, setViewAsUserId] = useState<string | null>(() => {
+    return localStorage.getItem('calsyn_crm_view_as') || null
+  })
+  useEffect(() => {
+    if (viewAsUserId) localStorage.setItem('calsyn_crm_view_as', viewAsUserId)
+    else localStorage.removeItem('calsyn_crm_view_as')
+  }, [viewAsUserId])
+  const [showViewAsMenu, setShowViewAsMenu] = useState(false)
+  const [pipelineGroupBy, setPipelineGroupBy] = useState<'stage' | 'list'>(() => (localStorage.getItem('calsyn_pipeline_groupby') as 'stage' | 'list') || 'stage')
+  useEffect(() => { localStorage.setItem('calsyn_pipeline_groupby', pipelineGroupBy) }, [pipelineGroupBy])
 
   // Saved views (localStorage)
   const [savedViews, setSavedViews] = useState<SavedView[]>(() => {
@@ -576,9 +585,10 @@ export default function CRMGlobal() {
   const filtered = useMemo(() => {
     let result = mergedProspects
 
-    // "Mes contacts seulement" : ne garder que les prospects dans une liste assignée à l'user courant
-    if (myOnly && profile?.id) {
-      result = result.filter(p => p.listIds.some(lid => (listSdrsMap[lid] || []).includes(profile.id)))
+    // Filtre par utilisateur visible : "me" = soi-même, sinon user_id d'un SDR (admin can see SDR's view)
+    const targetUserId = viewAsUserId === 'me' ? profile?.id : viewAsUserId
+    if (targetUserId) {
+      result = result.filter(p => p.listIds.some(lid => (listSdrsMap[lid] || []).includes(targetUserId)))
     }
 
     // Text search
@@ -619,7 +629,7 @@ export default function CRMGlobal() {
     })
 
     return result
-  }, [mergedProspects, search, filters, sortBy, sortDir, allProperties, allCustomValues, myOnly, profile?.id, listSdrsMap])
+  }, [mergedProspects, search, filters, sortBy, sortDir, allProperties, allCustomValues, viewAsUserId, profile?.id, listSdrsMap])
 
   // Stats
   const stats = useMemo(() => ({
@@ -849,23 +859,82 @@ export default function CRMGlobal() {
             {search && <button onClick={() => setSearch('')} className="text-gray-300 hover:text-gray-500 text-xs">✕</button>}
           </div>
 
-          {/* Advanced filters */}
-          <FilterBuilder filters={filters} setFilters={setFilters} allProperties={allProperties} crmStatuses={crmStatuses || []} />
+          {/* Advanced filters + Column picker — table only */}
+          {viewMode === 'table' && (
+            <>
+              <FilterBuilder filters={filters} setFilters={setFilters} allProperties={allProperties} crmStatuses={crmStatuses || []} />
+              <CrmColumnPicker visible={visibleColumnIds} setVisible={setVisibleColumnIds} allProperties={allProperties} open={showColumnPicker} onToggle={() => setShowColumnPicker(!showColumnPicker)} />
+            </>
+          )}
 
-          {/* Toggle "Mes contacts seulement" */}
-          <button onClick={() => setMyOnly(v => !v)}
-            title={myOnly ? 'Afficher tous les contacts' : 'Filtrer sur mes contacts (listes assignées)'}
-            className={`flex items-center gap-1.5 text-[13px] px-3 py-1.5 rounded-lg border transition-colors ${
-              myOnly ? 'bg-amber-50 border-amber-200 text-amber-700 font-medium' : 'bg-white border-gray-200 text-gray-500 hover:text-gray-700'
-            }`}>
-            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-            </svg>
-            Mes contacts
-          </button>
+          {/* Pipeline groupBy switch — pipeline only */}
+          {viewMode === 'board' && (
+            <div className="flex items-center bg-gray-100 rounded-lg p-0.5">
+              <button onClick={() => setPipelineGroupBy('stage')}
+                className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-all ${pipelineGroupBy === 'stage' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-400'}`}>
+                Par stage
+              </button>
+              <button onClick={() => setPipelineGroupBy('list')}
+                className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-all ${pipelineGroupBy === 'list' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-400'}`}>
+                Par liste
+              </button>
+            </div>
+          )}
 
-          {/* Column picker */}
-          <CrmColumnPicker visible={visibleColumnIds} setVisible={setVisibleColumnIds} allProperties={allProperties} open={showColumnPicker} onToggle={() => setShowColumnPicker(!showColumnPicker)} />
+          {/* Voir comme… (dropdown admin / toggle SDR) */}
+          {perms.isAdmin ? (
+            <div className="relative">
+              <button onClick={() => setShowViewAsMenu(v => !v)}
+                title="Voir comme un commercial"
+                className={`flex items-center gap-1.5 text-[13px] px-3 py-1.5 rounded-lg border transition-colors ${
+                  viewAsUserId ? 'bg-amber-50 border-amber-200 text-amber-700 font-medium' : 'bg-white border-gray-200 text-gray-500 hover:text-gray-700'
+                }`}>
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                </svg>
+                {viewAsUserId === 'me'
+                  ? 'Mes contacts'
+                  : viewAsUserId
+                    ? memberNameMap[viewAsUserId] || 'SDR'
+                    : 'Voir comme'}
+                <svg className="w-3 h-3 opacity-60" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+              </button>
+              {showViewAsMenu && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setShowViewAsMenu(false)} />
+                  <div className="absolute right-0 top-10 w-[220px] bg-white rounded-xl shadow-xl border border-gray-200 z-50 py-1 max-h-[300px] overflow-y-auto animate-slide-down">
+                    <button onClick={() => { setViewAsUserId(null); setShowViewAsMenu(false) }}
+                      className={`w-full text-left px-3 py-1.5 text-[12px] hover:bg-gray-50 transition-colors ${!viewAsUserId ? 'font-semibold text-indigo-600' : 'text-gray-600'}`}>
+                      Toute l'équipe
+                    </button>
+                    <button onClick={() => { setViewAsUserId('me'); setShowViewAsMenu(false) }}
+                      className={`w-full text-left px-3 py-1.5 text-[12px] hover:bg-gray-50 transition-colors ${viewAsUserId === 'me' ? 'font-semibold text-indigo-600' : 'text-gray-600'}`}>
+                      Mes contacts
+                    </button>
+                    <div className="border-t border-gray-100 my-1" />
+                    <p className="px-3 py-1 text-[10px] font-bold text-gray-400 uppercase tracking-wider">Commerciaux</p>
+                    {(orgMembers || []).filter(u => u.id !== profile?.id).map(u => (
+                      <button key={u.id} onClick={() => { setViewAsUserId(u.id); setShowViewAsMenu(false) }}
+                        className={`w-full text-left px-3 py-1.5 text-[12px] hover:bg-gray-50 transition-colors truncate ${viewAsUserId === u.id ? 'font-semibold text-indigo-600' : 'text-gray-600'}`}>
+                        {u.full_name || u.email.split('@')[0]} <span className="text-gray-300 text-[10px]">{u.role === 'super_admin' ? 'admin' : u.role}</span>
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+          ) : (
+            <button onClick={() => setViewAsUserId(viewAsUserId === 'me' ? null : 'me')}
+              title={viewAsUserId === 'me' ? 'Afficher tous les contacts' : 'Filtrer sur mes contacts'}
+              className={`flex items-center gap-1.5 text-[13px] px-3 py-1.5 rounded-lg border transition-colors ${
+                viewAsUserId === 'me' ? 'bg-amber-50 border-amber-200 text-amber-700 font-medium' : 'bg-white border-gray-200 text-gray-500 hover:text-gray-700'
+              }`}>
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+              </svg>
+              Mes contacts
+            </button>
+          )}
 
           {/* Bulk actions */}
           {selectedIds.size > 0 && (
@@ -932,7 +1001,14 @@ export default function CRMGlobal() {
             onDrop={stopAutoScroll}
             className="flex-1 min-h-0 overflow-x-auto p-4">
             <div className="flex gap-3 h-full">
-              {effectiveStatuses.map(stage => {
+              {(() => {
+                // Groupes : par stage (crm_status) ou par liste (list_id)
+                const groups: Array<{ key: string; label: string; color: string }> =
+                  pipelineGroupBy === 'list'
+                    ? (lists || []).map(l => ({ key: l.id, label: l.name, color: '#6366f1' }))
+                    : effectiveStatuses.map(s => ({ key: s.key, label: s.label, color: s.color }))
+                return groups
+              })().map(stage => {
                 // Tri intelligent SDR : à appeler en haut (jamais appelé, snooze expiré),
                 // puis déjà appelés (par dernier appel le plus ancien), puis snoozés futurs, puis DNC en bas.
                 const callPriority = (p: MergedProspect): number => {
@@ -942,8 +1018,11 @@ export default function CRMGlobal() {
                   if (!p.last_call_at) return 0
                   return 2
                 }
+                const matches = pipelineGroupBy === 'list'
+                  ? (p: MergedProspect) => p.listIds.includes(stage.key)
+                  : (p: MergedProspect) => (p.crm_status || 'new') === stage.key
                 const stageProspects = filtered
-                  .filter(p => (p.crm_status || 'new') === stage.key)
+                  .filter(matches)
                   .sort((a, b) => {
                     const pa = callPriority(a), pb = callPriority(b)
                     if (pa !== pb) return pa - pb
@@ -965,7 +1044,12 @@ export default function CRMGlobal() {
                         <span className="text-[12px] font-semibold text-gray-700 flex-1 truncate">{stage.label}</span>
                         <button onClick={e => {
                           e.stopPropagation()
-                          setQuickAdd({ stageKey: stage.key, stageLabel: stage.label, name: '', phone: '', listId: lists?.[0]?.id || '' })
+                          // En mode "list", la colonne représente une liste : pré-remplit listId, crm_status reste 'new'
+                          if (pipelineGroupBy === 'list') {
+                            setQuickAdd({ stageKey: 'new', stageLabel: stage.label, name: '', phone: '', listId: stage.key })
+                          } else {
+                            setQuickAdd({ stageKey: stage.key, stageLabel: stage.label, name: '', phone: '', listId: lists?.[0]?.id || '' })
+                          }
                         }} title={`Ajouter un contact dans "${stage.label}"`}
                           className="w-5 h-5 rounded-md text-gray-300 hover:text-violet-600 hover:bg-violet-100 flex items-center justify-center transition-colors flex-shrink-0">
                           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" /></svg>
@@ -989,10 +1073,13 @@ export default function CRMGlobal() {
                       onDrop={async e => {
                         e.currentTarget.classList.remove('bg-violet-100/40', 'ring-2', 'ring-violet-300', 'ring-inset')
                         const prospectId = e.dataTransfer.getData('prospectId')
-                        if (prospectId) {
-                          await supabase.from('prospects').update({ crm_status: stage.key }).eq('id', prospectId)
-                          queryClient.invalidateQueries({ queryKey: ['all-prospects'] })
-                        }
+                        if (!prospectId) return
+                        // En mode "stage" : UPDATE crm_status. En mode "list" : UPDATE list_id (déplace la fiche dans une autre liste).
+                        const update = pipelineGroupBy === 'list'
+                          ? { list_id: stage.key }
+                          : { crm_status: stage.key }
+                        await supabase.from('prospects').update(update).eq('id', prospectId)
+                        queryClient.invalidateQueries({ queryKey: ['all-prospects'] })
                       }}>
                       {stageProspects.map(p => {
                         const sdrIds = Array.from(new Set(p.listIds.flatMap(lid => listSdrsMap[lid] || [])))
