@@ -680,41 +680,22 @@ function MiniDropdown({ value, options, onChange, className }: {
 // ── Onglet Notes : zone pour ajouter + liste des notes (appels + IA) ─
 // ── Onglet SMS (Twilio intégré) ──────────────────────────────────────
 function SmsTab({ prospect }: { prospect: Prospect }) {
-  const { user } = useAuth()
   const phoneNumbers = [prospect.phone, prospect.phone2, prospect.phone3, prospect.phone4, prospect.phone5].filter(Boolean) as string[]
   const { data: messages, isLoading } = useSmsForProspect(prospect.id, phoneNumbers)
   const sendSms = useSendSms()
   const [draft, setDraft] = useState('')
   const [sending, setSending] = useState(false)
   const [err, setErr] = useState<string | null>(null)
-  const [mediaUrl, setMediaUrl] = useState<string | null>(null)
-  const [uploadingMedia, setUploadingMedia] = useState(false)
-  const fileInputRef = useRef<HTMLInputElement>(null)
   const targetPhone = prospect.phone || phoneNumbers[0] || ''
 
-  const uploadMedia = async (file: File) => {
-    if (!user?.id) return
-    if (file.size > 5_000_000) { setErr('Image trop lourde (max 5 Mo pour MMS)'); return }
-    setUploadingMedia(true)
-    setErr(null)
-    const ext = file.name.split('.').pop() || 'png'
-    const path = `${user.id}/sms-${Date.now()}.${ext}`
-    const { error } = await supabase.storage.from('sms-media').upload(path, file, { cacheControl: '3600', upsert: false })
-    if (error) { setErr(`Upload : ${error.message}`); setUploadingMedia(false); return }
-    const { data: pub } = supabase.storage.from('sms-media').getPublicUrl(path)
-    setMediaUrl(pub.publicUrl)
-    setUploadingMedia(false)
-  }
-
   const handleSend = async () => {
-    if ((!draft.trim() && !mediaUrl) || !targetPhone) return
+    if (!draft.trim() || !targetPhone) return
     setSending(true)
     setErr(null)
-    const r = await sendSms({ to: targetPhone, body: draft.trim(), prospectId: prospect.id, mediaUrl: mediaUrl || undefined })
+    const r = await sendSms({ to: targetPhone, body: draft.trim(), prospectId: prospect.id })
     setSending(false)
     if (r.error) { setErr(r.error); return }
     setDraft('')
-    setMediaUrl(null)
   }
 
   if (!targetPhone) {
@@ -763,39 +744,21 @@ function SmsTab({ prospect }: { prospect: Prospect }) {
         )}
         <p className="text-[10px] text-gray-400 mb-1">Vers <span className="font-mono text-gray-600">{targetPhone}</span></p>
 
-        {/* Aperçu média si attaché */}
-        {mediaUrl && (
-          <div className="mb-2 flex items-center gap-2 bg-violet-50 border border-violet-200 rounded-lg p-2">
-            <img src={mediaUrl} alt="MMS" className="w-12 h-12 object-cover rounded" />
-            <span className="text-[11px] text-gray-600 flex-1 truncate">Pièce jointe prête à envoyer</span>
-            <button onClick={() => setMediaUrl(null)} title="Retirer"
-              className="text-violet-400 hover:text-red-500 text-[14px] leading-none">×</button>
-          </div>
-        )}
-
-        <input ref={fileInputRef} type="file" accept="image/*" className="hidden"
-          onChange={e => { const f = e.target.files?.[0]; if (f) uploadMedia(f); if (e.target) e.target.value = '' }} />
-
         <div className="flex items-end gap-2">
-          <button onClick={() => fileInputRef.current?.click()} disabled={uploadingMedia}
-            title="Joindre une image (MMS)"
-            className="px-2 py-2 rounded-xl border border-gray-200 hover:border-violet-300 text-gray-400 hover:text-violet-600">
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" /></svg>
-          </button>
           <textarea
             value={draft}
             onChange={e => setDraft(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); handleSend() } }}
             rows={2}
-            placeholder={mediaUrl ? 'Légende (optionnelle)...' : 'Tape ton message...'}
+            placeholder="Tape ton message..."
             className="flex-1 text-[13px] px-3 py-2 border border-gray-200 rounded-xl outline-none focus:border-violet-400 resize-none" />
-          <button onClick={handleSend} disabled={sending || (!draft.trim() && !mediaUrl) || uploadingMedia}
+          <button onClick={handleSend} disabled={sending || !draft.trim()}
             title="Envoyer (Cmd/Ctrl + Entrée)"
             className="px-4 py-2 text-[13px] font-medium text-white bg-violet-600 hover:bg-violet-700 disabled:opacity-40 rounded-xl">
-            {sending ? '...' : uploadingMedia ? 'Upload...' : 'Envoyer'}
+            {sending ? '...' : 'Envoyer'}
           </button>
         </div>
-        <p className="text-[10px] text-gray-300 mt-1">Cmd+Entrée pour envoyer · {draft.length} caractères{mediaUrl ? ' · MMS prêt' : ''}</p>
+        <p className="text-[10px] text-gray-300 mt-1">Cmd+Entrée pour envoyer · {draft.length} caractères</p>
       </div>
     </div>
   )
