@@ -5,6 +5,7 @@
  */
 
 import { useState, useMemo, useCallback, useRef, useEffect } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/config/supabase'
 import { useAuth } from '@/hooks/useAuth'
@@ -369,6 +370,22 @@ export default function CRMGlobal() {
     }
     return Array.from(byPhone.values())
   }, [allProspects, listNameMap])
+
+  // ── Auto-open ProspectModal depuis un appel entrant ──────────────
+  // Quand useIncomingCall.accept() navigue ici avec state.openProspectId,
+  // on ouvre automatiquement la fiche du prospect identifie.
+  const location = useLocation()
+  const navigate = useNavigate()
+  const autoOpenId = (location.state as { openProspectId?: string } | null)?.openProspectId
+  useEffect(() => {
+    if (!autoOpenId) return
+    const target = mergedProspects.find(p => p.id === autoOpenId)
+    if (target) {
+      setSelectedProspect(target)
+      // Nettoie le state pour eviter de rouvrir au prochain refresh/back
+      navigate(location.pathname, { replace: true, state: {} })
+    }
+  }, [autoOpenId, mergedProspects, navigate, location.pathname])
 
   // Custom field values
   const prospectIds = useMemo(() => mergedProspects.map(p => p.id), [mergedProspects])

@@ -2,12 +2,16 @@ import { createContext, useContext, useState, useEffect, useRef, useCallback, ty
 import { Device, Call } from '@twilio/voice-sdk'
 import { fetchVoiceToken } from '@/services/api'
 import { useAuth } from '@/hooks/useAuth'
+import { useNavigate } from 'react-router-dom'
+import { supabase } from '@/config/supabase'
 
 interface IncomingCallState {
   from: string
   to: string
   callSid: string
   _call: Call
+  // Prospect match si le numero de l'appelant correspond a un contact enregistre
+  prospect: { id: string; name: string | null; phone: string; company: string | null } | null
 }
 
 interface TwilioDeviceContext {
@@ -30,9 +34,13 @@ export const useTwilioDevice = () => useContext(Ctx)
 
 export function TwilioDeviceProvider({ children }: { children: ReactNode }) {
   const { profile, organisation } = useAuth()
+  const navigate = useNavigate()
   const [device, setDevice] = useState<Device | null>(null)
   const [deviceReady, setDeviceReady] = useState(false)
   const [incoming, setIncoming] = useState<IncomingCallState | null>(null)
+  // acceptedCallRef retient la row calls.id creee quand on accept,
+  // pour pouvoir l'updater au disconnect avec duration + outcome.
+  const acceptedCallRef = useRef<{ callRowId: string; acceptedAt: number } | null>(null)
 
   const orgId = organisation?.id
   const voiceProvider = organisation?.voice_provider || 'twilio'
@@ -97,22 +105,44 @@ export function TwilioDeviceProvider({ children }: { children: ReactNode }) {
           }
         })
 
-        dev.on('incoming', (call: Call) => {
-          console.log(`[TwilioDevice] INCOMING from ${call.parameters.From} to ${call.parameters.To}`)
-          setIncoming({
-            from: call.parameters.From || '',
-            to: call.parameters.To || '',
-            callSid: call.parameters.CallSid || '',
-            _call: call,
-          })
+        dev.on('incoming', async (call: Call) => {
+          const fromNum = call.parameters.From || ''
+          const toNum = call.parameters.To || ''
+          const sid = call.parameters.CallSid || ''
+          console.log(`[TwilioDevice] INCOMING from ${fromNum} to ${toNum}`)
+
+          // Lookup prospect par numero (phone + phone2..5). Async, on set d'abord
+          // avec prospect=null puis on met a jour si trouve.
+          setIncoming({ from: fromNum, to: toNum, callSid: sid, _call: call, prospect: null })
+          if (fromNum) {
+            const { data: matches } = await supabase
+              .from('prospects')
+              .select('id, name, phone, company')
+              .or(`phone.eq.${fromNum},phone2.eq.${fromNum},phone3.eq.${fromNum},phone4.eq.${fromNum},phone5.eq.${fromNum}`)
+              .limit(1)
+            if (matches && matches.length > 0) {
+              const p = matches[0]
+              setIncoming(prev => prev && prev.callSid === sid ? { ...prev, prospect: p } : prev)
+            }
+          }
 
           call.on('cancel', () => {
             console.log('[TwilioDevice] Caller cancelled')
             setIncoming(null)
           })
 
-          call.on('disconnect', () => {
+          call.on('disconnect', async () => {
             setIncoming(null)
+            // Update call row avec duration + outcome si l'appel etait accepte
+            const tracked = acceptedCallRef.current
+            if (tracked) {
+              const duration = Math.round((Date.now() - tracked.acceptedAt) / 1000)
+              await supabase.from('calls').update({
+                call_duration: duration,
+                call_outcome: 'connected',
+              }).eq('id', tracked.callRowId)
+              acceptedCallRef.current = null
+            }
           })
         })
 
@@ -136,12 +166,42 @@ export function TwilioDeviceProvider({ children }: { children: ReactNode }) {
     }
   }, [orgId, profile?.id, voiceProvider])
 
-  const accept = useCallback(() => {
+  const accept = useCallback(async () => {
     if (!incoming) return
+    const { from, to, callSid, prospect } = incoming
     incoming._call.accept()
     console.log('[TwilioDevice] Accepted incoming')
     setIncoming(null)
-  }, [incoming])
+
+    // 1. INSERT une row calls pour tracer l'appel entrant. On laisse
+    //    call_duration / call_outcome a 0/pending, mis a jour au disconnect.
+    try {
+      const { data: callRow, error } = await supabase.from('calls').insert({
+        sdr_id: profile?.id,
+        prospect_id: prospect?.id || null,
+        prospect_name: prospect?.name || null,
+        prospect_phone: from,
+        from_number: to,
+        call_sid: callSid,
+        provider: 'twilio',
+        call_duration: 0,
+        call_outcome: 'connected',
+        note: '📞 Appel entrant',
+      }).select('id').single()
+      if (error) {
+        console.warn('[TwilioDevice] Failed to insert incoming call row', error)
+      } else if (callRow) {
+        acceptedCallRef.current = { callRowId: callRow.id, acceptedAt: Date.now() }
+      }
+    } catch (e) {
+      console.error('[TwilioDevice] Insert call row threw', e)
+    }
+
+    // 2. Si prospect connu : ouvrir sa fiche.
+    if (prospect?.id) {
+      navigate('/app/contacts', { state: { openProspectId: prospect.id } })
+    }
+  }, [incoming, profile?.id, navigate])
 
   const reject = useCallback(() => {
     if (!incoming) return
@@ -161,7 +221,14 @@ export function TwilioDeviceProvider({ children }: { children: ReactNode }) {
           </div>
           <div className="flex-1 min-w-0">
             <div className="text-[13px] font-medium text-gray-500">Appel entrant</div>
-            <div className="text-[18px] font-bold text-gray-900 truncate">{incoming.from}</div>
+            <div className="text-[18px] font-bold text-gray-900 truncate">
+              {incoming.prospect?.name || incoming.from}
+            </div>
+            {incoming.prospect && (
+              <div className="text-[11px] text-gray-500 truncate">
+                {incoming.from}{incoming.prospect.company ? ` · ${incoming.prospect.company}` : ''}
+              </div>
+            )}
           </div>
           <button onClick={accept}
             className="px-5 py-2.5 rounded-xl bg-green-500 hover:bg-green-600 text-white text-[14px] font-bold transition-colors shadow-lg">
