@@ -641,43 +641,15 @@ function MiniDropdown({ value, options, onChange, className }: {
   )
 }
 
-// ── Onglet Notes (extrait pour state local + bouton Enregistrer) ─
+// ── Onglet Notes : zone pour ajouter + liste des notes (appels + IA) ─
 function NotesTab({ prospect, callHistory, queryClient }: {
   prospect: Prospect
   callHistory: Call[]
   queryClient: ReturnType<typeof useQueryClient>
 }) {
-  const [mainNote, setMainNote] = useState(prospect.notes || '')
-  const [savedMainNote, setSavedMainNote] = useState(prospect.notes || '')
-  const [savingMain, setSavingMain] = useState(false)
   const [addNote, setAddNote] = useState('')
   const [savingAdd, setSavingAdd] = useState(false)
-
-  const mainDirty = mainNote.trim() !== (savedMainNote || '').trim()
-
-  const saveMain = async () => {
-    const val = mainNote.trim()
-    setSavingMain(true)
-    try {
-      const { error: updateErr } = await supabase.from('prospects').update({ notes: val || null }).eq('id', prospect.id)
-      if (updateErr) throw updateErr
-      const { error: logErr } = await supabase.from('activity_logs').insert({
-        prospect_id: prospect.id,
-        action: val ? 'note_updated' : 'note_cleared',
-        details: val ? `Note modifiée` : 'Note supprimée',
-      })
-      if (logErr) console.warn('activity_log note_updated failed (non bloquant)', logErr)
-      setSavedMainNote(val)
-      // Fire-and-forget : l'UI locale (mainNote/savedMainNote) est deja a jour.
-      queryClient.invalidateQueries({ queryKey: ['prospects'] })
-      queryClient.invalidateQueries({ queryKey: ['activity-logs', prospect.id] })
-    } catch (e) {
-      console.error('saveMain failed', e)
-      alert('Impossible d\'enregistrer la note : ' + ((e as Error)?.message || 'erreur inconnue'))
-    } finally {
-      setSavingMain(false)
-    }
-  }
+  const [justSaved, setJustSaved] = useState(false)
 
   const saveAddNote = async () => {
     const val = addNote.trim()
@@ -695,6 +667,8 @@ function NotesTab({ prospect, callHistory, queryClient }: {
       })
       if (insertErr) throw insertErr
       setAddNote('')
+      setJustSaved(true)
+      setTimeout(() => setJustSaved(false), 2000)
       queryClient.invalidateQueries({ queryKey: ['calls-by-prospect'] })
     } catch (e) {
       console.error('saveAddNote failed', e)
@@ -709,33 +683,29 @@ function NotesTab({ prospect, callHistory, queryClient }: {
 
   return (
     <div>
-      {/* Note principale — state controle + bouton Enregistrer */}
+      {/* Zone pour ajouter une note */}
       <div className="mb-4 rounded-xl border border-indigo-100 bg-indigo-50/40 p-3">
         <div className="flex items-center justify-between mb-1.5">
-          <p className="text-[10px] font-bold text-indigo-500 uppercase tracking-wider">Note principale</p>
-          {mainDirty && <span className="text-[10px] text-amber-600 font-medium">Non enregistré</span>}
+          <p className="text-[10px] font-bold text-indigo-500 uppercase tracking-wider">Ajouter une note</p>
+          {justSaved && <span className="text-[10px] text-emerald-600 font-medium">Enregistré ✓</span>}
         </div>
         <textarea
-          value={mainNote}
-          onChange={e => setMainNote(e.target.value)}
-          placeholder="Notes générales sur ce prospect (toujours accessibles, même sans appel)..."
+          value={addNote}
+          onChange={e => setAddNote(e.target.value)}
+          placeholder="Note à ajouter (s'affichera dans l'historique du prospect)…"
           rows={3}
           className="w-full text-[13px] text-gray-700 bg-white border border-indigo-100 rounded-lg p-2.5 resize-none outline-none focus:border-indigo-300 focus:ring-1 focus:ring-indigo-200 placeholder:text-gray-400" />
         <div className="flex items-center justify-end gap-2 mt-2">
-          {mainDirty && !savingMain && (
-            <button onClick={() => setMainNote(savedMainNote)}
-              className="text-[11px] text-gray-500 hover:text-gray-700 font-medium px-2 py-1">Annuler</button>
-          )}
-          <button onClick={saveMain} disabled={!mainDirty || savingMain}
-            className={`text-[11px] font-semibold px-3 py-1.5 rounded-lg transition-all ${mainDirty && !savingMain ? 'bg-indigo-500 text-white hover:bg-indigo-600' : 'bg-gray-100 text-gray-400 cursor-not-allowed'}`}>
-            {savingMain ? 'Enregistrement…' : 'Enregistrer'}
+          <button onClick={saveAddNote} disabled={!addNote.trim() || savingAdd}
+            className={`text-[11px] font-semibold px-3 py-1.5 rounded-lg transition-all ${addNote.trim() && !savingAdd ? 'bg-indigo-500 text-white hover:bg-indigo-600' : 'bg-gray-100 text-gray-400 cursor-not-allowed'}`}>
+            {savingAdd ? 'Enregistrement…' : 'Enregistrer la note'}
           </button>
         </div>
       </div>
 
-      {/* Notes existantes des appels + résumés IA */}
+      {/* Notes existantes : appels avec note + résumés IA */}
       {notesCalls.length > 0 ? (
-        <div className="space-y-2 mb-4">
+        <div className="space-y-2">
           {notesCalls.map(c => (
             <div key={c.id} className="bg-gray-50 rounded-lg p-3">
               <div className="flex items-center gap-2 mb-1">
@@ -753,24 +723,8 @@ function NotesTab({ prospect, callHistory, queryClient }: {
           ))}
         </div>
       ) : (
-        <p className="text-[13px] text-gray-400 mb-4">Aucune note pour ce prospect</p>
+        <p className="text-[13px] text-gray-400 text-center py-6">Aucune note pour ce prospect</p>
       )}
-
-      {/* Ajouter une note libre — avec bouton Enregistrer */}
-      <div>
-        <textarea
-          value={addNote}
-          onChange={e => setAddNote(e.target.value)}
-          placeholder="Ajouter une note…"
-          rows={3}
-          className="w-full px-3 py-2 rounded-lg border border-gray-200 text-[13px] text-gray-700 outline-none resize-none placeholder:text-gray-400" />
-        <div className="flex items-center justify-end gap-2 mt-2">
-          <button onClick={saveAddNote} disabled={!addNote.trim() || savingAdd}
-            className={`text-[11px] font-semibold px-3 py-1.5 rounded-lg transition-all ${addNote.trim() && !savingAdd ? 'bg-indigo-500 text-white hover:bg-indigo-600' : 'bg-gray-100 text-gray-400 cursor-not-allowed'}`}>
-            {savingAdd ? 'Enregistrement…' : 'Enregistrer la note'}
-          </button>
-        </div>
-      </div>
     </div>
   )
 }
