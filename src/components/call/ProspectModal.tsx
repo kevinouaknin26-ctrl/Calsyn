@@ -13,6 +13,7 @@ import { getPropertyValue } from '@/config/properties'
 import SocialLinks, { PlatformIcon } from './SocialLinks'
 import { supabase } from '@/config/supabase'
 import { useRecordingSignedUrl } from '@/hooks/useRecordingSignedUrl'
+import { useAuth } from '@/hooks/useAuth'
 import { CallDirectionBadge, getCallDirection } from '@/pages/History'
 import type { Prospect, CrmStatus } from '@/types/prospect'
 import type { Disposition, Call } from '@/types/call'
@@ -775,6 +776,7 @@ export default function ProspectModal({
   const [localCallOutcome, setLocalCallOutcome] = useState(prospect.last_call_outcome || '')
   useEffect(() => { setLocalCallOutcome(prospect.last_call_outcome || '') }, [prospect.last_call_outcome])
   const queryClient = useQueryClient()
+  const { user } = useAuth()
   const tabs = ['Activité', 'Notes', 'Tâches', 'Emails', 'Appels', 'SMS', 'Historique']
 
   const handleMeetingToggle = (checked: boolean) => {
@@ -835,7 +837,7 @@ export default function ProspectModal({
   const callsDisabled = localDoNotCall
   const isSnoozed = localSnoozedUntil && new Date(localSnoozedUntil) > new Date()
 
-  // Liste(s) du prospect
+  // Liste(s) du prospect + SDR assignés à ces listes
   const { data: prospectLists } = useQuery({
     queryKey: ['prospect-lists-for', prospect.id, prospect.phone],
     queryFn: async () => {
@@ -848,9 +850,26 @@ export default function ProspectModal({
       const listIds = [...new Set(allMatches.map(m => m.list_id))]
       const { data: lists } = await supabase
         .from('prospect_lists')
-        .select('id, name')
+        .select('id, name, assigned_to')
         .in('id', listIds)
-      return lists || []
+      if (!lists?.length) return []
+
+      // Résolution des user_ids → noms via profiles
+      const allUserIds = [...new Set(lists.flatMap(l => l.assigned_to || []))].filter(Boolean) as string[]
+      let userMap: Record<string, string> = {}
+      if (allUserIds.length > 0) {
+        const { data: profiles } = await supabase
+          .from('profiles')
+          .select('id, full_name, email')
+          .in('id', allUserIds)
+        userMap = Object.fromEntries((profiles || []).map(p => [p.id, p.full_name || (p.email ? p.email.split('@')[0] : 'SDR')]))
+      }
+      return lists.map(l => ({
+        id: l.id as string,
+        name: l.name as string,
+        sdrs: ((l.assigned_to || []) as string[])
+          .map(uid => ({ id: uid, name: userMap[uid] || 'SDR' })),
+      }))
     },
   })
 
@@ -886,14 +905,31 @@ export default function ProspectModal({
             {/* Logos réseaux en ligne (petits, cliquables — ouvrir le lien) */}
             <SocialIconsBar prospectId={prospect.id} />
 
-            {/* Badges listes */}
+            {/* Badges listes + SDR partagés */}
             {prospectLists && prospectLists.length > 0 && (
               <div className="flex flex-wrap gap-1 mb-1">
-                {prospectLists.map((l: { id: string; name: string }) => (
-                  <span key={l.id} className="text-[9px] px-2 py-0.5 rounded-full bg-violet-100 text-violet-600 font-medium truncate max-w-[140px]">
+                {prospectLists.map(l => (
+                  <span key={l.id} className="text-[9px] px-2 py-0.5 rounded-full bg-violet-100 text-violet-600 font-medium truncate max-w-[140px]" title={`Liste : ${l.name}`}>
                     {l.name}
                   </span>
                 ))}
+                {(() => {
+                  // Union des SDR assignés à toutes les listes (dédupliqué par user_id, exclut soi-même)
+                  const myId = user?.id
+                  const sharedSdrs = new Map<string, string>()
+                  for (const l of prospectLists) {
+                    for (const s of l.sdrs) {
+                      if (s.id !== myId) sharedSdrs.set(s.id, s.name)
+                    }
+                  }
+                  if (sharedSdrs.size === 0) return null
+                  return Array.from(sharedSdrs.entries()).map(([id, name]) => (
+                    <span key={`sdr-${id}`} className="text-[9px] px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 font-medium truncate max-w-[140px] inline-flex items-center gap-1" title={`Partagé avec ${name}`}>
+                      <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+                      {name}
+                    </span>
+                  ))
+                })()}
               </div>
             )}
 
