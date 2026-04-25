@@ -13,6 +13,7 @@ import Dashboard from '@/pages/Dashboard'
 import Team from '@/pages/Team'
 import Settings from '@/pages/Settings'
 import Calendar from '@/pages/Calendar'
+import Messagerie from '@/pages/Messagerie'
 import SuperAdmin from '@/pages/SuperAdmin'
 import type { ReactNode } from 'react'
 
@@ -47,6 +48,7 @@ function AppRoutes() {
       <Route path="/app/dashboard" element={<Protected admin><Layout><Dashboard /></Layout></Protected>} />
       <Route path="/app/team" element={<Protected admin><Layout><Team /></Layout></Protected>} />
       <Route path="/app/calendar" element={<Protected><Layout><Calendar /></Layout></Protected>} />
+      <Route path="/app/messagerie" element={<Protected><Layout><Messagerie /></Layout></Protected>} />
       <Route path="/app/settings" element={<Protected><Layout><Settings /></Layout></Protected>} />
       <Route path="*" element={<Navigate to="/app/dialer" replace />} />
     </Routes>

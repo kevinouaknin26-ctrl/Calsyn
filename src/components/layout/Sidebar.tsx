@@ -8,6 +8,7 @@ import { supabase } from '@/config/supabase'
 import { useAuth } from '@/hooks/useAuth'
 import { useSidebar } from './SidebarContext'
 import { useTheme } from '@/hooks/useTheme'
+import { useTotalUnread } from '@/hooks/useMessaging'
 
 const SETTINGS_SUBNAV = [
   { label: 'Champs contact', path: '/app/settings/contact-fields' },
@@ -37,6 +38,35 @@ export default function Sidebar() {
   const w = expanded ? 'w-[200px]' : 'w-[48px]'
   const isStaging = import.meta.env.VITE_APP_ENV === 'staging'
   const stagingOffset = isStaging ? 24 : 0
+
+  function MessagerieNavItem({ expanded }: { expanded: boolean }) {
+    const unread = useTotalUnread()
+    return (
+      <NavLink to="/app/messagerie" title="Messagerie" className={({ isActive }) =>
+        `relative ${expanded ? 'px-3' : ''} h-9 rounded-lg flex items-center gap-3 transition-all ${
+          isActive ? 'bg-gray-200/60 text-gray-800' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'
+        } ${expanded ? '' : 'w-9 justify-center'}`}>
+        <span className="flex-shrink-0 relative">
+          <svg className="w-[18px] h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>
+          {unread > 0 && !expanded && (
+            <span className="absolute -top-1 -right-1 min-w-[14px] h-[14px] px-1 rounded-full bg-indigo-500 text-white text-[8px] font-bold flex items-center justify-center">
+              {unread > 9 ? '9+' : unread}
+            </span>
+          )}
+        </span>
+        {expanded && (
+          <>
+            <span className="text-[13px]">Messagerie</span>
+            {unread > 0 && (
+              <span className="ml-auto min-w-[16px] h-[16px] px-1 rounded-full bg-indigo-500 text-white text-[9px] font-bold flex items-center justify-center">
+                {unread > 9 ? '9+' : unread}
+              </span>
+            )}
+          </>
+        )}
+      </NavLink>
+    )
+  }
 
   function NavItem({ to, icon, label, green }: { to: string; icon: JSX.Element; label: string; green?: boolean }) {
     return (
@@ -86,10 +116,8 @@ export default function Sidebar() {
           <NavItem to="/app/dashboard" label="Analytics" icon={<svg className="w-[18px] h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>} />
           <NavItem to="/app/history" label="Historique appels" icon={<svg className="w-[18px] h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>} />
 
-          <button className={`${expanded ? 'px-3' : ''} h-9 rounded-lg flex items-center gap-3 text-gray-400 hover:text-gray-600 hover:bg-gray-100 ${expanded ? '' : 'w-9 justify-center'}`}>
-            <svg className="w-[18px] h-[18px] flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>
-            {expanded && <span className="text-[13px]">Historique SMS</span>}
-          </button>
+          <MessagerieNavItem expanded={expanded} />
+
           <button className={`${expanded ? 'px-3' : ''} h-9 rounded-lg flex items-center gap-3 text-gray-400 hover:text-gray-600 hover:bg-gray-100 ${expanded ? '' : 'w-9 justify-center'}`}>
             <svg className="w-[18px] h-[18px] flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
             {expanded && <span className="text-[13px]">Enrichissement</span>}
