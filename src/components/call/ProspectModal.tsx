@@ -768,6 +768,8 @@ function SmsTab({ prospect }: { prospect: Prospect }) {
 
 // ── Onglet Emails (Gmail intégré) ────────────────────────────────────
 function EmailsTab({ prospect }: { prospect: Prospect }) {
+  const { user } = useAuth()
+  const myEmail = (user?.email || '').toLowerCase()
   const { listThreads, getThread, sendEmail } = useGmail()
   const [threads, setThreads] = useState<GmailThread[] | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -877,16 +879,22 @@ function EmailsTab({ prospect }: { prospect: Prospect }) {
           className="text-[12px] text-gray-500 hover:text-gray-700 flex items-center gap-1">
           ← Retour à la liste
         </button>
-        {threadMessages.map(m => (
-          <div key={m.id} className="bg-white rounded-xl border border-gray-100 p-4">
-            <div className="flex items-center justify-between mb-2 text-[11px] text-gray-400">
-              <span className="font-medium text-gray-600 truncate">{m.from}</span>
-              <span className="flex-shrink-0 ml-2">{new Date(m.date).toLocaleString('fr-FR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>
+        {threadMessages.map(m => {
+          const isMine = myEmail && (m.from || '').toLowerCase().includes(myEmail)
+          return (
+            <div key={m.id}
+              className={`rounded-xl border p-4 ${isMine ? 'bg-violet-50/70 border-violet-200' : 'bg-white border-gray-100'}`}>
+              <div className="flex items-center justify-between mb-2 text-[11px] text-gray-400">
+                <span className={`font-medium truncate ${isMine ? 'text-violet-700' : 'text-gray-600'}`}>
+                  {isMine ? 'Vous' : m.from}
+                </span>
+                <span className="flex-shrink-0 ml-2">{new Date(m.date).toLocaleString('fr-FR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>
+              </div>
+              {m.subject && <p className="text-[13px] font-semibold text-gray-800 mb-2">{m.subject}</p>}
+              <pre className="text-[12px] text-gray-700 whitespace-pre-wrap font-sans">{m.body || m.snippet}</pre>
             </div>
-            {m.subject && <p className="text-[13px] font-semibold text-gray-800 mb-2">{m.subject}</p>}
-            <pre className="text-[12px] text-gray-700 whitespace-pre-wrap font-sans">{m.body || m.snippet}</pre>
-          </div>
-        ))}
+          )
+        })}
         <button onClick={() => { setComposing(true); setDraftSubject('Re: ' + (threadMessages[0]?.subject || '')) }}
           className="w-full px-3 py-2 text-[13px] font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl">
           Répondre
