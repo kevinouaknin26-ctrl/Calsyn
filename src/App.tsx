@@ -19,6 +19,23 @@ import Notifications from '@/pages/Notifications'
 import Enrichissement from '@/pages/Enrichissement'
 import SuperAdmin from '@/pages/SuperAdmin'
 import type { ReactNode } from 'react'
+import { ErrorBoundary } from '@/lib/sentry'
+
+function ErrorFallback() {
+  return (
+    <div className="min-h-screen bg-[#1a1a2e] flex items-center justify-center p-6">
+      <div className="max-w-md text-center">
+        <img src="/favicon.svg" alt="Calsyn" className="w-12 h-12 mx-auto mb-4" />
+        <h1 className="text-xl font-bold text-white mb-2">Quelque chose s'est cassé</h1>
+        <p className="text-sm text-gray-400 mb-6">L'erreur a été enregistrée. Recharge la page pour continuer.</p>
+        <button onClick={() => window.location.reload()}
+          className="px-4 py-2 rounded-lg bg-violet-600 hover:bg-violet-700 text-white text-sm font-semibold transition-colors">
+          Recharger
+        </button>
+      </div>
+    </div>
+  )
+}
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { staleTime: 30_000, retry: 2 } },
@@ -63,16 +80,18 @@ function AppRoutes() {
 
 export default function App() {
   return (
-    <QueryClientProvider client={queryClient}>
-      <BrowserRouter>
-        <AuthProvider>
-          <TwilioDeviceProvider>
-            <CallProvider>
-              <AppRoutes />
-            </CallProvider>
-          </TwilioDeviceProvider>
-        </AuthProvider>
-      </BrowserRouter>
-    </QueryClientProvider>
+    <ErrorBoundary fallback={<ErrorFallback />}>
+      <QueryClientProvider client={queryClient}>
+        <BrowserRouter>
+          <AuthProvider>
+            <TwilioDeviceProvider>
+              <CallProvider>
+                <AppRoutes />
+              </CallProvider>
+            </TwilioDeviceProvider>
+          </AuthProvider>
+        </BrowserRouter>
+      </QueryClientProvider>
+    </ErrorBoundary>
   )
 }

@@ -111,6 +111,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => clearInterval(iv)
   }, [profile?.organisation_id, refreshOrganisation])
 
+  // Identifie l'user dans Sentry (lazy import pour éviter cycle)
+  useEffect(() => {
+    import('@/lib/sentry').then(({ identifySentryUser }) => {
+      identifySentryUser(profile ? {
+        id: profile.id,
+        email: profile.email,
+        role: profile.role,
+        orgId: profile.organisation_id || undefined,
+      } : null)
+    })
+  }, [profile?.id, profile?.role, profile?.organisation_id])
+
   return (
     <AuthContext.Provider value={{
       user, profile, organisation, loading, role,
