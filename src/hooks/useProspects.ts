@@ -199,6 +199,9 @@ export function useCreateList() {
           name,
           organisation_id: organisation.id,
           created_by: profile?.id,
+          // Auto-attribution au créateur (admin garde le contrôle).
+          // Ajout d'un commercial = action séparée via UI assignment.
+          assigned_to: profile?.id ? [profile.id] : [],
         })
         .select('id, name, assigned_to, created_by, created_at')
         .single()
