@@ -22,6 +22,7 @@ import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.0'
 import { corsHeaders } from '../_shared/cors.ts'
 import {
+import { captureError } from '../_shared/sentry.ts'
   deriveSigningKey,
   signHex,
   constantTimeEquals,
@@ -173,6 +174,7 @@ serve(async (req) => {
     return await fetchTwilioAudio(twilioUrl, cors, req.headers.get('range'))
   } catch (err) {
     console.error('[recording-proxy] Error:', err)
+    captureError(err, { tags: { fn: 'recording-proxy' } }).catch(() => {})
     return new Response('Internal error', { status: 500, headers: cors })
   }
 })

@@ -7,6 +7,8 @@
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.0'
+import { captureError } from '../_shared/sentry.ts'
+import { verifyTwilioSignature } from '../_shared/twilio-signature.ts'
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') || ''
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || ''
@@ -39,6 +41,15 @@ serve(async (req) => {
       params = Object.fromEntries(new URLSearchParams(text).entries())
     } else if (contentType.includes('json')) {
       params = await req.json()
+    }
+
+    // Twilio webhook signature : seulement pour requêtes form-urlencoded (Twilio TwiML)
+    // Les requêtes JSON viennent du SDK browser (auth via JWT côté token-gen)
+    if (contentType.includes('form-urlencoded')) {
+      if (!await verifyTwilioSignature(req, params)) {
+        console.warn('[call-webhook] Invalid Twilio signature, rejecting')
+        return new Response('Forbidden', { status: 403 })
+      }
     }
 
     const to = params.To || ''
@@ -224,6 +235,7 @@ serve(async (req) => {
 
   } catch (err) {
     console.error('[call-webhook] Error:', err)
+    captureError(err, { tags: { fn: 'call-webhook' } }).catch(() => {})
     return new Response(`<?xml version="1.0" encoding="UTF-8"?><Response><Say>An error occurred</Say></Response>`, {
       headers: { 'Content-Type': 'text/xml' },
     })

@@ -42,6 +42,35 @@ interface CaptureContext {
   level?: 'fatal' | 'error' | 'warning' | 'info'
 }
 
+// PII scrubbing — emails, téléphones, JWT, SIDs Twilio
+const PII_PATTERNS: Array<[RegExp, string]> = [
+  [/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g, '[email]'],
+  [/(\+?\d{1,3}[ -]?)?\(?\d{2,4}\)?[ -]?\d{2,4}[ -]?\d{2,4}[ -]?\d{2,4}/g, '[phone]'],
+  [/Bearer\s+[A-Za-z0-9._\-]+/g, 'Bearer [redacted]'],
+  [/eyJ[A-Za-z0-9_\-]+\.[A-Za-z0-9_\-]+\.[A-Za-z0-9_\-]+/g, '[jwt]'],
+  [/RE[a-f0-9]{32}/g, '[recordingSid]'],
+  [/CA[a-f0-9]{32}/g, '[callSid]'],
+  [/SM[a-f0-9]{32}/g, '[messageSid]'],
+]
+
+function scrub(s: unknown): unknown {
+  if (typeof s !== 'string') return s
+  let out = s
+  for (const [re, repl] of PII_PATTERNS) out = out.replace(re, repl)
+  return out
+}
+
+function scrubObject<T>(obj: T): T {
+  if (obj == null || typeof obj !== 'object') return obj
+  const out: Record<string, unknown> = {}
+  for (const [k, v] of Object.entries(obj as Record<string, unknown>)) {
+    if (typeof v === 'string') out[k] = scrub(v)
+    else if (typeof v === 'object' && v !== null) out[k] = scrubObject(v)
+    else out[k] = v
+  }
+  return out as T
+}
+
 /** Capture une erreur dans Sentry. Async fire-and-forget — n'attend pas la réponse. */
 export async function captureError(error: unknown, context: CaptureContext = {}): Promise<void> {
   if (!DSN_PARTS) {
@@ -50,6 +79,7 @@ export async function captureError(error: unknown, context: CaptureContext = {})
   }
 
   const err = error instanceof Error ? error : new Error(String(error))
+  const scrubbedMessage = scrub(err.message) as string
   const event = {
     event_id: crypto.randomUUID().replace(/-/g, ''),
     timestamp: Date.now() / 1000,
@@ -58,12 +88,13 @@ export async function captureError(error: unknown, context: CaptureContext = {})
     environment: ENV,
     server_name: 'supabase-edge',
     tags: { runtime: 'deno', ...context.tags },
-    user: context.user,
-    extra: context.extra,
+    // user.id reste, mais on scrub email
+    user: context.user ? { ...context.user, email: context.user.email ? '[email]' : undefined } : undefined,
+    extra: context.extra ? scrubObject(context.extra) : undefined,
     exception: {
       values: [{
         type: err.name || 'Error',
-        value: err.message,
+        value: scrubbedMessage,
         stacktrace: err.stack ? {
           frames: parseStack(err.stack),
         } : undefined,

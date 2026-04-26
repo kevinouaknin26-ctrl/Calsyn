@@ -10,6 +10,7 @@
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.0'
+import { captureError } from '../_shared/sentry.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': 'https://calsyn.app',
@@ -125,6 +126,7 @@ serve(async (req) => {
 
   } catch (err) {
     console.error('[end-call] Error:', err)
+    captureError(err, { tags: { fn: 'end-call' } }).catch(() => {})
     return new Response(JSON.stringify({ ok: true }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     })

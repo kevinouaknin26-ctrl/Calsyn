@@ -19,6 +19,7 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.0'
 import { isAutomatedEmail, normalizeName } from '../_shared/email-filters.ts'
+import { captureError } from '../_shared/sentry.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -310,6 +311,7 @@ async function ingestForUser(userId: string, organisationId: string): Promise<{ 
       if (!insErr) inserted++
     } catch (err) {
       console.error(`[gmail-ingest] Error processing ${m.id}:`, err)
+      captureError(err, { tags: { fn: 'gmail-ingest', stage: 'process_message' }, extra: { gmail_message_id: m.id } }).catch(() => {})
     }
   }
   return { inserted, updated, created_prospects: createdProspects, checked: messages.length }
@@ -358,6 +360,7 @@ serve(async (req) => {
       results.push({ user_id: ig.user_id, ...r })
     } catch (err) {
       results.push({ user_id: ig.user_id, error: (err as Error).message })
+      captureError(err, { tags: { fn: 'gmail-ingest', stage: 'ingest_user' }, user: { id: ig.user_id } }).catch(() => {})
     }
   }
   return new Response(JSON.stringify({ ok: true, isCron, results }), {

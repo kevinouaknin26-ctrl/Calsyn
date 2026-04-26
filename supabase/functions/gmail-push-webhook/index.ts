@@ -16,6 +16,7 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.0'
 import { isAutomatedEmail, normalizeName } from '../_shared/email-filters.ts'
+import { captureError } from '../_shared/sentry.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -274,6 +275,7 @@ serve(async (req) => {
     return new Response('OK', { headers: corsHeaders })
   } catch (err) {
     console.error('[gmail-push-webhook] Error:', err)
+    captureError(err, { tags: { fn: 'gmail-push-webhook' } }).catch(() => {})
     return new Response('OK', { headers: corsHeaders })
   }
 })

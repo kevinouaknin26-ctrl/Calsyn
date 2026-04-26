@@ -44,7 +44,9 @@ export function initSentry() {
 
     integrations: [
       // Pas de browserTracingIntegration (perf samples = quota lourd)
-      // Pas de replayIntegration (sessions complètes = quota énorme)
+      // Pas de replayIntegration (sessions complètes = quota énorme, causaient
+      // des 403 sur sendSession). Réactivable en V1.1 si plan Sentry payant.
+      // PII scrubbing actif via beforeSend/beforeBreadcrumb plus bas.
       // Capture console.error / console.warn comme breadcrumbs
       Sentry.captureConsoleIntegration({ levels: ['error', 'warn'] }),
     ],
@@ -58,14 +60,69 @@ export function initSentry() {
       /AcquisitionFailedError/,
     ],
 
-    beforeSend(event, hint) {
+    beforeSend(event, _hint) {
       // Drop les events qui viennent uniquement d'extensions chrome
       if (event.exception?.values?.some(v => v.stacktrace?.frames?.some(f => f.filename?.includes('chrome-extension://')))) {
         return null
       }
-      return event
+      // Scrub PII des messages, request bodies, breadcrumbs
+      return scrubPII(event)
+    },
+
+    beforeBreadcrumb(breadcrumb) {
+      // Scrub PII des breadcrumbs (URL, message, data)
+      if (breadcrumb.message) breadcrumb.message = scrubString(breadcrumb.message)
+      if (breadcrumb.data) {
+        for (const k of Object.keys(breadcrumb.data)) {
+          const v = breadcrumb.data[k]
+          if (typeof v === 'string') breadcrumb.data[k] = scrubString(v)
+        }
+      }
+      return breadcrumb
     },
   })
+}
+
+// Patterns PII : emails, téléphones E.164, JWT, Bearer tokens, recording SIDs
+const PII_PATTERNS: Array<[RegExp, string]> = [
+  [/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g, '[email]'],
+  [/(\+?\d{1,3}[ -]?)?\(?\d{2,4}\)?[ -]?\d{2,4}[ -]?\d{2,4}[ -]?\d{2,4}/g, '[phone]'],
+  [/Bearer\s+[A-Za-z0-9._\-]+/g, 'Bearer [redacted]'],
+  [/eyJ[A-Za-z0-9_\-]+\.[A-Za-z0-9_\-]+\.[A-Za-z0-9_\-]+/g, '[jwt]'],
+  [/RE[a-f0-9]{32}/g, '[recordingSid]'],
+  [/CA[a-f0-9]{32}/g, '[callSid]'],
+  [/SM[a-f0-9]{32}/g, '[messageSid]'],
+]
+
+function scrubString(s: string): string {
+  if (!s || typeof s !== 'string') return s
+  let out = s
+  for (const [re, repl] of PII_PATTERNS) out = out.replace(re, repl)
+  return out
+}
+
+function scrubPII(event: Sentry.ErrorEvent): Sentry.ErrorEvent {
+  // Message principal
+  if (event.message) event.message = scrubString(event.message)
+  // Exceptions
+  if (event.exception?.values) {
+    for (const ex of event.exception.values) {
+      if (ex.value) ex.value = scrubString(ex.value)
+    }
+  }
+  // Request URL/data
+  if (event.request) {
+    if (event.request.url) event.request.url = scrubString(event.request.url)
+    if (typeof event.request.data === 'string') event.request.data = scrubString(event.request.data)
+  }
+  // Extra/contexts arbitraires
+  if (event.extra) {
+    for (const k of Object.keys(event.extra)) {
+      const v = event.extra[k]
+      if (typeof v === 'string') event.extra[k] = scrubString(v)
+    }
+  }
+  return event
 }
 
 /** Identifie l'user pour les erreurs (à appeler après login). */

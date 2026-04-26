@@ -16,6 +16,7 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.0'
 import { corsHeaders } from '../_shared/cors.ts'
+import { captureError } from '../_shared/sentry.ts'
 
 serve(async (req) => {
   const cors = corsHeaders(req)
@@ -89,6 +90,7 @@ serve(async (req) => {
   if (!twilioRes.ok) {
     const errText = await twilioRes.text()
     console.error('[wa-send] Twilio error:', twilioRes.status, errText)
+    captureError(new Error(`Twilio WA failed: ${errText}`), { tags: { fn: 'wa-send', twilio_status: String(twilioRes.status) } }).catch(() => {})
     return new Response(JSON.stringify({ error: 'Twilio WhatsApp send failed', details: errText }), {
       status: 502, headers: { ...cors, 'Content-Type': 'application/json' },
     })

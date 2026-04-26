@@ -11,6 +11,7 @@
 import 'jsr:@supabase/functions-js/edge-runtime.d.ts'
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import { renderResetEmail } from './email-template.ts'
+import { captureError } from '../_shared/sentry.ts'
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
 const SERVICE_ROLE = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
@@ -98,6 +99,7 @@ Deno.serve(async (req: Request) => {
     return json({ ok: true })
   } catch (err) {
     console.error('[password-reset] Error:', err)
+    captureError(err, { tags: { fn: 'password-reset' } }).catch(() => {})
     return json({ error: 'Internal error' }, 500)
   }
 })
