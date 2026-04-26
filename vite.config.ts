@@ -19,7 +19,7 @@ export default defineConfig({
         name: 'Calsyn',
         short_name: 'Calsyn',
         description: 'Plateforme de prospection téléphonique pour SDRs',
-        theme_color: '#7c3aed',
+        theme_color: '#ffffff',
         background_color: '#1a1a2e',
         display: 'standalone',
         orientation: 'portrait-primary',
@@ -28,8 +28,10 @@ export default defineConfig({
         lang: 'fr',
         categories: ['business', 'productivity'],
         icons: [
-          // SVG d'abord (résolution adaptive sur browsers récents)
-          { src: '/favicon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any maskable' },
+          { src: '/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+          { src: '/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+          { src: '/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+          { src: '/favicon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any' },
         ],
       },
       workbox: {

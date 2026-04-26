@@ -43,8 +43,8 @@ export default function Layout({ children }: { children: ReactNode }) {
             <main
               className={`${mainMargin} flex-1 h-full overflow-hidden transition-all duration-200 relative`}
               style={isMobile ? {
-                paddingTop: 'calc(env(safe-area-inset-top, 0px) + 52px)',  // header height
-                paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 60px)',  // bottom nav height
+                paddingTop: '48px',  // header height (h-12)
+                paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 60px)',  // bottom nav + safe area
               } : undefined}
             >
               {children}

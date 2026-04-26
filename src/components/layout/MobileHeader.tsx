@@ -45,11 +45,7 @@ export default function MobileHeader() {
 
   return (
     <header
-      className="md:hidden fixed top-0 left-0 right-0 z-30 bg-white/90 dark:bg-[#f0eaf5]/90 backdrop-blur-md border-b border-gray-200 flex items-center justify-between px-3"
-      style={{
-        paddingTop: 'calc(env(safe-area-inset-top, 0px) + 8px)',
-        paddingBottom: 8,
-      }}
+      className="md:hidden fixed top-0 left-0 right-0 z-30 bg-white dark:bg-[#f0eaf5] border-b border-gray-200 flex items-center justify-between px-3 h-12"
     >
       {/* Logo + titre */}
       <button
