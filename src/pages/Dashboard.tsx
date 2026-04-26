@@ -39,6 +39,7 @@ import PipelineDistribution from '@/components/dashboard/PipelineDistribution'
 import MessagingStats from '@/components/dashboard/MessagingStats'
 import ActivityFeed from '@/components/dashboard/ActivityFeed'
 import HeatMap from '@/components/dashboard/HeatMap'
+import UpcomingRdv from '@/components/dashboard/UpcomingRdv'
 import Reveal from '@/components/dashboard/Reveal'
 
 export default function Dashboard() {
@@ -247,9 +248,12 @@ export default function Dashboard() {
               <KpiCard index={7} label="Messages échangés" value={stats.messages} sub={`${stats.messagesIn} reçus`} spark={sparkMsg} color="#06b6d4" icon="💌" />
             </div>
 
-            {/* ─── Funnel + Activity chart ─── */}
+            {/* ─── Prochains RDV + Funnel ─── */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
               <Reveal direction="left" className="lg:col-span-1">
+                <UpcomingRdv prospects={prospects} />
+              </Reveal>
+              <Reveal direction="right" delay={120} className="lg:col-span-2">
                 <Funnel steps={[
                   { label: 'Appels lancés', value: stats.total, color: '#a5b4fc' },
                   { label: 'Connectés à un humain', value: stats.connected, color: '#10b981' },
@@ -257,10 +261,12 @@ export default function Dashboard() {
                   { label: 'RDV pris', value: stats.rdv, color: '#8b5cf6' },
                 ]} />
               </Reveal>
-              <Reveal direction="right" delay={120} className="lg:col-span-2">
-                <ActivityChart buckets={buckets} />
-              </Reveal>
             </div>
+
+            {/* ─── Activity chart full width ─── */}
+            <Reveal direction="up">
+              <ActivityChart buckets={buckets} />
+            </Reveal>
 
             {/* ─── AI Insights (full width) ─── */}
             <Reveal direction="up" duration={700}>

@@ -84,7 +84,7 @@ export function useDashboardData(range: TimeRange) {
       if (!orgId) return []
       const { data } = await supabase
         .from('prospects')
-        .select('id, name, crm_status, last_call_outcome, rdv_date, snoozed_until, meeting_booked, sector, company')
+        .select('id, name, phone, email, crm_status, last_call_outcome, rdv_date, snoozed_until, meeting_booked, sector, company')
         .eq('organisation_id', orgId)
         .is('deleted_at', null)
         .limit(5000)
