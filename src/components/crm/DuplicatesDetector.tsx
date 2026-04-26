@@ -213,30 +213,48 @@ export default function DuplicatesDetector({
                   {merging === g.key ? 'Fusion...' : '⚭ Fusionner'}
                 </button>
               </div>
-              <div className="grid grid-cols-2 gap-px bg-gray-100">
+              {/* Cards Kanban-style — espacées, cliquables, hover animé */}
+              <div className="flex flex-wrap gap-3 p-3 bg-gray-50">
                 {g.prospects.map((p, idx) => {
-                  const inner = (
-                    <>
-                      {idx === 0 && (
-                        <div className="text-[9px] uppercase font-bold text-violet-600 mb-1">Canonique (gardé)</div>
+                  const isCanonical = idx === 0
+                  const card = (
+                    <div className={`relative bg-white rounded-xl border ${isCanonical ? 'border-violet-300 ring-2 ring-violet-100' : 'border-gray-200'} shadow-sm group-hover:shadow-md group-hover:-translate-y-0.5 transition-all p-3 text-[11px] flex-1 min-w-[260px]`}>
+                      {isCanonical && (
+                        <div className="absolute -top-2 left-3 bg-violet-600 text-white text-[8px] font-bold uppercase px-1.5 py-0.5 rounded">
+                          ⭐ Canonique (gardé)
+                        </div>
                       )}
-                      <div className="font-semibold text-gray-800 mb-1 hover:text-indigo-600">{p.name || '(sans nom)'}</div>
-                      {p.email && <div className="text-gray-600 truncate">📧 {p.email}</div>}
-                      {p.phone && <div className="text-gray-600">📞 {p.phone}</div>}
-                      {(p as any).phone2 && <div className="text-gray-500">📞 {(p as any).phone2}</div>}
+                      <div className="flex items-center gap-2 mb-2 mt-0.5">
+                        <div className="w-7 h-7 rounded-full bg-gradient-to-br from-indigo-400 to-violet-500 flex items-center justify-center text-white font-bold text-[12px] flex-shrink-0">
+                          {(p.name || '?')[0].toUpperCase()}
+                        </div>
+                        <div className="font-semibold text-gray-800 text-[12px] truncate group-hover:text-indigo-600">
+                          {p.name || '(sans nom)'}
+                        </div>
+                      </div>
+                      {p.email && <div className="text-gray-600 truncate flex items-center gap-1">📧 {p.email}</div>}
+                      {p.phone && <div className="text-gray-600 flex items-center gap-1">📞 {p.phone}</div>}
+                      {(p as any).phone2 && <div className="text-gray-500 flex items-center gap-1">📞 {(p as any).phone2}</div>}
                       {p.listNames && p.listNames.length > 0 && (
-                        <div className="text-[10px] text-gray-400 mt-1 truncate">📋 {p.listNames.join(', ')}</div>
+                        <div className="text-[10px] text-gray-400 mt-1.5 truncate">📋 {p.listNames.join(', ')}</div>
                       )}
-                      <div className="text-[9px] text-gray-400 mt-1">Créé le {new Date(p.created_at).toLocaleDateString('fr-FR')}</div>
-                    </>
+                      <div className="text-[9px] text-gray-400 mt-1.5 pt-1.5 border-t border-gray-100">
+                        Créé le {new Date(p.created_at).toLocaleDateString('fr-FR')}
+                        {onProspectClick && <span className="float-right text-indigo-500 group-hover:text-indigo-700">Voir la fiche →</span>}
+                      </div>
+                    </div>
                   )
                   return onProspectClick ? (
-                    <button key={p.id} onClick={() => onProspectClick(p)}
-                      className="bg-white p-3 text-[11px] text-left hover:bg-indigo-50 transition-colors cursor-pointer">
-                      {inner}
+                    <button
+                      key={p.id}
+                      type="button"
+                      onClick={() => onProspectClick(p)}
+                      className="group flex-1 min-w-[260px] text-left cursor-pointer"
+                    >
+                      {card}
                     </button>
                   ) : (
-                    <div key={p.id} className="bg-white p-3 text-[11px]">{inner}</div>
+                    <div key={p.id} className="group flex-1 min-w-[260px]">{card}</div>
                   )
                 })}
               </div>
