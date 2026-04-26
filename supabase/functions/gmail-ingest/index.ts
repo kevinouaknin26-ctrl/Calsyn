@@ -218,7 +218,15 @@ async function ingestForUser(userId: string, organisationId: string): Promise<{ 
   let mailListId: string | null = null
   let inserted = 0, updated = 0, createdProspects = 0
 
-  for (const m of messages) {
+  // Filtre : ne traiter que les NOUVEAUX messages (pas déjà en DB).
+  // Le list endpoint ramène jusqu'à 200 msgs des 30 derniers jours, mais 99%
+  // sont déjà ingérés → fetch full inutile = quota Gmail saturé.
+  // Pour les existants, on update is_read si besoin via fetch metadata seulement
+  // dans une 2e passe limitée à 5 messages (suffit pour propager les "lu" récents).
+  const newMessages = messages.filter(m => !existingMap.has(m.id))
+  const recentExisting = messages.filter(m => existingMap.has(m.id)).slice(0, 5)
+
+  for (const m of newMessages) {
     try {
       const fullRes = await fetch(`${GMAIL_API}/messages/${m.id}?format=full`, {
         headers: { 'Authorization': `Bearer ${token}` },
@@ -228,15 +236,6 @@ async function ingestForUser(userId: string, organisationId: string): Promise<{ 
       const labelIds = (msg.labelIds || []) as string[]
       const isUnread = labelIds.includes('UNREAD')
       const newIsRead = !isUnread
-
-      const ex = existingMap.get(m.id)
-      if (ex) {
-        if (ex.is_read !== newIsRead) {
-          await admin.from('messages').update({ is_read: newIsRead, metadata: { label_ids: labelIds } }).eq('id', ex.id)
-          updated++
-        }
-        continue
-      }
 
       const headers = msg.payload?.headers || []
       const from = getHeader(headers, 'From')
@@ -308,6 +307,32 @@ async function ingestForUser(userId: string, organisationId: string): Promise<{ 
       captureError(err, { tags: { fn: 'gmail-ingest', stage: 'process_message' }, extra: { gmail_message_id: m.id } }).catch(() => {})
     }
   }
+
+  // 2e passe : sync is_read pour les 5 plus récents existants (format=metadata, 1 quota unit chacun).
+  // Permet au "lu" Gmail de se propager dans Calsyn sans flooder l'API.
+  for (const m of recentExisting) {
+    try {
+      const ex = existingMap.get(m.id)
+      if (!ex) continue
+      const metaRes = await fetch(`${GMAIL_API}/messages/${m.id}?format=metadata&metadataHeaders=`, {
+        headers: { 'Authorization': `Bearer ${token}` },
+      })
+      if (!metaRes.ok) continue
+      const meta = await metaRes.json()
+      const labelIds = (meta.labelIds || []) as string[]
+      const isUnread = labelIds.includes('UNREAD')
+      const newIsRead = !isUnread
+      if (ex.is_read !== newIsRead) {
+        await admin.from('messages')
+          .update({ is_read: newIsRead, metadata: { label_ids: labelIds } })
+          .eq('id', ex.id)
+        updated++
+      }
+    } catch {
+      // silencieux : sync is_read est best-effort
+    }
+  }
+
   return { inserted, updated, created_prospects: createdProspects, checked: messages.length }
 }
 
