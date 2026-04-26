@@ -1051,12 +1051,12 @@ function UsersSection({ orgId, phoneNumbers }: { orgId: string; phoneNumbers?: T
   const changeRole = async (profileId: string, role: string) => {
     if (!perms.canChangeRoles && role !== 'sdr') return // Admin ne peut créer que des SDRs
     await supabase.from('profiles').update({ role }).eq('id', profileId)
-    queryClient.invalidateQueries({ queryKey: ['org-members'] })
+    queryClient.invalidateQueries({ queryKey: ['org-members'] }); queryClient.invalidateQueries({ queryKey: ['team-members'] })
   }
 
   const assignPhone = async (profileId: string, phone: string) => {
     await supabase.from('profiles').update({ assigned_phone: phone || null }).eq('id', profileId)
-    queryClient.invalidateQueries({ queryKey: ['org-members'] })
+    queryClient.invalidateQueries({ queryKey: ['org-members'] }); queryClient.invalidateQueries({ queryKey: ['team-members'] })
   }
 
   return (

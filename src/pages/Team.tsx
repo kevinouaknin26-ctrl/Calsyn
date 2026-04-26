@@ -140,7 +140,7 @@ export default function Team() {
   const updateProfile = async (userId: string, patch: Partial<Profile>) => {
     const { error } = await supabase.from('profiles').update(patch).eq('id', userId)
     if (error) { pushFeedback({ type: 'err', msg: error.message }); return false }
-    queryClient.invalidateQueries({ queryKey: ['team-members'] })
+    queryClient.invalidateQueries({ queryKey: ['team-members'] }); queryClient.invalidateQueries({ queryKey: ['org-members'] })
     return true
   }
 
@@ -155,7 +155,7 @@ export default function Team() {
     if (r.error) pushFeedback({ type: 'err', msg: r.error })
     else {
       pushFeedback({ type: 'ok', msg: 'Invitation annulée' })
-      queryClient.invalidateQueries({ queryKey: ['team-members'] })
+      queryClient.invalidateQueries({ queryKey: ['team-members'] }); queryClient.invalidateQueries({ queryKey: ['org-members'] })
     }
   }
   const handleToggleStatus = async (u: Profile) => {
@@ -163,7 +163,7 @@ export default function Team() {
     if (r.error) pushFeedback({ type: 'err', msg: r.error })
     else {
       pushFeedback({ type: 'ok', msg: r.deactivated ? 'Utilisateur suspendu' : 'Utilisateur réactivé' })
-      queryClient.invalidateQueries({ queryKey: ['team-members'] })
+      queryClient.invalidateQueries({ queryKey: ['team-members'] }); queryClient.invalidateQueries({ queryKey: ['org-members'] })
     }
   }
   const handleRevokeLink = async (u: Profile) => {
@@ -175,7 +175,7 @@ export default function Team() {
     if (error) pushFeedback({ type: 'err', msg: error.message })
     else {
       pushFeedback({ type: 'ok', msg: `Lien révoqué pour ${u.email}` })
-      queryClient.invalidateQueries({ queryKey: ['team-members'] })
+      queryClient.invalidateQueries({ queryKey: ['team-members'] }); queryClient.invalidateQueries({ queryKey: ['org-members'] })
     }
   }
   const handleDelete = async (u: Profile) => {
@@ -184,7 +184,7 @@ export default function Team() {
     if (r.error) pushFeedback({ type: 'err', msg: r.error })
     else {
       pushFeedback({ type: 'ok', msg: 'Utilisateur supprimé' })
-      queryClient.invalidateQueries({ queryKey: ['team-members'] })
+      queryClient.invalidateQueries({ queryKey: ['team-members'] }); queryClient.invalidateQueries({ queryKey: ['org-members'] })
     }
   }
 
@@ -298,7 +298,7 @@ export default function Team() {
           onInvited={(email, role) => {
             pushFeedback({ type: 'ok', msg: `Invitation envoyée à ${email} (${ROLE_LABELS[role]})` })
             setShowInvite(false)
-            queryClient.invalidateQueries({ queryKey: ['team-members'] })
+            queryClient.invalidateQueries({ queryKey: ['team-members'] }); queryClient.invalidateQueries({ queryKey: ['org-members'] })
           }}
           onError={(msg) => pushFeedback({ type: 'err', msg })}
         />
