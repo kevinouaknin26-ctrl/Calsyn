@@ -153,9 +153,16 @@ serve(async (req) => {
   }
 
   // ── Auth check (C5) : accepter service_role (pg_cron) OU admin JWT ──
+  // Le token peut venir de Authorization: Bearer ... OU de apikey: ... .
+  // Note : depuis l'introduction des Modern Secret API Keys (sb_secret_...),
+  // le gateway Supabase rejette tout Authorization Bearer non-JWT en 401
+  // "Invalid JWT". On accepte donc aussi l'apikey header pour les crons internes.
   const authHeader = req.headers.get('authorization') || ''
-  const token = authHeader.replace(/^Bearer\s+/i, '')
+  const apiKeyHeader = req.headers.get('apikey') || ''
+  const bearerToken = authHeader.replace(/^Bearer\s+/i, '')
+  const token = bearerToken || apiKeyHeader
   const serviceRole = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || ''
+  const secretKey = Deno.env.get('SUPABASE_SECRET_KEY') || ''  // nouveau format sb_secret_xxx
   const supabaseUrl = Deno.env.get('SUPABASE_URL') || ''
 
   if (!token) {
@@ -164,18 +171,26 @@ serve(async (req) => {
     })
   }
 
-  if (token !== serviceRole) {
-    // Token user JWT — vérifier + check rôle admin
+  // Internal cron : token == service_role (legacy) OU token == secret_key (modern)
+  const isInternalCron = (serviceRole && token === serviceRole) || (secretKey && token === secretKey)
+
+  if (!isInternalCron) {
+    // Token user JWT — vérifier + check rôle admin (uniquement bearer)
+    if (!bearerToken) {
+      return new Response(JSON.stringify({ error: 'Unauthorized — bearer required for user' }), {
+        status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
     const userClient = createClient(supabaseUrl, Deno.env.get('SUPABASE_ANON_KEY') || '', {
-      global: { headers: { Authorization: `Bearer ${token}` } },
+      global: { headers: { Authorization: `Bearer ${bearerToken}` } },
     })
-    const { data: { user }, error: authErr } = await userClient.auth.getUser(token)
+    const { data: { user }, error: authErr } = await userClient.auth.getUser(bearerToken)
     if (authErr || !user) {
       return new Response(JSON.stringify({ error: 'Unauthorized — invalid JWT' }), {
         status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
     }
-    const adminClient = createClient(supabaseUrl, serviceRole)
+    const adminClient = createClient(supabaseUrl, serviceRole || secretKey)
     const { data: profile } = await adminClient.from('profiles').select('role').eq('id', user.id).single()
     if (!profile || !['super_admin', 'admin'].includes(profile.role)) {
       return new Response(JSON.stringify({ error: 'Forbidden — admin role required' }), {
