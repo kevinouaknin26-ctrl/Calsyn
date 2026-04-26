@@ -74,6 +74,21 @@ serve(async (req) => {
       })
     }
 
+    // ── Rate limit : 100 SMS / jour / user ──
+    const { data: rl } = await admin.rpc('check_rate_limit', {
+      p_user_id: user.id,
+      p_organisation_id: orgId,
+      p_action: 'sms_send',
+      p_metadata: { to: to.slice(-4) },  // garde juste les 4 derniers chiffres pour audit
+    })
+    if (rl && rl.allowed === false) {
+      return new Response(JSON.stringify({
+        error: 'Limite SMS atteinte',
+        message: `Tu as envoyé ${rl.count}/${rl.limit} SMS aujourd'hui. La limite se reset à minuit.`,
+        rate_limit: rl,
+      }), { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+    }
+
     // Détermine le numéro from
     let from = fromNumber
     if (!from) {

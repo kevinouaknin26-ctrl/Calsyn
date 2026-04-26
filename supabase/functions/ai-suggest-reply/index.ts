@@ -47,6 +47,23 @@ serve(async (req) => {
       })
     }
 
+    // ── Rate limit : 30 suggestions IA / heure / user ──
+    const { data: orgInfo } = await admin
+      .from('profiles').select('organisation_id').eq('id', user.id).single()
+    const { data: rl } = await admin.rpc('check_rate_limit', {
+      p_user_id: user.id,
+      p_organisation_id: orgInfo?.organisation_id || null,
+      p_action: 'ai_suggest',
+      p_metadata: { has_prospect: !!prospectName, lang: lang || 'fr' },
+    })
+    if (rl && rl.allowed === false) {
+      return new Response(JSON.stringify({
+        error: 'Limite atteinte',
+        message: `Tu as utilisé ${rl.count}/${rl.limit} suggestions IA cette heure. Réessaie dans un moment.`,
+        rate_limit: rl,
+      }), { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+    }
+
     const apiKey = Deno.env.get('ANTHROPIC_API_KEY')
     if (!apiKey) {
       return new Response(JSON.stringify({ error: 'ANTHROPIC_API_KEY not configured' }), {

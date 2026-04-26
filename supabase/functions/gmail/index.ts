@@ -301,6 +301,22 @@ serve(async (req) => {
           status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         })
       }
+
+      // ── Rate limit : 200 emails / jour / user ──
+      const { data: rl } = await admin.rpc('check_rate_limit', {
+        p_user_id: user.id,
+        p_organisation_id: prospectInfo?.organisation_id || null,
+        p_action: 'email_send',
+        p_metadata: { has_attachments: attachments.length > 0, has_thread: !!threadId },
+      })
+      if (rl && rl.allowed === false) {
+        return new Response(JSON.stringify({
+          error: 'Limite emails atteinte',
+          message: `Tu as envoyé ${rl.count}/${rl.limit} emails aujourd'hui. La limite se reset à minuit.`,
+          rate_limit: rl,
+        }), { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+      }
+
       // Subject vide accepté pour les replies (Gmail garde le subject original via threadId)
       const finalSubject = subject || ''
 
