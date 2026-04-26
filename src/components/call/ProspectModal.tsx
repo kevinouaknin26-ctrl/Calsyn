@@ -18,6 +18,7 @@ import { useGoogleCalendar } from '@/hooks/useGoogleCalendar'
 import { useGmail, type GmailThread, type GmailMessage } from '@/hooks/useGmail'
 import { useSmsForProspect, useSendSms } from '@/hooks/useSms'
 import { useEmailTemplates, useSaveEmailTemplate, useDeleteEmailTemplate } from '@/hooks/useEmailTemplates'
+import { useShareCallRecording } from '@/hooks/useSharedResources'
 import { CallDirectionBadge, getCallDirection } from '@/pages/History'
 import { downloadCallZip } from '@/services/exportCall'
 import type { Prospect, CrmStatus } from '@/types/prospect'
@@ -162,6 +163,8 @@ function AudioPlayer({ url, date, prospectName, call }: { url: string; date?: st
   const [speed, setSpeed] = useState(1)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [ready, setReady] = useState(false)
+  const shareCall = useShareCallRecording()
+  const canShare = !!(call?.id && call.recording_storage_path)
 
   const fmt = (s: number) => `${Math.floor(s / 60).toString().padStart(2, '0')}:${Math.floor(s % 60).toString().padStart(2, '0')}`
 
@@ -257,6 +260,35 @@ function AudioPlayer({ url, date, prospectName, call }: { url: string; date?: st
         }} className="text-[11px] text-gray-400 hover:text-gray-600 font-mono flex-shrink-0 w-6 text-center" title="Vitesse">
           x{speed}
         </button>
+        {/* Partager avec l'équipe */}
+        {canShare && (
+          <button onClick={async () => {
+            const title = window.prompt(`Titre de l'audio à partager :`, `Appel ${prospectName || 'inconnu'} — ${date ? new Date(date).toLocaleDateString('fr-FR') : ''}`)
+            if (!title?.trim()) return
+            const description = window.prompt('Description (optionnel) :', '') || ''
+            const tagsStr = window.prompt('Tags séparés par virgule (ex: closing, objection) :', '') || ''
+            const tags = tagsStr.split(',').map(t => t.trim()).filter(Boolean)
+            try {
+              await shareCall.mutateAsync({
+                callId: call!.id,
+                recordingStoragePath: call!.recording_storage_path!,
+                title: title.trim(),
+                description: description.trim() || undefined,
+                tags,
+                durationSeconds: call!.call_duration || undefined,
+              })
+              alert('Appel partagé avec l\'équipe ✓ (visible dans l\'onglet Ressources du Dashboard)')
+            } catch (e) {
+              alert('Erreur : ' + (e as Error).message)
+            }
+          }} className="text-violet-400 hover:text-violet-600 flex-shrink-0" title="Partager cet appel avec l'équipe" disabled={shareCall.isPending}>
+            {shareCall.isPending ? (
+              <span className="w-4 h-4 inline-block border-2 border-violet-400 border-t-transparent rounded-full animate-spin" />
+            ) : (
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" /></svg>
+            )}
+          </button>
+        )}
       </div>
     </div>
   )
