@@ -24,7 +24,7 @@ export default function ChatDock() {
   // utilisable). Sur desktop : décalé à right-[344px] pour cohabiter avec
   // MessagingDockBar même ouverte (320px + 16 + marge).
   return (
-    <div className="hidden sm:flex fixed bottom-0 right-[344px] items-end gap-3 z-40 pointer-events-none">
+    <div className="desktop-only-mobile-hidden fixed bottom-0 right-[344px] flex items-end gap-3 z-40 pointer-events-none">
       {chats.map(c => (
         <div key={c.prospectId} className="pointer-events-auto">
           <ChatBubble prospectId={c.prospectId} minimized={c.minimized} />

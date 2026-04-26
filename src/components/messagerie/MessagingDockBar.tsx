@@ -66,7 +66,7 @@ export default function MessagingDockBar() {
   return (
     <div
       ref={panelRef}
-      className="hidden sm:block fixed bottom-0 z-40 select-none"
+      className="desktop-only-mobile-hidden fixed bottom-0 z-40 select-none"
       style={{ right: rightOffset }}
     >
       <div className={`bg-white dark:bg-[#f0eaf5] border border-gray-200 border-b-0 rounded-t-2xl shadow-2xl flex flex-col overflow-hidden transition-all duration-200 ${open ? 'w-[calc(100vw-32px)] sm:w-[320px] h-[80vh] sm:h-[600px]' : 'w-[200px] sm:w-[260px] h-[44px]'}`}>
