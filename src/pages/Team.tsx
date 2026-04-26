@@ -189,7 +189,7 @@ export default function Team() {
   }
 
   return (
-    <div className="min-h-screen bg-[#f8f9fa] dark:bg-[#e8e0f0] p-6">
+    <div className="h-full bg-[#f8f9fa] dark:bg-[#e8e0f0] overflow-y-auto p-6 pb-12">
       {/* ── Header ── */}
       <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
         <div>
