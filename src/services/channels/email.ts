@@ -21,12 +21,19 @@ export const emailChannel: MessagingChannel = {
     if (!session?.access_token) throw new Error('Session expirée')
     const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string
 
-    // Encoder les pièces jointes
-    const encodedAttachments: Array<{ filename: string; mime: string; data: string }> = []
+    // Encoder les pièces jointes (format attendu par le backend gmail)
+    const encodedAttachments: Array<{ filename: string; mimeType: string; base64: string }> = []
     for (const f of attachments || []) {
       const buf = await f.arrayBuffer()
-      const b64 = btoa(String.fromCharCode(...new Uint8Array(buf)))
-      encodedAttachments.push({ filename: f.name, mime: f.type || 'application/octet-stream', data: b64 })
+      // btoa avec spread fail sur gros fichiers (stack overflow). Iter par chunks.
+      let binary = ''
+      const bytes = new Uint8Array(buf)
+      const chunkSize = 0x8000
+      for (let i = 0; i < bytes.length; i += chunkSize) {
+        binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize))
+      }
+      const b64 = btoa(binary)
+      encodedAttachments.push({ filename: f.name, mimeType: f.type || 'application/octet-stream', base64: b64 })
     }
 
     const res = await fetch(`${SUPABASE_URL}/functions/v1/gmail?action=send`, {

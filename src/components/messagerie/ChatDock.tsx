@@ -11,6 +11,7 @@ import { useQuery } from '@tanstack/react-query'
 import { supabase } from '@/config/supabase'
 import { useChatDock } from '@/contexts/ChatDockContext'
 import { useConversation } from '@/hooks/useMessaging'
+import { useAuth } from '@/hooks/useAuth'
 import { CHANNELS, ENABLED_CHANNELS, getChannel, type ChannelId, type UnifiedMessage } from '@/services/channels'
 
 export default function ChatDock() {
@@ -34,10 +35,14 @@ export default function ChatDock() {
 function ChatBubble({ prospectId, minimized }: { prospectId: string; minimized: boolean }) {
   const { closeChat, toggleMinimize } = useChatDock()
   const navigate = useNavigate()
+  const { profile } = useAuth()
   const { messages, send, sending, defaultReplyChannel, markAsRead } = useConversation(prospectId)
   const [draft, setDraft] = useState('')
   const [activeChannel, setActiveChannel] = useState<ChannelId>(defaultReplyChannel)
+  const [attachments, setAttachments] = useState<File[]>([])
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
+  const signature = profile?.email_signature || ''
 
   const { data: prospect } = useQuery({
     queryKey: ['prospect-info', prospectId],
@@ -74,17 +79,24 @@ function ChatBubble({ prospectId, minimized }: { prospectId: string; minimized: 
   async function handleSend() {
     if (!draft.trim() || sending) return
     const replyTo = lastIncomingByChannel.get(activeChannel)
+    // Pour les emails : append signature au body si pas déjà incluse
+    const isEmail = activeChannel === 'email'
+    const finalBody = isEmail && signature && !draft.includes(signature.trim().slice(0, 30))
+      ? `${draft}\n\n${signature}`
+      : draft
     try {
       await send({
         channel: activeChannel,
         prospectId,
-        body: draft,
-        subject: activeChannel === 'email'
+        body: finalBody,
+        subject: isEmail
           ? (replyTo?.subject ? `Re: ${replyTo.subject.replace(/^Re:\s*/i, '')}` : '')
           : undefined,
         replyTo,
+        attachments: isEmail && attachments.length > 0 ? attachments : undefined,
       })
       setDraft('')
+      setAttachments([])
     } catch (e) {
       alert('Erreur envoi : ' + (e as Error).message)
     }
@@ -179,7 +191,36 @@ function ChatBubble({ prospectId, minimized }: { prospectId: string; minimized: 
             )
           })}
         </div>
+
+        {/* Pièces jointes (email only) */}
+        {activeChannel === 'email' && attachments.length > 0 && (
+          <div className="flex flex-wrap gap-1 mb-1.5">
+            {attachments.map((f, i) => (
+              <div key={i} className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-violet-50 border border-violet-200 text-[10px] text-violet-700">
+                <span className="truncate max-w-[100px]">📎 {f.name}</span>
+                <button onClick={() => setAttachments(prev => prev.filter((_, j) => j !== i))}
+                  className="text-violet-400 hover:text-red-500">×</button>
+              </div>
+            ))}
+          </div>
+        )}
+
         <div className="flex items-end gap-1.5">
+          {/* Bouton attachment (email only) */}
+          {activeChannel === 'email' && (
+            <>
+              <input ref={fileInputRef} type="file" multiple className="hidden"
+                onChange={e => {
+                  const files = Array.from(e.target.files || [])
+                  setAttachments(prev => [...prev, ...files])
+                  if (fileInputRef.current) fileInputRef.current.value = ''
+                }} />
+              <button onClick={() => fileInputRef.current?.click()} title="Joindre un fichier"
+                className="px-2 py-1.5 rounded-lg border border-gray-200 bg-white text-gray-500 hover:text-violet-600 hover:border-violet-200 transition-colors">
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" /></svg>
+              </button>
+            </>
+          )}
           <textarea value={draft} onChange={e => setDraft(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey && !sending) { e.preventDefault(); handleSend() } }}
             placeholder={`${ch.label}…`}

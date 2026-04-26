@@ -67,19 +67,80 @@ async function getValidAccessToken(userId: string): Promise<string> {
   return refreshData.access_token
 }
 
-// Encode un message RFC 2822 en base64url pour Gmail send
-function buildRFC2822(to: string, subject: string, body: string, fromHeader: string): string {
-  const lines = [
-    `From: ${fromHeader}`,
-    `To: ${to}`,
-    `Subject: =?UTF-8?B?${btoa(unescape(encodeURIComponent(subject)))}?=`,
-    'MIME-Version: 1.0',
-    'Content-Type: text/plain; charset=utf-8',
-    '',
-    body,
-  ]
-  const raw = lines.join('\r\n')
-  // base64url
+interface AttachmentInput {
+  filename: string
+  mimeType?: string
+  mime?: string  // legacy
+  base64?: string
+  data?: string  // legacy
+}
+
+// Encode un message RFC 2822 en base64url pour Gmail send.
+// Si attachments : multipart/mixed avec text/plain + chaque PJ en base64.
+function buildRFC2822(
+  to: string, subject: string, body: string, fromHeader: string,
+  attachments: AttachmentInput[] = []
+): string {
+  const subjectEnc = `=?UTF-8?B?${btoa(unescape(encodeURIComponent(subject)))}?=`
+  let raw: string
+
+  if (!attachments || attachments.length === 0) {
+    // Simple text/plain
+    const lines = [
+      `From: ${fromHeader}`,
+      `To: ${to}`,
+      `Subject: ${subjectEnc}`,
+      'MIME-Version: 1.0',
+      'Content-Type: text/plain; charset=utf-8',
+      'Content-Transfer-Encoding: 8bit',
+      '',
+      body,
+    ]
+    raw = lines.join('\r\n')
+  } else {
+    // Multipart : 1 part text/plain + N parts attachments
+    const boundary = `=_calsyn_${Math.random().toString(36).slice(2)}_${Date.now()}`
+    const parts: string[] = []
+
+    // Body part
+    parts.push([
+      `--${boundary}`,
+      'Content-Type: text/plain; charset=utf-8',
+      'Content-Transfer-Encoding: 8bit',
+      '',
+      body,
+    ].join('\r\n'))
+
+    // Attachments parts
+    for (const a of attachments) {
+      const data = a.base64 || a.data || ''
+      const mime = a.mimeType || a.mime || 'application/octet-stream'
+      const filenameEnc = `=?UTF-8?B?${btoa(unescape(encodeURIComponent(a.filename)))}?=`
+      parts.push([
+        `--${boundary}`,
+        `Content-Type: ${mime}; name="${filenameEnc}"`,
+        'Content-Transfer-Encoding: base64',
+        `Content-Disposition: attachment; filename="${filenameEnc}"`,
+        '',
+        // Découpe en lignes de 76 chars (RFC standard)
+        data.match(/.{1,76}/g)?.join('\r\n') || data,
+      ].join('\r\n'))
+    }
+
+    parts.push(`--${boundary}--`)
+
+    const headers = [
+      `From: ${fromHeader}`,
+      `To: ${to}`,
+      `Subject: ${subjectEnc}`,
+      'MIME-Version: 1.0',
+      `Content-Type: multipart/mixed; boundary="${boundary}"`,
+      '',
+    ].join('\r\n')
+
+    raw = headers + '\r\n' + parts.join('\r\n')
+  }
+
   return btoa(unescape(encodeURIComponent(raw)))
     .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
 }
@@ -218,6 +279,7 @@ serve(async (req) => {
     if (action === 'send' && req.method === 'POST') {
       const body = await req.json()
       let { to, subject, body: emailBody, threadId, thread_id, prospect_id } = body
+      const attachments: AttachmentInput[] = body.attachments || []
       // Channel registry envoie thread_id (snake_case) ; fallback sur threadId (camel)
       threadId = threadId || thread_id
 
@@ -247,7 +309,7 @@ serve(async (req) => {
       const profileData = await profileRes.json()
       const fromAddress = profileData.emailAddress || user.email || ''
 
-      const raw = buildRFC2822(to, finalSubject, emailBody, fromAddress)
+      const raw = buildRFC2822(to, finalSubject, emailBody, fromAddress, attachments)
       const sendRes = await fetch(`${GMAIL_API}/messages/send`, {
         method: 'POST',
         headers: {
