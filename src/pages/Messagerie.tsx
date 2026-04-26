@@ -14,6 +14,8 @@ import { useNavigate } from 'react-router-dom'
 import { useConversations, useConversation } from '@/hooks/useMessaging'
 import { useAuth } from '@/hooks/useAuth'
 import { useChatDock } from '@/contexts/ChatDockContext'
+import { useIsMobile } from '@/hooks/useIsMobile'
+import MessagerieMobile from '@/components/messagerie/MessagerieMobile'
 import { CHANNELS, ENABLED_CHANNELS, getChannel, type ChannelId, type UnifiedMessage } from '@/services/channels'
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '@/config/supabase'
@@ -39,6 +41,12 @@ function formatTimeFull(iso: string): string {
 type ReadFilter = 'all' | 'unread' | 'read'
 
 export default function Messagerie() {
+  const isMobile = useIsMobile()
+  if (isMobile) return <MessagerieMobile />
+  return <MessagerieDesktop />
+}
+
+function MessagerieDesktop() {
   const { data: conversations, isLoading } = useConversations()
   const [selectedProspectId, setSelectedProspectId] = useState<string | null>(null)
   const [search, setSearch] = useState('')

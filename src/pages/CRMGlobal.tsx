@@ -20,6 +20,8 @@ import ProspectModal from '@/components/call/ProspectModal'
 import MultiSelectFilter from '@/components/ui/MultiSelectFilter'
 import UpcomingRdvBar from '@/components/ui/UpcomingRdvBar'
 import DuplicatesDetector from '@/components/crm/DuplicatesDetector'
+import CRMMobile from '@/components/crm/CRMMobile'
+import { useIsMobile } from '@/hooks/useIsMobile'
 import { InlineEditCell } from '@/pages/Dialer'
 import type { Prospect } from '@/types/prospect'
 import { normalizePhone } from '@/utils/phone'
@@ -305,6 +307,12 @@ function CrmColumnPicker({ visible, setVisible, allProperties, open, onToggle }:
 // ══════════════════════════════════════════════════════════════════
 
 export default function CRMGlobal() {
+  const isMobile = useIsMobile()
+  if (isMobile) return <CRMMobile />
+  return <CRMDesktop />
+}
+
+function CRMDesktop() {
   const { organisation, profile } = useAuth()
   const perms = usePermissions()
   const orgId = organisation?.id
