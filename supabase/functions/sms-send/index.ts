@@ -44,7 +44,20 @@ serve(async (req) => {
       })
     }
 
-    const { to, body, prospectId, fromNumber } = await req.json()
+    const payload = await req.json()
+    // Compat camelCase + snake_case (channel registry envoie snake)
+    let to: string | undefined = payload.to
+    const body: string | undefined = payload.body
+    const prospectId: string | undefined = payload.prospectId || payload.prospect_id
+    const fromNumber: string | undefined = payload.fromNumber || payload.from_number
+
+    // Si pas de `to` explicite, lookup via prospect_id (cas messagerie unifiée)
+    if (!to && prospectId) {
+      const { data: p } = await getAdmin()
+        .from('prospects').select('phone').eq('id', prospectId).maybeSingle()
+      to = p?.phone || undefined
+    }
+
     if (!to || !body) {
       return new Response(JSON.stringify({ error: 'Missing to or body' }), {
         status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
