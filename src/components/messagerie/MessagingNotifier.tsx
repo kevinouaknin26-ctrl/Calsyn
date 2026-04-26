@@ -10,7 +10,7 @@
  * Skip si l'user est déjà sur /app/messagerie ou a la bulle ouverte (évite spam).
  */
 
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import { supabase } from '@/config/supabase'
 import { useAuth } from '@/hooks/useAuth'
@@ -25,17 +25,45 @@ interface ToastNotif {
   body: string
 }
 
-const SOUND_URL = 'data:audio/mpeg;base64,SUQzAwAAAAAAFlRTU0UAAAAOAAADTGF2ZjU4LjI5LjEwMP/7kGQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA'
-// Note : pour un vrai son léger on pourra plug /public/notif.mp3 plus tard.
+// Son synthétisé via WebAudio (pas de fichier à host).
+// Petit "ding" doux à 880Hz puis 1318Hz, 200ms total.
+function playNotifSound() {
+  try {
+    const Ctx: typeof AudioContext = (window as any).AudioContext || (window as any).webkitAudioContext
+    if (!Ctx) return
+    const ctx = new Ctx()
+    const now = ctx.currentTime
+    const tones = [
+      { freq: 880, start: 0, dur: 0.10 },     // A5
+      { freq: 1318.5, start: 0.08, dur: 0.16 }, // E6
+    ]
+    for (const t of tones) {
+      const osc = ctx.createOscillator()
+      const gain = ctx.createGain()
+      osc.type = 'sine'
+      osc.frequency.value = t.freq
+      gain.gain.setValueAtTime(0.0001, now + t.start)
+      gain.gain.exponentialRampToValueAtTime(0.18, now + t.start + 0.015)
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + t.start + t.dur)
+      osc.connect(gain).connect(ctx.destination)
+      osc.start(now + t.start)
+      osc.stop(now + t.start + t.dur + 0.02)
+    }
+    setTimeout(() => ctx.close().catch(() => {}), 600)
+  } catch {}
+}
 
 export default function MessagingNotifier() {
   const { organisation, user } = useAuth()
   const { chats, openChat } = useChatDock()
   const location = useLocation()
   const [toasts, setToasts] = useState<ToastNotif[]>([])
-  const audioRef = useRef<HTMLAudioElement | null>(null)
   const soundEnabled = (() => {
-    try { return localStorage.getItem('messaging-sound') === '1' } catch { return false }
+    try {
+      const v = localStorage.getItem('messaging-sound')
+      // Default ON ; on désactive seulement si explicitement '0'
+      return v !== '0'
+    } catch { return true }
   })()
 
   useEffect(() => {
@@ -58,6 +86,10 @@ export default function MessagingNotifier() {
           }
           if (msg.direction !== 'in' || !msg.prospect_id) return
 
+          // STRICT : on ne notifie que pour MES messages (chacun son mail/num).
+          // Si user_id est null (legacy SMS sans match), on n'affiche pas non plus.
+          if (msg.user_id && msg.user_id !== user.id) return
+
           // Skip si on est sur la page Messagerie (déjà visible)
           if (location.pathname.startsWith('/app/messagerie')) return
 
@@ -77,10 +109,8 @@ export default function MessagingNotifier() {
             body: (msg.body || '').slice(0, 100),
           }])
 
-          // Son optionnel
-          if (soundEnabled && audioRef.current) {
-            audioRef.current.play().catch(() => {})
-          }
+          // Son (default ON)
+          if (soundEnabled) playNotifSound()
 
           // Auto-dismiss 5s
           setTimeout(() => {
@@ -104,7 +134,6 @@ export default function MessagingNotifier() {
 
   return (
     <>
-      <audio ref={audioRef} src={SOUND_URL} preload="auto" />
       <div className="fixed top-4 right-4 z-50 flex flex-col gap-2 pointer-events-none">
         {toasts.map(t => {
           const ch = getChannel(t.channel)
