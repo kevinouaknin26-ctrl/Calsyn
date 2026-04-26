@@ -10,3 +10,9 @@ migrations/**/merge.sql
 
 # Playwright MCP artefacts (snapshots, audio extraits) — locaux uniquement
 .playwright-mcp/
+
+# Playwright
+test-results/
+playwright-report/
+/blob-report/
+playwright/.cache/
