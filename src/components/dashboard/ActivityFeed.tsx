@@ -75,18 +75,22 @@ export default function ActivityFeed({ calls, messages }: { calls: Call[]; messa
   return (
     <div className="bg-white dark:bg-[#f0eaf5] rounded-xl border border-gray-200 dark:border-[#d4cade] overflow-hidden">
       <div className="px-4 py-2.5 border-b border-gray-100 flex items-baseline justify-between">
-        <h3 className="text-[12px] font-bold text-gray-700">⚡ Activité récente</h3>
+        <h3 className="text-[12px] font-bold text-gray-700 flex items-center gap-2">
+          <span className="live-dot" />
+          ⚡ Activité récente
+        </h3>
         <span className="text-[10px] text-gray-400">{items.length} évén.</span>
       </div>
       <div className="max-h-[400px] overflow-y-auto">
         {items.length === 0 ? (
           <div className="text-center py-12 text-[12px] text-gray-400">Aucune activité récente</div>
         ) : (
-          items.map(it => (
+          items.map((it, idx) => (
             <button
               key={it.id}
               onClick={() => it.prospectId && navigate(`/app/contacts?prospect=${it.prospectId}`)}
-              className="w-full text-left px-4 py-2.5 border-b border-gray-50 hover:bg-gray-50 transition-colors flex items-start gap-2.5 last:border-0"
+              className="w-full text-left px-4 py-2.5 border-b border-gray-50 hover:bg-gray-50 hover:translate-x-1 transition-all flex items-start gap-2.5 last:border-0 animate-slide-in stagger-item"
+              style={{ ['--i' as any]: Math.min(idx, 12) }}
             >
               <div className="w-7 h-7 rounded-full flex items-center justify-center text-[12px] flex-shrink-0"
                 style={{ background: `${it.color}18`, color: it.color }}>

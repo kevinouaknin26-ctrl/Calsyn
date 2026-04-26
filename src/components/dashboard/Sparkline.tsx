@@ -8,9 +8,10 @@ interface Props {
   width?: number
   height?: number
   fill?: boolean
+  animate?: boolean
 }
 
-export default function Sparkline({ data, color = '#6366f1', width = 80, height = 24, fill = true }: Props) {
+export default function Sparkline({ data, color = '#6366f1', width = 80, height = 24, fill = true, animate = false }: Props) {
   if (data.length === 0) return <svg width={width} height={height} />
 
   const max = Math.max(1, ...data)
@@ -35,6 +36,7 @@ export default function Sparkline({ data, color = '#6366f1', width = 80, height 
         strokeWidth={1.5}
         strokeLinecap="round"
         strokeLinejoin="round"
+        className={animate ? 'animate-dash-draw' : ''}
       />
       {/* Last point dot */}
       {data.length > 0 && (
@@ -43,6 +45,7 @@ export default function Sparkline({ data, color = '#6366f1', width = 80, height 
           cy={height - ((data[data.length - 1] - min) / (max - min)) * (height - 2) - 1}
           r={2}
           fill={color}
+          className={animate ? 'animate-dash-pulse' : ''}
         />
       )}
     </svg>

@@ -40,7 +40,11 @@ export default function Leaderboard({ rows }: { rows: SdrPerf[] }) {
             const rate = r.calls > 0 ? Math.round((r.connected / r.calls) * 100) : 0
             const talkM = Math.round(r.talkSec / 60)
             return (
-              <tr key={r.id} className={`border-b border-gray-50 hover:bg-gray-50/50 ${idx < 3 ? RANK_BG[idx] : ''}`}>
+              <tr
+                key={r.id}
+                className={`border-b border-gray-50 hover:bg-gray-50/80 transition-colors animate-dash-up stagger-item ${idx < 3 ? RANK_BG[idx] : ''}`}
+                style={{ ['--i' as any]: idx }}
+              >
                 <td className="px-4 py-2 tabular-nums text-gray-500 font-bold">
                   {idx < 3 ? <span className="text-[14px]">{RANK_EMOJI[idx]}</span> : `${idx + 1}`}
                 </td>

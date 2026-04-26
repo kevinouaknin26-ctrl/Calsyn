@@ -36,17 +36,19 @@ export default function ActivityChart({ buckets }: { buckets: DailyBucket[] }) {
             <div className="border-b border-gray-100 border-dashed h-px" />
             <div className="border-b border-gray-200 h-px" />
           </div>
-          {buckets.map(b => {
+          {buckets.map((b, i) => {
             const callsH = (b.calls / max) * 100
             const connectedH = (b.connected / max) * 100
             const rdvH = (b.rdv / max) * 100
+            // Delay max ~600ms total — répartition selon nb de buckets
+            const delay = (i / buckets.length) * 600
             return (
-              <div key={b.date} className="flex-1 flex flex-col items-center justify-end group relative h-full"
+              <div key={b.date} className="flex-1 flex flex-col items-center justify-end group relative h-full hover:bg-violet-50/30 transition-colors rounded-sm"
                 title={`${b.label} : ${b.calls} appels • ${b.connected} connectés • ${b.rdv} RDV`}>
                 <div className="w-full flex items-end gap-px h-full">
-                  <div className="flex-1 bg-indigo-300 hover:bg-indigo-400 transition-colors rounded-t-sm" style={{ height: `${callsH}%` }} />
-                  <div className="flex-1 bg-emerald-500 hover:bg-emerald-600 transition-colors rounded-t-sm" style={{ height: `${connectedH}%` }} />
-                  <div className="flex-1 bg-violet-600 hover:bg-violet-700 transition-colors rounded-t-sm" style={{ height: `${rdvH}%` }} />
+                  <div className="flex-1 bg-indigo-300 hover:bg-indigo-500 transition-colors rounded-t-sm animate-dash-bar" style={{ height: `${callsH}%`, animationDelay: `${delay}ms` }} />
+                  <div className="flex-1 bg-emerald-500 hover:bg-emerald-600 transition-colors rounded-t-sm animate-dash-bar" style={{ height: `${connectedH}%`, animationDelay: `${delay + 60}ms` }} />
+                  <div className="flex-1 bg-violet-600 hover:bg-violet-700 transition-colors rounded-t-sm animate-dash-bar" style={{ height: `${rdvH}%`, animationDelay: `${delay + 120}ms` }} />
                 </div>
               </div>
             )

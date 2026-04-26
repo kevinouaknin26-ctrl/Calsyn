@@ -182,11 +182,15 @@ export default function Dashboard() {
       <div className="max-w-7xl mx-auto p-6 pb-12 space-y-5">
 
         {/* ─── Header + filtres ─── */}
-        <div className="flex flex-wrap items-baseline justify-between gap-3">
+        <div className="flex flex-wrap items-baseline justify-between gap-3 animate-dash-up">
           <div>
-            <h1 className="text-2xl font-extrabold text-gray-800">Tableau de bord</h1>
-            <p className="text-[12px] text-gray-500 mt-0.5">
-              {isManager ? 'Vue équipe' : 'Mes performances'} • {rangeLabel(range)} • Mis à jour temps réel
+            <h1 className="text-2xl font-extrabold text-gray-800 flex items-center gap-2.5">
+              Tableau de bord
+              <span className="live-dot" title="Live" />
+            </h1>
+            <p className="text-[12px] text-gray-500 mt-0.5 flex items-center gap-1.5">
+              {isManager ? 'Vue équipe' : 'Mes performances'} • {rangeLabel(range)} •
+              <span className="text-emerald-600 font-semibold">Live</span>
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -232,18 +236,18 @@ export default function Dashboard() {
           <>
             {/* ─── KPIs ─── */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              <KpiCard label="Appels" value={stats.total} trendPct={kpiCalls.pct} spark={sparkCalls} color="#0ea5e9" icon="📞" />
-              <KpiCard label="Connectés" value={stats.connected} trendPct={kpiConnected.pct} sub={`${connectRate}% taux`} spark={sparkConnected} color="#10b981" icon="✅" />
-              <KpiCard label="RDV pris" value={stats.rdv} trendPct={kpiRdv.pct} sub={`${rdvRate}% / connectés`} spark={sparkRdv} color="#8b5cf6" icon="🎯" />
-              <KpiCard label="Score IA moyen" value={stats.avgScore ?? '—'} sub={stats.scoredCount > 0 ? `${stats.scoredCount} appels` : 'pas de données'} spark={sparkScore} color="#ec4899" icon="🤖" />
-              <KpiCard label="Conversations 1min+" value={stats.longCalls} sub={`sur ${stats.connected} connectés`} color="#f97316" icon="💬" />
-              <KpiCard label="Temps parlé" value={formatHM(stats.talkSec)} sub={stats.connected > 0 ? `~${Math.round(stats.talkSec / stats.connected / 60)}min/appel` : ''} color="#6366f1" icon="⏱️" />
-              <KpiCard label="Messageries vocales" value={stats.voicemails} trendPct={kpiVoicemails.pct} spark={sparkVm} color="#f59e0b" icon="📨" />
-              <KpiCard label="Messages échangés" value={stats.messages} sub={`${stats.messagesIn} reçus`} spark={sparkMsg} color="#06b6d4" icon="💌" />
+              <KpiCard index={0} label="Appels" value={stats.total} trendPct={kpiCalls.pct} spark={sparkCalls} color="#0ea5e9" icon="📞" />
+              <KpiCard index={1} label="Connectés" value={stats.connected} trendPct={kpiConnected.pct} sub={`${connectRate}% taux`} spark={sparkConnected} color="#10b981" icon="✅" />
+              <KpiCard index={2} label="RDV pris" value={stats.rdv} trendPct={kpiRdv.pct} sub={`${rdvRate}% / connectés`} spark={sparkRdv} color="#8b5cf6" icon="🎯" />
+              <KpiCard index={3} label="Score IA moyen" value={stats.avgScore ?? '—'} sub={stats.scoredCount > 0 ? `${stats.scoredCount} appels` : 'pas de données'} spark={sparkScore} color="#ec4899" icon="🤖" />
+              <KpiCard index={4} label="Conversations 1min+" value={stats.longCalls} sub={`sur ${stats.connected} connectés`} color="#f97316" icon="💬" />
+              <KpiCard index={5} label="Temps parlé" value={formatHM(stats.talkSec)} sub={stats.connected > 0 ? `~${Math.round(stats.talkSec / stats.connected / 60)}min/appel` : ''} color="#6366f1" icon="⏱️" />
+              <KpiCard index={6} label="Messageries vocales" value={stats.voicemails} trendPct={kpiVoicemails.pct} spark={sparkVm} color="#f59e0b" icon="📨" />
+              <KpiCard index={7} label="Messages échangés" value={stats.messages} sub={`${stats.messagesIn} reçus`} spark={sparkMsg} color="#06b6d4" icon="💌" />
             </div>
 
             {/* ─── Funnel + Activity chart ─── */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 animate-dash-up" style={{ animationDelay: '300ms', animationFillMode: 'backwards' }}>
               <div className="lg:col-span-1">
                 <Funnel steps={[
                   { label: 'Appels lancés', value: stats.total, color: '#a5b4fc' },
@@ -258,19 +262,25 @@ export default function Dashboard() {
             </div>
 
             {/* ─── AI Insights (full width) ─── */}
-            <AIInsights calls={calls} />
+            <div className="animate-dash-up" style={{ animationDelay: '450ms', animationFillMode: 'backwards' }}>
+              <AIInsights calls={calls} />
+            </div>
 
             {/* ─── Leaderboard (admin) ─── */}
-            {isManager && <Leaderboard rows={sdrRows} />}
+            {isManager && (
+              <div className="animate-dash-up" style={{ animationDelay: '550ms', animationFillMode: 'backwards' }}>
+                <Leaderboard rows={sdrRows} />
+              </div>
+            )}
 
             {/* ─── Pipeline + Messagerie ─── */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 animate-dash-up" style={{ animationDelay: '650ms', animationFillMode: 'backwards' }}>
               <PipelineDistribution prospects={prospects} />
               <MessagingStats messages={messages} />
             </div>
 
             {/* ─── HeatMap + Activity feed ─── */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 animate-dash-up" style={{ animationDelay: '750ms', animationFillMode: 'backwards' }}>
               <HeatMap calls={calls} />
               <ActivityFeed calls={calls} messages={messages as any} />
             </div>

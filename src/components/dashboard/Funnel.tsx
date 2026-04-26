@@ -23,7 +23,7 @@ export default function Funnel({ steps }: { steps: Step[] }) {
           const prev = idx > 0 ? steps[idx - 1] : null
           const dropPct = prev && prev.value > 0 ? Math.round((s.value / prev.value) * 100) : 100
           return (
-            <div key={s.label} className="space-y-0.5">
+            <div key={s.label} className="space-y-0.5 animate-dash-up stagger-item" style={{ ['--i' as any]: idx }}>
               <div className="flex items-baseline justify-between">
                 <span className="text-[12px] font-semibold text-gray-700">{s.label}</span>
                 <span className="text-[12px] tabular-nums">
@@ -36,7 +36,12 @@ export default function Funnel({ steps }: { steps: Step[] }) {
                 </span>
               </div>
               <div className="h-7 bg-gray-100 rounded-md overflow-hidden relative">
-                <div className="h-full rounded-md transition-all duration-500" style={{ width: `${widthPct}%`, background: s.color }} />
+                <div
+                  className="h-full rounded-md animate-dash-width relative overflow-hidden"
+                  style={{ width: `${widthPct}%`, background: s.color, animationDelay: `${100 + idx * 100}ms` }}
+                >
+                  <div className="absolute inset-0 animate-dash-shimmer pointer-events-none" />
+                </div>
                 {s.hint && (
                   <span className="absolute inset-0 flex items-center px-3 text-[10px] text-white font-semibold drop-shadow">
                     {s.hint}

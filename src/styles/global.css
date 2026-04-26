@@ -94,6 +94,88 @@
 }
 .animate-slide-in { animation: slideInFromRight 0.25s ease-out; }
 
+/* ─── Animations Dashboard ─────────────────────────────────────── */
+
+@keyframes dashFadeUp {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes dashGrowBar {
+  from { transform: scaleY(0); }
+  to { transform: scaleY(1); }
+}
+
+@keyframes dashGrowWidth {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+
+@keyframes dashDrawLine {
+  from { stroke-dashoffset: 1000; }
+  to { stroke-dashoffset: 0; }
+}
+
+@keyframes dashFillDonut {
+  from { stroke-dasharray: 0 1000; }
+}
+
+@keyframes dashPulseRing {
+  0%   { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.5); }
+  70%  { box-shadow: 0 0 0 8px rgba(16, 185, 129, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+}
+
+@keyframes dashShimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+@keyframes dashGrowDonut {
+  from { transform: rotate(-90deg) scale(0); opacity: 0; }
+  to { transform: rotate(-90deg) scale(1); opacity: 1; }
+}
+
+@keyframes dashGrowRadar {
+  from { transform: scale(0); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+
+@keyframes bounceY {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-2px); }
+}
+.animate-bounce-y { animation: bounceY 1.5s ease-in-out infinite; }
+
+@keyframes liveDot {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.4); opacity: 0.6; }
+}
+.live-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: #10b981;
+  animation: liveDot 1.5s ease-in-out infinite;
+  box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.15);
+}
+
+.animate-dash-up { animation: dashFadeUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) backwards; }
+.animate-dash-bar { animation: dashGrowBar 0.7s cubic-bezier(0.34, 1.56, 0.64, 1) backwards; transform-origin: bottom; }
+.animate-dash-width { animation: dashGrowWidth 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) backwards; transform-origin: left; }
+.animate-dash-draw { stroke-dasharray: 1000; animation: dashDrawLine 1.2s ease-out backwards; }
+.animate-dash-pulse { animation: dashPulseRing 2s infinite; }
+.animate-dash-shimmer {
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent);
+  background-size: 200% 100%;
+  animation: dashShimmer 2.5s infinite;
+}
+
+/* Stagger : utilise --i pour delay incrémental */
+.stagger-item { animation-delay: calc(var(--i, 0) * 60ms); }
+
+/* Hover lift cohérent partout */
+.dash-card-hover { transition: transform 0.2s ease, box-shadow 0.2s ease; }
+.dash-card-hover:hover { transform: translateY(-2px); box-shadow: 0 8px 20px -8px rgba(99, 102, 241, 0.25); }
+
 /* Transitions sur les rows de table */
 table tbody tr {
   transition: background-color 0.15s ease, box-shadow 0.15s ease;

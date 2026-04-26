@@ -98,13 +98,13 @@ export default function AIInsights({ calls }: Props) {
                          : i.label.includes('messag') ? '#a855f7'
                          : '#6366f1'
               return (
-                <div key={i.label} className="space-y-0.5">
+                <div key={i.label} className="space-y-0.5 animate-dash-up stagger-item" style={{ ['--i' as any]: intentions.indexOf(i) }}>
                   <div className="flex items-baseline justify-between text-[11px]">
                     <span className="text-gray-700 capitalize truncate flex-1">{i.label}</span>
                     <span className="font-semibold text-gray-700 tabular-nums ml-2">{i.count} <span className="text-gray-400">{pct}%</span></span>
                   </div>
                   <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                    <div className="h-full rounded-full" style={{ width: `${pct}%`, background: color }} />
+                    <div className="h-full rounded-full animate-dash-width" style={{ width: `${pct}%`, background: color, animationDelay: `${100 + intentions.indexOf(i) * 80}ms` }} />
                   </div>
                 </div>
               )
@@ -120,7 +120,7 @@ export default function AIInsights({ calls }: Props) {
           ) : (
             <ul className="space-y-1.5">
               {topImprovements.map((it, i) => (
-                <li key={i} className="text-[11px] text-gray-700 flex items-start gap-1.5">
+                <li key={i} className="text-[11px] text-gray-700 flex items-start gap-1.5 animate-dash-up stagger-item" style={{ ['--i' as any]: i }}>
                   <span className="text-amber-500 flex-shrink-0">▸</span>
                   <span className="line-clamp-2 leading-snug">{it.label}</span>
                   {it.count > 1 && <span className="ml-auto text-[10px] text-gray-400 font-bold flex-shrink-0">×{it.count}</span>}
@@ -174,7 +174,14 @@ function RadarChart({ values }: { values: { global: number; accroche: number; ob
           stroke="#e5e7eb" strokeWidth={0.5} />
       ))}
       {/* Data polygon */}
-      <polygon points={polygon} fill="#8b5cf6" fillOpacity={0.25} stroke="#8b5cf6" strokeWidth={2} />
+      <polygon
+        points={polygon}
+        fill="#8b5cf6"
+        fillOpacity={0.25}
+        stroke="#8b5cf6"
+        strokeWidth={2}
+        style={{ transformOrigin: `${cx}px ${cy}px`, animation: 'dashGrowRadar 0.8s cubic-bezier(0.34, 1.56, 0.64, 1) backwards' }}
+      />
       {/* Points + labels */}
       {axes.map((a, i) => {
         const [x, y] = points[i]

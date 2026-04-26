@@ -80,9 +80,9 @@ function Donut({ entries, total }: { entries: Array<{ key: string; color: string
   let offset = 0
   const circumference = 2 * Math.PI * r
   return (
-    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="hover:scale-105 transition-transform duration-300">
       <circle cx={cx} cy={cy} r={r} fill="none" stroke="#f3f4f6" strokeWidth={stroke} />
-      {entries.map(e => {
+      {entries.map((e, idx) => {
         const frac = e.count / total
         const dash = frac * circumference
         const seg = (
@@ -97,6 +97,10 @@ function Donut({ entries, total }: { entries: Array<{ key: string; color: string
             strokeDasharray={`${dash} ${circumference - dash}`}
             strokeDashoffset={-offset}
             transform={`rotate(-90 ${cx} ${cy})`}
+            style={{
+              transformOrigin: 'center',
+              animation: `dashGrowDonut 0.9s cubic-bezier(0.34, 1.56, 0.64, 1) ${idx * 80}ms backwards`,
+            }}
           />
         )
         offset += dash

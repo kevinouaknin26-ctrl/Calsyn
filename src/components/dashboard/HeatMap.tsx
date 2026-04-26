@@ -57,11 +57,15 @@ export default function HeatMap({ calls }: { calls: Call[] }) {
                 {row.map((count, h) => {
                   const intensity = count / max
                   const bg = count === 0 ? '#f3f4f6' : `rgba(124, 58, 237, ${0.15 + intensity * 0.85})`
+                  // Stagger : (dow * 24 + h) * 4ms — apparition en vague
+                  const delay = (dowIdx * 24 + h) * 4
                   return (
                     <td key={h} className="p-px">
-                      <div className="w-4 h-4 rounded-sm hover:ring-2 hover:ring-violet-400 transition-all"
-                        style={{ background: bg }}
-                        title={`${DAYS[dowIdx]} ${h}h : ${count} appel${count > 1 ? 's' : ''}`} />
+                      <div
+                        className="w-4 h-4 rounded-sm hover:ring-2 hover:ring-violet-400 hover:scale-125 hover:z-10 relative transition-all animate-fade-in-scale"
+                        style={{ background: bg, animationDelay: `${delay}ms`, animationFillMode: 'backwards' }}
+                        title={`${DAYS[dowIdx]} ${h}h : ${count} appel${count > 1 ? 's' : ''}`}
+                      />
                     </td>
                   )
                 })}
