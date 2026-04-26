@@ -107,7 +107,9 @@ export function useUploadResource() {
     }) => {
       if (!organisation?.id || !profile?.id) throw new Error('Non authentifié')
 
-      const kind: ResourceKind = input.kind || (input.file.type.startsWith('audio/') ? 'audio' : 'document')
+      // Default 'document' : les SDR ne partagent pas d'audio direct,
+      // les enregistrements passent par useShareCallRecording (kind='call_recording').
+      const kind: ResourceKind = input.kind || 'document'
       const ext = input.file.name.split('.').pop() || 'bin'
       const resourceId = crypto.randomUUID()
       const safeName = input.file.name.replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 100)

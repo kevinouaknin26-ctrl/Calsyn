@@ -67,8 +67,10 @@ export default function SharedResources() {
   const touchSeen = useTouchResourcesSeen()
 
   const [showUpload, setShowUpload] = useState(false)
-  const [filter, setFilter] = useState<'all' | ResourceKind>('all')
+  const [initialFile, setInitialFile] = useState<File | null>(null)
+  const [filter, setFilter] = useState<'all' | 'document' | 'call' | 'link'>('all')
   const [search, setSearch] = useState('')
+  const [dragOver, setDragOver] = useState(false)
 
   // Marque l'onglet comme vu au mount (reset le badge)
   useEffect(() => {
@@ -80,7 +82,15 @@ export default function SharedResources() {
 
   const filtered = useMemo(() => {
     let list = resources
-    if (filter !== 'all') list = list.filter(r => r.kind === filter)
+    if (filter !== 'all') {
+      // 'call' agrège les anciens 'audio' (libres) et les 'call_recording' partagés
+      const matchKind = (k: ResourceKind) =>
+        filter === 'document' ? k === 'document'
+        : filter === 'call' ? (k === 'call_recording' || k === 'audio')
+        : filter === 'link' ? k === 'link'
+        : true
+      list = list.filter(r => matchKind(r.kind))
+    }
     if (search.trim()) {
       const q = search.toLowerCase()
       list = list.filter(r =>
@@ -93,13 +103,61 @@ export default function SharedResources() {
   }, [resources, filter, search])
 
   const counts = useMemo(() => {
-    const m: Record<string, number> = { all: resources.length }
-    for (const r of resources) m[r.kind] = (m[r.kind] || 0) + 1
-    return m
+    const docs = resources.filter(r => r.kind === 'document').length
+    const calls = resources.filter(r => r.kind === 'call_recording' || r.kind === 'audio').length
+    const links = resources.filter(r => r.kind === 'link').length
+    return { all: resources.length, document: docs, call: calls, link: links }
   }, [resources])
 
+  function handleDrop(e: React.DragEvent) {
+    e.preventDefault()
+    setDragOver(false)
+    const file = e.dataTransfer.files?.[0]
+    if (!file) return
+    setInitialFile(file)
+    setShowUpload(true)
+  }
+
+  function handleDragOver(e: React.DragEvent) {
+    e.preventDefault()
+    if (!dragOver) setDragOver(true)
+  }
+
+  function handleDragLeave(e: React.DragEvent) {
+    e.preventDefault()
+    if (e.currentTarget === e.target) setDragOver(false)
+  }
+
+  function openUpload() {
+    setInitialFile(null)
+    setShowUpload(true)
+  }
+
+  function closeUpload() {
+    setShowUpload(false)
+    setInitialFile(null)
+  }
+
   return (
-    <div className="bg-white dark:bg-[#f0eaf5] rounded-xl border border-gray-200 dark:border-[#d4cade] overflow-hidden flex flex-col h-full">
+    <div
+      className={`bg-white dark:bg-[#f0eaf5] rounded-xl border overflow-hidden flex flex-col h-full relative transition-colors ${
+        dragOver
+          ? 'border-violet-400 border-2 ring-4 ring-violet-100'
+          : 'border-gray-200 dark:border-[#d4cade]'
+      }`}
+      onDrop={handleDrop}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+    >
+      {/* Overlay drag visuel */}
+      {dragOver && (
+        <div className="absolute inset-0 bg-violet-50/95 z-10 flex flex-col items-center justify-center pointer-events-none rounded-xl">
+          <p className="text-3xl mb-2">📥</p>
+          <p className="text-[13px] font-bold text-violet-700">Déposez le fichier ici</p>
+          <p className="text-[11px] text-violet-500 mt-0.5">Sera ajouté comme document</p>
+        </div>
+      )}
+
       {/* Header (matche style UpcomingRdv) */}
       <div className="px-4 py-2.5 border-b border-gray-100 flex items-center justify-between flex-shrink-0">
         <h3 className="text-[12px] font-bold text-gray-700 flex items-center gap-2">
@@ -109,14 +167,14 @@ export default function SharedResources() {
           )}
         </h3>
         <button
-          onClick={() => setShowUpload(true)}
+          onClick={openUpload}
           className="text-[10px] font-semibold text-violet-600 hover:text-violet-700 px-2 py-0.5 rounded hover:bg-violet-50 transition-colors"
         >
           + Ajouter
         </button>
       </div>
 
-      {/* Filtres compacts (search + select) */}
+      {/* Filtres compacts (search + select 3 catégories) */}
       <div className="px-3 py-2 border-b border-gray-50 flex items-center gap-1.5 flex-shrink-0">
         <input
           type="text"
@@ -131,10 +189,9 @@ export default function SharedResources() {
           className="px-1.5 py-1 text-[11px] rounded-md border border-gray-200 bg-white outline-none focus:border-indigo-300 flex-shrink-0"
         >
           <option value="all">Tous ({counts.all})</option>
-          <option value="document">📄 Docs ({counts.document || 0})</option>
-          <option value="audio">🎙️ Audios ({counts.audio || 0})</option>
-          <option value="call_recording">📞 Appels ({counts.call_recording || 0})</option>
-          <option value="link">🔗 Liens ({counts.link || 0})</option>
+          <option value="document">📄 Docs ({counts.document})</option>
+          <option value="call">📞 Appels ({counts.call})</option>
+          <option value="link">🔗 Liens ({counts.link})</option>
         </select>
       </div>
 
@@ -148,7 +205,7 @@ export default function SharedResources() {
             {resources.length === 0 ? 'Aucune ressource' : 'Aucun résultat'}
           </p>
           <p className="text-[11px] text-gray-400 mt-1">
-            {resources.length === 0 ? 'Clique sur + Ajouter pour partager' : 'Essaie un autre filtre'}
+            {resources.length === 0 ? 'Glisse-dépose un fichier ou clique sur + Ajouter' : 'Essaie un autre filtre'}
           </p>
         </div>
       ) : (
@@ -163,7 +220,7 @@ export default function SharedResources() {
         </div>
       )}
 
-      {showUpload && <UploadModal onClose={() => setShowUpload(false)} />}
+      {showUpload && <UploadModal onClose={closeUpload} initialFile={initialFile} />}
     </div>
   )
 }
@@ -255,13 +312,13 @@ function ResourceRow({ resource, canDelete }: { resource: SharedResource; canDel
   )
 }
 
-function UploadModal({ onClose }: { onClose: () => void }) {
+function UploadModal({ onClose, initialFile }: { onClose: () => void; initialFile?: File | null }) {
   const upload = useUploadResource()
   const createLink = useCreateLinkResource()
   const { isManager } = useAuth()
 
-  const [mode, setMode] = useState<'file' | 'link'>('file')
-  const [file, setFile] = useState<File | null>(null)
+  const [mode, setMode] = useState<'file' | 'link'>(initialFile ? 'file' : 'file')
+  const [file, setFile] = useState<File | null>(initialFile || null)
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
   const [tagsInput, setTagsInput] = useState('')
@@ -300,14 +357,14 @@ function UploadModal({ onClose }: { onClose: () => void }) {
   }
 
   return (
-    <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4 animate-fade-in" onClick={onClose}>
-      <div className="bg-white rounded-xl w-full max-w-lg shadow-xl animate-fade-in-scale" onClick={e => e.stopPropagation()}>
-        <div className="p-5 border-b border-gray-100 flex items-center justify-between">
+    <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4 animate-fade-in overflow-y-auto" onClick={onClose}>
+      <div className="bg-white rounded-xl w-full max-w-lg shadow-xl animate-fade-in-scale my-8 max-h-[calc(100vh-4rem)] flex flex-col" onClick={e => e.stopPropagation()}>
+        <div className="p-5 border-b border-gray-100 flex items-center justify-between flex-shrink-0">
           <h2 className="text-[15px] font-bold text-gray-800">Partager une ressource</h2>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600">✕</button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-5 space-y-4">
+        <form onSubmit={handleSubmit} className="p-5 space-y-4 overflow-y-auto flex-1">
           {/* Mode toggle */}
           <div className="flex gap-2">
             <button
