@@ -262,18 +262,20 @@ export default function Notifications() {
   }
 
   return (
-    <div className="h-full bg-[#f8f9fa] dark:bg-[#e8e0f0] overflow-y-auto">
-      <div className="max-w-4xl mx-auto p-6 pb-12">
+    <div className="h-full bg-[#f8f9fa] dark:bg-[#e8e0f0] overflow-hidden flex flex-col">
+      <div className="max-w-4xl w-full mx-auto px-6 pt-6 flex-shrink-0">
         <div className="flex items-baseline justify-between mb-6">
           <div>
             <h1 className="text-xl font-bold text-gray-800">Notifications</h1>
             <p className="text-[12px] text-gray-500 mt-0.5">{counts.all} notification{counts.all > 1 ? 's' : ''} active{counts.all > 1 ? 's' : ''}</p>
           </div>
         </div>
+      </div>
 
-        <div className="grid grid-cols-12 gap-4">
-          {/* Filtres + préférences (col gauche) */}
-          <div className="col-span-12 md:col-span-4 space-y-4">
+      <div className="max-w-4xl w-full mx-auto px-6 pb-6 flex-1 min-h-0">
+        <div className="grid grid-cols-12 gap-4 h-full">
+          {/* Filtres + préférences (col gauche) — sticky, ne scroll pas */}
+          <div className="col-span-12 md:col-span-4 space-y-4 overflow-y-auto">
             {/* Filtres */}
             <div className="bg-white dark:bg-[#f0eaf5] rounded-xl border border-gray-200 dark:border-[#d4cade] p-3">
               <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2 px-1">Filtrer</h3>
@@ -319,9 +321,9 @@ export default function Notifications() {
             </div>
           </div>
 
-          {/* Liste (col droite) */}
-          <div className="col-span-12 md:col-span-8">
-            <div className="bg-white dark:bg-[#f0eaf5] rounded-xl border border-gray-200 dark:border-[#d4cade] overflow-hidden">
+          {/* Liste (col droite) — scroll indépendant */}
+          <div className="col-span-12 md:col-span-8 min-h-0">
+            <div className="bg-white dark:bg-[#f0eaf5] rounded-xl border border-gray-200 dark:border-[#d4cade] h-full overflow-y-auto">
               {filtered.length === 0 ? (
                 <div className="text-center py-16 px-4">
                   <p className="text-3xl mb-2">✨</p>
