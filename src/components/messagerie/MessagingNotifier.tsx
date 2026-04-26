@@ -19,10 +19,12 @@ import { getChannel, type ChannelId } from '@/services/channels'
 
 interface ToastNotif {
   id: string
-  prospectId: string
+  prospectId: string | null
   prospectName: string
-  channel: ChannelId
   body: string
+  kind: 'message' | 'missed_call'
+  channel?: ChannelId  // pour kind='message'
+  callOutcome?: 'no_answer' | 'voicemail' | 'missed_incoming'  // pour kind='missed_call'
 }
 
 // Son synthétisé via WebAudio. Singleton AudioContext créé/débloqué au premier
@@ -146,6 +148,7 @@ export default function MessagingNotifier() {
             id: msg.id,
             prospectId: msg.prospect_id!,
             prospectName: p?.name || 'Inconnu',
+            kind: 'message',
             channel: msg.channel,
             body: (msg.body || '').slice(0, 100),
           }])
@@ -161,7 +164,50 @@ export default function MessagingNotifier() {
       )
       .subscribe()
 
-    return () => { supabase.removeChannel(ch) }
+    // ── Channel pour appels manqués (no_answer / voicemail / missed_incoming) ──
+    const callsCh = supabase
+      .channel(`calls-notifier:${organisation.id}`)
+      .on('postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'calls',
+          filter: `organisation_id=eq.${organisation.id}`,
+        },
+        async (payload) => {
+          const c = payload.new as {
+            id: string; prospect_id: string | null; sdr_id: string | null;
+            call_outcome: string; prospect_name: string | null; prospect_phone: string | null;
+          }
+          const missed = ['no_answer', 'voicemail', 'missed_incoming']
+          if (!missed.includes(c.call_outcome)) return
+          // STRICT : seulement les calls du user courant (manager voit aussi les siens)
+          if (c.sdr_id && c.sdr_id !== user.id) return
+
+          setToasts(prev => [...prev, {
+            id: `call:${c.id}`,
+            prospectId: c.prospect_id,
+            prospectName: c.prospect_name || c.prospect_phone || 'Inconnu',
+            kind: 'missed_call',
+            callOutcome: c.call_outcome as any,
+            body: c.call_outcome === 'missed_incoming'
+              ? 'Appel entrant manqué' : c.call_outcome === 'voicemail'
+              ? 'Messagerie vocale' : 'Pas de réponse',
+          }])
+
+          if (soundEnabled) playNotifSound()
+
+          setTimeout(() => {
+            setToasts(prev => prev.filter(t => t.id !== `call:${c.id}`))
+          }, 6000)
+        }
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(ch)
+      supabase.removeChannel(callsCh)
+    }
   }, [organisation?.id, user?.id, location.pathname, chats, soundEnabled])
 
   function dismissToast(id: string) {
@@ -169,7 +215,12 @@ export default function MessagingNotifier() {
   }
 
   function handleToastClick(t: ToastNotif) {
-    openChat(t.prospectId)
+    if (t.kind === 'message' && t.prospectId) {
+      openChat(t.prospectId)
+    } else if (t.kind === 'missed_call') {
+      // Navigation vers notifications pour avoir le contexte
+      window.location.assign('/app/notifications')
+    }
     dismissToast(t.id)
   }
 
@@ -177,18 +228,30 @@ export default function MessagingNotifier() {
     <>
       <div className="fixed top-4 right-4 z-50 flex flex-col gap-2 pointer-events-none">
         {toasts.map(t => {
-          const ch = getChannel(t.channel)
+          const isMissed = t.kind === 'missed_call'
+          const ch = !isMissed && t.channel ? getChannel(t.channel) : null
+          const accentColor = isMissed
+            ? (t.callOutcome === 'missed_incoming' ? '#ef4444' : '#f59e0b')
+            : '#6366f1'
+          const icon = isMissed
+            ? (t.callOutcome === 'missed_incoming' ? '📵' : t.callOutcome === 'voicemail' ? '📨' : '☎️')
+            : (ch?.icon || '💬')
+          const label = isMissed
+            ? (t.callOutcome === 'missed_incoming' ? 'Appel manqué' : t.callOutcome === 'voicemail' ? 'Messagerie' : 'Pas de réponse')
+            : (ch?.label || 'Message')
           return (
             <button key={t.id} onClick={() => handleToastClick(t)}
-              className="pointer-events-auto w-[340px] bg-white dark:bg-[#f0eaf5] border border-gray-200 rounded-xl shadow-2xl p-3 text-left hover:bg-gray-50 transition-colors animate-slide-in">
+              className="pointer-events-auto w-[340px] bg-white dark:bg-[#f0eaf5] border border-gray-200 rounded-xl shadow-2xl p-3 text-left hover:bg-gray-50 transition-colors animate-slide-in"
+              style={{ borderLeft: `3px solid ${accentColor}` }}>
               <div className="flex items-start gap-2.5">
-                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-400 to-violet-500 flex items-center justify-center text-white font-bold text-[12px] flex-shrink-0">
-                  {t.prospectName[0].toUpperCase()}
+                <div className="w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-[12px] flex-shrink-0"
+                  style={{ background: `linear-gradient(135deg, ${accentColor}, ${accentColor}dd)` }}>
+                  {isMissed ? icon : t.prospectName[0].toUpperCase()}
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-1.5 mb-0.5">
                     <span className="text-[12px] font-bold text-gray-800 truncate">{t.prospectName}</span>
-                    <span className={`text-[9px] px-1.5 py-0.5 rounded-full border ${ch.pillClass}`}>{ch.icon} {ch.label}</span>
+                    <span className={`text-[9px] px-1.5 py-0.5 rounded-full border ${ch?.pillClass || 'bg-red-50 text-red-700 border-red-200'}`}>{icon} {label}</span>
                   </div>
                   <div className="text-[11px] text-gray-600 line-clamp-2 leading-snug">{t.body}</div>
                 </div>

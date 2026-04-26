@@ -114,24 +114,40 @@ export default function Notifications() {
         .not('snoozed_until', 'is', null).lte('snoozed_until', in24h)
         .limit(200)
 
-      // Appels manqués récents (no_answer OU voicemail dans les 24h)
-      const mcP = supabase.from('prospects').select(cols)
-        .eq('organisation_id', organisation.id).is('deleted_at', null)
-        .in('last_call_outcome', ['no_answer', 'voicemail'])
-        .gte('last_call_at', past24h)
-        .limit(200)
+      const [rdv, cb] = await Promise.all([rdvP, cbP])
 
-      const [rdv, cb, mc] = await Promise.all([rdvP, cbP, mcP])
-
-      // Dédoublonne par id (un même prospect peut matcher plusieurs queries)
       const seen = new Map<string, any>()
-      for (const list of [rdv.data || [], cb.data || [], mc.data || []]) {
+      for (const list of [rdv.data || [], cb.data || []]) {
         for (const p of list) seen.set(p.id, p)
       }
       return Array.from(seen.values())
     },
     enabled: !!organisation?.id,
     refetchInterval: 60000,
+  })
+
+  // ── Source 1bis : Missed calls (calls table directement, plus fiable que
+  // prospect.last_call_outcome qui peut être désync via le webhook) ──
+  const { data: missedCalls = [] } = useQuery({
+    queryKey: ['notif-missed-calls', organisation?.id, user?.id],
+    queryFn: async () => {
+      if (!organisation?.id) return []
+      const past24h = new Date(Date.now() - 24 * 3600 * 1000).toISOString()
+      let q = supabase
+        .from('calls')
+        .select('id, prospect_id, prospect_name, prospect_phone, call_outcome, created_at, sdr_id')
+        .eq('organisation_id', organisation.id)
+        .in('call_outcome', ['no_answer', 'voicemail', 'missed_incoming'])
+        .gte('created_at', past24h)
+        .order('created_at', { ascending: false })
+        .limit(50)
+      // SDR ne voit que les siens (manager voit tout grâce à RLS)
+      if (user?.id) q = q.eq('sdr_id', user.id)
+      const { data } = await q
+      return data || []
+    },
+    enabled: !!organisation?.id,
+    refetchInterval: 30000,
   })
 
   // ── Source 2 : Messages non lus ──
@@ -189,19 +205,25 @@ export default function Notifications() {
           prospectId: p.id,
         })
       }
-      // Appel manqué récent (24h)
-      if ((p.last_call_outcome === 'no_answer' || p.last_call_outcome === 'voicemail')
-          && p.last_call_at && new Date(p.last_call_at).getTime() >= past24h) {
-        out.push({
-          id: `mc:${p.id}`,
-          kind: 'missed_call',
-          title: `Pas de réponse : ${p.name || 'inconnu'}`,
-          subtitle: `${timeAgo(p.last_call_at)} • ${p.last_call_outcome === 'voicemail' ? 'messagerie' : 'pas répondu'}`,
-          ts: p.last_call_at,
-          sortTs: p.last_call_at,
-          prospectId: p.id,
-        })
-      }
+    }
+
+    // Source dédiée : missed calls (depuis la table calls)
+    for (const c of missedCalls) {
+      const isIncoming = c.call_outcome === 'missed_incoming'
+      const isVm = c.call_outcome === 'voicemail'
+      const title = isIncoming
+        ? `Appel entrant manqué : ${c.prospect_name || c.prospect_phone || 'inconnu'}`
+        : `Pas de réponse : ${c.prospect_name || c.prospect_phone || 'inconnu'}`
+      const detail = isIncoming ? '☎️ entrant' : isVm ? 'messagerie' : 'pas répondu'
+      out.push({
+        id: `mc:${c.id}`,
+        kind: 'missed_call',
+        title,
+        subtitle: `${timeAgo(c.created_at)} • ${detail}`,
+        ts: c.created_at,
+        sortTs: c.created_at,
+        prospectId: c.prospect_id || undefined,
+      })
     }
 
     for (const m of unreadMessages) {
@@ -222,7 +244,7 @@ export default function Notifications() {
     return out
       .filter(it => prefs[it.kind])
       .sort((a, b) => new Date(b.sortTs).getTime() - new Date(a.sortTs).getTime())
-  }, [prospects, unreadMessages, prefs])
+  }, [prospects, missedCalls, unreadMessages, prefs])
 
   const filtered = filterKind === 'all' ? items : items.filter(i => i.kind === filterKind)
   const counts = useMemo(() => ({
