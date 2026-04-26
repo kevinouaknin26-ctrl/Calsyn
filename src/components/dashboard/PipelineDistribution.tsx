@@ -2,7 +2,7 @@
  * PipelineDistribution — Distribution des prospects par crm_status (donut+légende).
  */
 
-import { useMemo } from 'react'
+import { useMemo, useEffect, useState } from 'react'
 import { useCrmStatuses } from '@/hooks/useProperties'
 
 interface ProspectLite { crm_status?: string | null }
@@ -76,15 +76,31 @@ function Donut({ entries, total }: { entries: Array<{ key: string; color: string
   const cy = size / 2
   const r = 60
   const stroke = 22
+  const circumference = 2 * Math.PI * r
+
+  // Anime progress de 0 à 1 sur 1.2s (ease-out)
+  const [progress, setProgress] = useState(0)
+  useEffect(() => {
+    const start = performance.now()
+    const dur = 1100
+    let raf = 0
+    const tick = (now: number) => {
+      const t = Math.min(1, (now - start) / dur)
+      setProgress(1 - Math.pow(1 - t, 3))  // ease-out cubic
+      if (t < 1) raf = requestAnimationFrame(tick)
+    }
+    raf = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(raf)
+  }, [total])
 
   let offset = 0
-  const circumference = 2 * Math.PI * r
   return (
     <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="hover:scale-105 transition-transform duration-300">
       <circle cx={cx} cy={cy} r={r} fill="none" stroke="#f3f4f6" strokeWidth={stroke} />
-      {entries.map((e, idx) => {
+      {entries.map(e => {
         const frac = e.count / total
-        const dash = frac * circumference
+        const fullDash = frac * circumference
+        const animatedDash = fullDash * progress  // se remplit avec progress
         const seg = (
           <circle
             key={e.key}
@@ -94,16 +110,13 @@ function Donut({ entries, total }: { entries: Array<{ key: string; color: string
             fill="none"
             stroke={e.color}
             strokeWidth={stroke}
-            strokeDasharray={`${dash} ${circumference - dash}`}
-            strokeDashoffset={-offset}
+            strokeDasharray={`${animatedDash} ${circumference - animatedDash}`}
+            strokeDashoffset={-offset * progress}
             transform={`rotate(-90 ${cx} ${cy})`}
-            style={{
-              transformOrigin: 'center',
-              animation: `dashGrowDonut 0.9s cubic-bezier(0.34, 1.56, 0.64, 1) ${idx * 80}ms backwards`,
-            }}
+            style={{ transition: 'none' }}
           />
         )
-        offset += dash
+        offset += fullDash
         return seg
       })}
       <text x={cx} y={cy - 4} textAnchor="middle" dominantBaseline="middle" className="text-2xl font-extrabold fill-gray-800">

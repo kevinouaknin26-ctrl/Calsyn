@@ -5,7 +5,7 @@
  *  - Top objections rencontrées (extraites des points_amelioration)
  */
 
-import { useMemo } from 'react'
+import { useMemo, useEffect, useState } from 'react'
 import type { Call } from '@/types/call'
 
 interface Props {
@@ -148,8 +148,25 @@ function RadarChart({ values }: { values: { global: number; accroche: number; ob
     { label: 'Global', value: values.global, angle: Math.PI },
   ]
 
+  // Anime de 0 à 1 en interpolant la valeur affichée
+  const [progress, setProgress] = useState(0)
+  useEffect(() => {
+    const start = performance.now()
+    const dur = 900
+    let raf = 0
+    const tick = (now: number) => {
+      const t = Math.min(1, (now - start) / dur)
+      // Spring effect (overshoot léger)
+      const eased = 1 - Math.pow(1 - t, 4)
+      setProgress(eased)
+      if (t < 1) raf = requestAnimationFrame(tick)
+    }
+    raf = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(raf)
+  }, [values.accroche, values.objection, values.closing, values.global])
+
   const points = axes.map(a => {
-    const r = (a.value / 100) * radius
+    const r = (a.value * progress / 100) * radius
     return [cx + Math.cos(a.angle) * r, cy + Math.sin(a.angle) * r]
   })
   const polygon = points.map(p => p.join(',')).join(' ')
@@ -173,14 +190,13 @@ function RadarChart({ values }: { values: { global: number; accroche: number; ob
           y2={cy + Math.sin(a.angle) * radius}
           stroke="#e5e7eb" strokeWidth={0.5} />
       ))}
-      {/* Data polygon */}
+      {/* Data polygon — anime via interpolation des points (pas via CSS transform) */}
       <polygon
         points={polygon}
         fill="#8b5cf6"
         fillOpacity={0.25}
         stroke="#8b5cf6"
         strokeWidth={2}
-        style={{ transformOrigin: `${cx}px ${cy}px`, animation: 'dashGrowRadar 0.8s cubic-bezier(0.34, 1.56, 0.64, 1) backwards' }}
       />
       {/* Points + labels */}
       {axes.map((a, i) => {
