@@ -4,11 +4,13 @@
 
 import Sparkline from './Sparkline'
 import type { SdrPerf } from '@/hooks/useDashboardData'
+import { useInView } from '@/hooks/useInView'
 
 const RANK_BG = ['bg-amber-50/50', 'bg-gray-50/50', 'bg-orange-50/50']
 const RANK_EMOJI = ['🏆', '🥈', '🥉']
 
 export default function Leaderboard({ rows }: { rows: SdrPerf[] }) {
+  const [ref, inView] = useInView<HTMLDivElement>({ threshold: 0.15, once: true })
   if (rows.length === 0) {
     return (
       <div className="bg-white dark:bg-[#f0eaf5] rounded-xl border border-gray-200 dark:border-[#d4cade] p-6 text-center text-[12px] text-gray-400">
@@ -17,7 +19,7 @@ export default function Leaderboard({ rows }: { rows: SdrPerf[] }) {
     )
   }
   return (
-    <div className="bg-white dark:bg-[#f0eaf5] rounded-xl border border-gray-200 dark:border-[#d4cade] overflow-hidden">
+    <div ref={ref} className="bg-white dark:bg-[#f0eaf5] rounded-xl border border-gray-200 dark:border-[#d4cade] overflow-hidden">
       <div className="px-4 py-2.5 border-b border-gray-100 flex items-baseline justify-between">
         <h3 className="text-[12px] font-bold text-gray-700">Classement commerciaux</h3>
         <span className="text-[10px] text-gray-400">Trié par RDV pris</span>
@@ -42,8 +44,12 @@ export default function Leaderboard({ rows }: { rows: SdrPerf[] }) {
             return (
               <tr
                 key={r.id}
-                className={`border-b border-gray-50 hover:bg-gray-50/80 transition-colors animate-dash-up stagger-item ${idx < 3 ? RANK_BG[idx] : ''}`}
-                style={{ ['--i' as any]: idx }}
+                className={`border-b border-gray-50 hover:bg-gray-50/80 ${idx < 3 ? RANK_BG[idx] : ''}`}
+                style={{
+                  opacity: inView ? 1 : 0,
+                  transform: inView ? 'translateX(0)' : 'translateX(-12px)',
+                  transition: `opacity 500ms ease ${idx * 60}ms, transform 500ms cubic-bezier(0.16, 1, 0.3, 1) ${idx * 60}ms, background-color 0.15s`,
+                }}
               >
                 <td className="px-4 py-2 tabular-nums text-gray-500 font-bold">
                   {idx < 3 ? <span className="text-[14px]">{RANK_EMOJI[idx]}</span> : `${idx + 1}`}

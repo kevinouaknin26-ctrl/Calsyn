@@ -7,6 +7,7 @@
 
 import { useMemo, useEffect, useState } from 'react'
 import type { Call } from '@/types/call'
+import { useInView } from '@/hooks/useInView'
 
 interface Props {
   calls: Call[]
@@ -148,22 +149,23 @@ function RadarChart({ values }: { values: { global: number; accroche: number; ob
     { label: 'Global', value: values.global, angle: Math.PI },
   ]
 
-  // Anime de 0 à 1 en interpolant la valeur affichée
+  // Anime de 0 à 1 en interpolant la valeur affichée — déclenché à l'entrée dans le viewport
+  const [wrapRef, inView] = useInView<HTMLDivElement>({ threshold: 0.4, once: true })
   const [progress, setProgress] = useState(0)
   useEffect(() => {
+    if (!inView) return
     const start = performance.now()
-    const dur = 900
+    const dur = 1000
     let raf = 0
     const tick = (now: number) => {
       const t = Math.min(1, (now - start) / dur)
-      // Spring effect (overshoot léger)
       const eased = 1 - Math.pow(1 - t, 4)
       setProgress(eased)
       if (t < 1) raf = requestAnimationFrame(tick)
     }
     raf = requestAnimationFrame(tick)
     return () => cancelAnimationFrame(raf)
-  }, [values.accroche, values.objection, values.closing, values.global])
+  }, [inView, values.accroche, values.objection, values.closing, values.global])
 
   const points = axes.map(a => {
     const r = (a.value * progress / 100) * radius
@@ -174,6 +176,7 @@ function RadarChart({ values }: { values: { global: number; accroche: number; ob
   const gridLevels = [0.25, 0.5, 0.75, 1]
 
   return (
+   <div ref={wrapRef}>
     <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
       {/* Grid */}
       {gridLevels.map(lvl => {
@@ -210,10 +213,11 @@ function RadarChart({ values }: { values: { global: number; accroche: number; ob
             <text x={lx} y={ly} textAnchor="middle" dominantBaseline="middle"
               className="text-[9px] font-bold fill-gray-600">{a.label}</text>
             <text x={lx} y={ly + 9} textAnchor="middle" dominantBaseline="middle"
-              className="text-[9px] fill-violet-600 font-bold">{a.value}</text>
+              className="text-[9px] fill-violet-600 font-bold">{Math.round(a.value * progress)}</text>
           </g>
         )
       })}
     </svg>
+   </div>
   )
 }

@@ -4,6 +4,7 @@
 
 import Sparkline from './Sparkline'
 import { useCountUp } from '@/hooks/useCountUp'
+import { useInView } from '@/hooks/useInView'
 
 interface Props {
   label: string
@@ -17,14 +18,16 @@ interface Props {
 }
 
 export default function KpiCard({ label, value, trendPct, sub, spark, color, icon, index = 0 }: Props) {
-  const animated = useCountUp(value, 700 + index * 50)
+  const [ref, inView] = useInView<HTMLDivElement>({ threshold: 0.3, once: true })
+  const animated = useCountUp(value, 700 + index * 50, inView)
   const trendUp = trendPct !== undefined && trendPct >= 0
   const display = typeof value === 'number' ? (animated as number).toLocaleString('fr-FR') : animated
 
   return (
     <div
-      className="bg-white dark:bg-[#f0eaf5] rounded-xl border border-gray-200 dark:border-[#d4cade] p-3 dash-card-hover animate-dash-up stagger-item"
-      style={{ ['--i' as any]: index }}
+      ref={ref}
+      className={`bg-white dark:bg-[#f0eaf5] rounded-xl border border-gray-200 dark:border-[#d4cade] p-3 dash-card-hover transition-all duration-700 ${inView ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}
+      style={{ transitionDelay: `${index * 60}ms` }}
     >
       <div className="flex items-center gap-2 mb-1.5">
         {icon && (

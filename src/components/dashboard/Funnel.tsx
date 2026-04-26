@@ -2,6 +2,8 @@
  * Funnel — Tunnel de conversion multi-étapes avec drop-off entre paliers.
  */
 
+import { useInView } from '@/hooks/useInView'
+
 interface Step {
   label: string
   value: number
@@ -11,8 +13,9 @@ interface Step {
 
 export default function Funnel({ steps }: { steps: Step[] }) {
   const max = Math.max(1, ...steps.map(s => s.value))
+  const [ref, inView] = useInView<HTMLDivElement>({ threshold: 0.25, once: true })
   return (
-    <div className="bg-white dark:bg-[#f0eaf5] rounded-xl border border-gray-200 dark:border-[#d4cade] p-4">
+    <div ref={ref} className="bg-white dark:bg-[#f0eaf5] rounded-xl border border-gray-200 dark:border-[#d4cade] p-4">
       <div className="flex items-center justify-between mb-3">
         <h3 className="text-[12px] font-bold text-gray-700">Tunnel de conversion</h3>
         <span className="text-[10px] text-gray-400">% du palier précédent</span>
@@ -37,10 +40,14 @@ export default function Funnel({ steps }: { steps: Step[] }) {
               </div>
               <div className="h-7 bg-gray-100 rounded-md overflow-hidden relative">
                 <div
-                  className="h-full rounded-md animate-dash-width relative overflow-hidden"
-                  style={{ width: `${widthPct}%`, background: s.color, animationDelay: `${100 + idx * 100}ms` }}
+                  className="h-full rounded-md relative overflow-hidden"
+                  style={{
+                    width: `${inView ? widthPct : 0}%`,
+                    background: s.color,
+                    transition: `width 800ms cubic-bezier(0.34, 1.56, 0.64, 1) ${100 + idx * 120}ms`,
+                  }}
                 >
-                  <div className="absolute inset-0 animate-dash-shimmer pointer-events-none" />
+                  {inView && <div className="absolute inset-0 animate-dash-shimmer pointer-events-none" />}
                 </div>
                 {s.hint && (
                   <span className="absolute inset-0 flex items-center px-3 text-[10px] text-white font-semibold drop-shadow">

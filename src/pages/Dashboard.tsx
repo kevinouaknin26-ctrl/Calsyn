@@ -39,6 +39,7 @@ import PipelineDistribution from '@/components/dashboard/PipelineDistribution'
 import MessagingStats from '@/components/dashboard/MessagingStats'
 import ActivityFeed from '@/components/dashboard/ActivityFeed'
 import HeatMap from '@/components/dashboard/HeatMap'
+import Reveal from '@/components/dashboard/Reveal'
 
 export default function Dashboard() {
   const { isManager, profile } = useAuth()
@@ -247,42 +248,50 @@ export default function Dashboard() {
             </div>
 
             {/* ─── Funnel + Activity chart ─── */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 animate-dash-up" style={{ animationDelay: '300ms', animationFillMode: 'backwards' }}>
-              <div className="lg:col-span-1">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+              <Reveal direction="left" className="lg:col-span-1">
                 <Funnel steps={[
                   { label: 'Appels lancés', value: stats.total, color: '#a5b4fc' },
                   { label: 'Connectés à un humain', value: stats.connected, color: '#10b981' },
                   { label: 'Conversations 1min+', value: stats.longCalls, color: '#f97316' },
                   { label: 'RDV pris', value: stats.rdv, color: '#8b5cf6' },
                 ]} />
-              </div>
-              <div className="lg:col-span-2">
+              </Reveal>
+              <Reveal direction="right" delay={120} className="lg:col-span-2">
                 <ActivityChart buckets={buckets} />
-              </div>
+              </Reveal>
             </div>
 
             {/* ─── AI Insights (full width) ─── */}
-            <div className="animate-dash-up" style={{ animationDelay: '450ms', animationFillMode: 'backwards' }}>
+            <Reveal direction="up" duration={700}>
               <AIInsights calls={calls} />
-            </div>
+            </Reveal>
 
             {/* ─── Leaderboard (admin) ─── */}
             {isManager && (
-              <div className="animate-dash-up" style={{ animationDelay: '550ms', animationFillMode: 'backwards' }}>
+              <Reveal direction="up" duration={650}>
                 <Leaderboard rows={sdrRows} />
-              </div>
+              </Reveal>
             )}
 
             {/* ─── Pipeline + Messagerie ─── */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 animate-dash-up" style={{ animationDelay: '650ms', animationFillMode: 'backwards' }}>
-              <PipelineDistribution prospects={prospects} />
-              <MessagingStats messages={messages} />
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <Reveal direction="left">
+                <PipelineDistribution prospects={prospects} />
+              </Reveal>
+              <Reveal direction="right" delay={150}>
+                <MessagingStats messages={messages} />
+              </Reveal>
             </div>
 
             {/* ─── HeatMap + Activity feed ─── */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 animate-dash-up" style={{ animationDelay: '750ms', animationFillMode: 'backwards' }}>
-              <HeatMap calls={calls} />
-              <ActivityFeed calls={calls} messages={messages as any} />
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <Reveal direction="scale">
+                <HeatMap calls={calls} />
+              </Reveal>
+              <Reveal direction="right" delay={120}>
+                <ActivityFeed calls={calls} messages={messages as any} />
+              </Reveal>
             </div>
 
             <p className="text-center text-[10px] text-gray-400 pt-2">

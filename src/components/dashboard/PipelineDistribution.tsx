@@ -4,6 +4,7 @@
 
 import { useMemo, useEffect, useState } from 'react'
 import { useCrmStatuses } from '@/hooks/useProperties'
+import { useInView } from '@/hooks/useInView'
 
 interface ProspectLite { crm_status?: string | null }
 
@@ -78,23 +79,25 @@ function Donut({ entries, total }: { entries: Array<{ key: string; color: string
   const stroke = 22
   const circumference = 2 * Math.PI * r
 
-  // Anime progress de 0 à 1 sur 1.2s (ease-out)
+  const [wrapRef, inView] = useInView<HTMLDivElement>({ threshold: 0.4, once: true })
   const [progress, setProgress] = useState(0)
   useEffect(() => {
+    if (!inView) return
     const start = performance.now()
-    const dur = 1100
+    const dur = 1200
     let raf = 0
     const tick = (now: number) => {
       const t = Math.min(1, (now - start) / dur)
-      setProgress(1 - Math.pow(1 - t, 3))  // ease-out cubic
+      setProgress(1 - Math.pow(1 - t, 3))
       if (t < 1) raf = requestAnimationFrame(tick)
     }
     raf = requestAnimationFrame(tick)
     return () => cancelAnimationFrame(raf)
-  }, [total])
+  }, [inView, total])
 
   let offset = 0
   return (
+   <div ref={wrapRef}>
     <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="hover:scale-105 transition-transform duration-300">
       <circle cx={cx} cy={cy} r={r} fill="none" stroke="#f3f4f6" strokeWidth={stroke} />
       {entries.map(e => {
@@ -126,5 +129,6 @@ function Donut({ entries, total }: { entries: Array<{ key: string; color: string
         Contacts
       </text>
     </svg>
+   </div>
   )
 }
