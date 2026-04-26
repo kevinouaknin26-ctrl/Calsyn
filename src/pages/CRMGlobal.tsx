@@ -782,6 +782,36 @@ export default function CRMGlobal() {
     setSelectedIds(new Set())
   }
 
+  // Fusionne plusieurs prospects en un seul (canonical = 1er sélectionné = le plus ancien)
+  const bulkMerge = async () => {
+    const ids = Array.from(selectedIds)
+    if (ids.length < 2) { alert('Sélectionne au moins 2 contacts pour fusionner'); return }
+    // Charge infos pour le prompt
+    const selected = mergedProspects.filter(p => ids.includes(p.id))
+    if (selected.length < 2) return
+    // Trie par created_at asc → canonical = le plus ancien
+    selected.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+    const canonical = selected[0]
+    const dups = selected.slice(1)
+    const msg = `Fusionner ${ids.length} contacts en 1 fiche ?\n\n` +
+      `→ Canonique (gardé) : ${canonical.name} (${canonical.email || canonical.phone || '?'})\n` +
+      `→ À fusionner :\n${dups.map(d => `  • ${d.name} (${d.email || d.phone || '?'})`).join('\n')}\n\n` +
+      `Tous les emails, téléphones, appels, messages, RDV, listes seront regroupés sur la fiche canonique.\n` +
+      `Les autres fiches sont archivées (récupérables).`
+    if (!confirm(msg)) return
+    const { data, error } = await supabase.rpc('merge_prospects', {
+      p_canonical_id: canonical.id,
+      p_dup_ids: dups.map(d => d.id),
+    })
+    if (error) { alert(`Erreur fusion : ${error.message}`); return }
+    const merged = (data as Array<{ merged_count: number }>)?.[0]?.merged_count || 0
+    await queryClient.invalidateQueries({ queryKey: ['all-prospects'] })
+    await queryClient.invalidateQueries({ queryKey: ['prospect-list-memberships'] })
+    await queryClient.invalidateQueries({ queryKey: ['prospects'] })
+    setSelectedIds(new Set())
+    alert(`✅ ${merged} fiche${merged > 1 ? 's' : ''} fusionnée${merged > 1 ? 's' : ''} dans "${canonical.name}".`)
+  }
+
   // Crée une nouvelle liste à partir des prospects sélectionnés
   const bulkCreateList = async () => {
     const ids = Array.from(selectedIds)
@@ -1132,6 +1162,10 @@ export default function CRMGlobal() {
               </select>
               <button onClick={bulkCreateList} title="Créer une liste avec ces contacts"
                 className="text-[11px] text-indigo-600 hover:text-indigo-800 font-medium">+ Liste</button>
+              {selectedIds.size >= 2 && (
+                <button onClick={bulkMerge} title="Fusionner ces contacts en 1 seule fiche (le plus ancien gardé)"
+                  className="text-[11px] text-violet-600 hover:text-violet-800 font-medium">⚭ Fusionner</button>
+              )}
               {perms.canDeleteContacts && (
                 <button onClick={bulkDelete} className="text-[11px] text-red-500 hover:text-red-700 font-medium">Supprimer</button>
               )}
