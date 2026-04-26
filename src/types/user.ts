@@ -93,6 +93,8 @@ export interface Profile {
   slot_buffer_min: number | null
   /** Horaires disponibles par jour de semaine (0=dim..6=sam) → liste de périodes. */
   availability_schedule: Record<string, Array<{ start: string; end: string }>> | null
+  /** Dernière visite onglet Ressources — pour badge "X nouveaux docs". */
+  last_seen_resources_at: string | null
   created_at: string
 }
 

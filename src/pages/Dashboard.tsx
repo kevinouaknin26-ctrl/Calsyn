@@ -41,6 +41,7 @@ import ActivityFeed from '@/components/dashboard/ActivityFeed'
 import HeatMap from '@/components/dashboard/HeatMap'
 import UpcomingRdv from '@/components/dashboard/UpcomingRdv'
 import Reveal from '@/components/dashboard/Reveal'
+import SharedResources from '@/components/dashboard/SharedResources'
 
 export default function Dashboard() {
   const { isManager, profile } = useAuth()
@@ -299,6 +300,11 @@ export default function Dashboard() {
                 <ActivityFeed calls={calls} messages={messages as any} />
               </Reveal>
             </div>
+
+            {/* ─── Ressources partagées (docs + audios) ─── */}
+            <Reveal direction="up">
+              <SharedResources />
+            </Reveal>
 
             <p className="text-center text-[10px] text-gray-400 pt-2">
               {isManager ? `Données agrégées de ${profiles.length} membres` : `Connecté en tant que ${profile?.full_name || profile?.email}`}
