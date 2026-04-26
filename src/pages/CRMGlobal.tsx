@@ -1179,8 +1179,11 @@ export default function CRMGlobal() {
 
           {/* Détecteur doublons — toujours visible */}
           <button onClick={() => setShowDuplicates(true)} title="Détecter les fiches en doublon"
-            className="text-[11px] text-amber-700 hover:text-amber-900 font-medium flex items-center gap-1">
-            🔍 Doublons
+            className="flex items-center gap-1.5 text-[13px] px-3 py-1.5 rounded-lg border bg-white border-gray-200 text-gray-500 hover:text-amber-700 hover:border-amber-200 hover:bg-amber-50 transition-colors">
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+            Doublons
           </button>
 
           {/* Bulk actions */}
