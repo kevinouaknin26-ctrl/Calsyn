@@ -10,6 +10,8 @@ import { useQueryClient, useQuery } from '@tanstack/react-query'
 import { useCall } from '@/contexts/CallContext'
 import { useCallBarVisibility } from '@/components/layout/CallBarVisibilityContext'
 import { useProspectLists, useProspects, useAddProspect, useCreateProspectField, useRdvToday, SMART_LIST_LABELS, SMART_LIST_IDS } from '@/hooks/useProspects'
+import { useIsMobile } from '@/hooks/useIsMobile'
+import DialerMobile from '@/components/dialer/DialerMobile'
 import { usePropertyDefinitions, useCustomFieldValues, groupProperties, updatePropertyValue, useCrmStatuses, type CrmStatusDef } from '@/hooks/useProperties'
 import { SYSTEM_PROPERTIES, DEFAULT_VISIBLE_COLUMNS, getPropertyValue, matchesSearch, CRM_STATUS_LABELS, type PropertyDefinition } from '@/config/properties'
 import { useCallsByProspect } from '@/hooks/useCalls'
@@ -1006,6 +1008,12 @@ const ProspectRow = memo(function ProspectRow({ prospect, isActive, liveStatus, 
 
 // ── Page ────────────────────────────────────────────────────────────
 export default function Dialer() {
+  const isMobile = useIsMobile()
+  if (isMobile) return <DialerMobile />
+  return <DialerDesktop />
+}
+
+function DialerDesktop() {
   const { isAdmin, isManager, organisation, profile } = useAuth()
   const perms = usePermissions()
   const callLicense: 'parallel' | 'power' | 'none' = (profile?.call_license as 'parallel' | 'power' | 'none') || 'power'

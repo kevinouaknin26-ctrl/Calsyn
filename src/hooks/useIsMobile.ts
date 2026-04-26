@@ -1,0 +1,21 @@
+/**
+ * useIsMobile — Détection mobile (<768px) avec resize listener.
+ * Utilisé pour switcher entre layout desktop et layout mobile dédié.
+ */
+
+import { useEffect, useState } from 'react'
+
+export function useIsMobile(breakpoint = 768): boolean {
+  const [isMobile, setIsMobile] = useState(() => {
+    if (typeof window === 'undefined') return false
+    return window.innerWidth < breakpoint
+  })
+
+  useEffect(() => {
+    const onResize = () => setIsMobile(window.innerWidth < breakpoint)
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
+  }, [breakpoint])
+
+  return isMobile
+}
