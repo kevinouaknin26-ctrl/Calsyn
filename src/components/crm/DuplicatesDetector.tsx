@@ -70,10 +70,12 @@ export default function DuplicatesDetector({
   prospects,
   onClose,
   onProspectClick,
+  hidden = false,
 }: {
   prospects: ProspectLite[]
   onClose: () => void
   onProspectClick?: (p: ProspectLite) => void
+  hidden?: boolean
 }) {
   const queryClient = useQueryClient()
   const [ignored, setIgnoredState] = useState<Set<string>>(getIgnored())
@@ -170,7 +172,7 @@ export default function DuplicatesDetector({
   }
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={onClose}>
+    <div className={`fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4 ${hidden ? 'hidden' : ''}`} onClick={onClose}>
       <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[85vh] flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
         {/* Header */}
         <div className="px-5 py-3 border-b border-gray-200 flex items-center gap-3 bg-gradient-to-r from-violet-50 to-indigo-50">

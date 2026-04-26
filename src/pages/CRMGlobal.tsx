@@ -1630,6 +1630,7 @@ export default function CRMGlobal() {
         <DuplicatesDetector
           prospects={mergedProspects}
           onClose={() => setShowDuplicates(false)}
+          hidden={!!selectedProspect}
           onProspectClick={(p) => {
             const fresh = mergedProspects.find(mp => mp.id === p.id) as MergedProspect | undefined
             setSelectedProspect(fresh || (p as MergedProspect))
