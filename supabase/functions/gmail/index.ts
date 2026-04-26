@@ -323,21 +323,55 @@ serve(async (req) => {
 
       // Batch modify Gmail (retire UNREAD) — max 1000 par appel
       const ids = msgs.map(m => m.external_id).filter(Boolean) as string[]
+      let gmailStatus: number | null = null
+      let gmailError: string | null = null
       if (ids.length > 0) {
-        await fetch(`${GMAIL_API}/messages/batchModify`, {
-          method: 'POST',
-          headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ ids: ids.slice(0, 1000), removeLabelIds: ['UNREAD'] }),
-        }).catch(err => console.error('[gmail/mark-read] batchModify failed:', err))
+        try {
+          const bmRes = await fetch(`${GMAIL_API}/messages/batchModify`, {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ids: ids.slice(0, 1000), removeLabelIds: ['UNREAD'] }),
+          })
+          gmailStatus = bmRes.status
+          if (!bmRes.ok) {
+            const errText = await bmRes.text()
+            gmailError = errText.slice(0, 500)
+            console.error('[gmail/mark-read] batchModify HTTP', bmRes.status, errText)
+          } else {
+            console.log('[gmail/mark-read] batchModify OK for', ids.length, 'msgs')
+          }
+        } catch (err) {
+          gmailError = (err as Error).message
+          console.error('[gmail/mark-read] batchModify threw:', err)
+        }
       }
 
-      // Update local
-      const { data: updated } = await admin
-        .from('messages')
-        .update({ is_read: true })
-        .in('id', msgs.map(m => m.id))
-        .select('id')
-      return new Response(JSON.stringify({ ok: true, updated: updated?.length || 0 }), {
+      // Update local SEULEMENT si Gmail a accepté (sinon on retente la prochaine fois)
+      let updatedCount = 0
+      if (!gmailError && gmailStatus !== null && gmailStatus < 400) {
+        const { data: updated } = await admin
+          .from('messages')
+          .update({ is_read: true })
+          .in('id', msgs.map(m => m.id))
+          .select('id')
+        updatedCount = updated?.length || 0
+      } else if (ids.length === 0) {
+        // Cas messages sans external_id (legacy) — on update quand même en local
+        const { data: updated } = await admin
+          .from('messages')
+          .update({ is_read: true })
+          .in('id', msgs.map(m => m.id))
+          .select('id')
+        updatedCount = updated?.length || 0
+      }
+
+      return new Response(JSON.stringify({
+        ok: !gmailError,
+        updated: updatedCount,
+        gmail_ids: ids.length,
+        gmail_status: gmailStatus,
+        gmail_error: gmailError,
+      }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
     }

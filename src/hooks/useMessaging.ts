@@ -162,14 +162,16 @@ export function useConversation(prospectId: string | null) {
       // Le endpoint sélectionne les messages WHERE is_read=false pour batchModify Gmail.
       // Si on update local d'abord, il ne trouve plus rien → label UNREAD non retiré sur Gmail.
 
-      // 1. Sync vers Gmail : retire le label UNREAD des messages email non-lus
+      // 1. Sync vers Gmail : retire le label UNREAD des messages email non-lus.
+      // Le endpoint update aussi is_read=true en local pour les emails après succès Gmail.
       const hasUnreadEmail = (messagesQuery.data || []).some(m => m.channel === 'email' && m.direction === 'in' && !(m as any).is_read)
+      let gmailSyncOk = true
       if (hasUnreadEmail) {
         try {
           const { data: { session } } = await supabase.auth.getSession()
           if (session?.access_token) {
             const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string
-            await fetch(`${SUPABASE_URL}/functions/v1/gmail?action=mark-read`, {
+            const res = await fetch(`${SUPABASE_URL}/functions/v1/gmail?action=mark-read`, {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
@@ -177,20 +179,32 @@ export function useConversation(prospectId: string | null) {
               },
               body: JSON.stringify({ prospect_id: prospectId }),
             })
+            const json = await res.json().catch(() => ({}))
+            if (!res.ok || json?.gmail_error) {
+              gmailSyncOk = false
+              console.warn('[markAsRead] gmail sync rejected:', res.status, json)
+            }
           }
         } catch (e) {
+          gmailSyncOk = false
           console.warn('[markAsRead] gmail sync failed:', e)
         }
       }
 
-      // 2. Marque tous les messages inbound de cette conv comme lus en local
-      // (le endpoint Gmail le fait déjà pour les emails, mais on couvre SMS/WA aussi)
-      await supabase
+      // 2. Marque les messages NON-EMAIL comme lus en local (SMS/WA).
+      // Pour les emails : si Gmail a planté, on laisse is_read=false pour retenter.
+      const localUpdate = supabase
         .from('messages')
         .update({ is_read: true })
         .eq('prospect_id', prospectId)
         .eq('direction', 'in')
         .eq('is_read', false)
+      if (!gmailSyncOk) {
+        // Limite l'update local aux non-emails pour ne pas perdre la trace de l'échec Gmail
+        await localUpdate.neq('channel', 'email')
+      } else {
+        await localUpdate
+      }
 
       // 3. Update aussi le legacy message_reads pour compat
       if (user?.id && organisation?.id) {
