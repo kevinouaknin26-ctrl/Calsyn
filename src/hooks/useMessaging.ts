@@ -158,15 +158,11 @@ export function useConversation(prospectId: string | null) {
   const markAsReadMutation = useMutation({
     mutationFn: async () => {
       if (!prospectId) return
-      // 1. Marque tous les messages inbound de cette conv comme lus en local
-      await supabase
-        .from('messages')
-        .update({ is_read: true })
-        .eq('prospect_id', prospectId)
-        .eq('direction', 'in')
-        .eq('is_read', false)
+      // ORDRE IMPORTANT : appeler gmail-mark-read AVANT le UPDATE local.
+      // Le endpoint sélectionne les messages WHERE is_read=false pour batchModify Gmail.
+      // Si on update local d'abord, il ne trouve plus rien → label UNREAD non retiré sur Gmail.
 
-      // 2. Sync vers Gmail : retire le label UNREAD des messages email concernés
+      // 1. Sync vers Gmail : retire le label UNREAD des messages email non-lus
       const hasUnreadEmail = (messagesQuery.data || []).some(m => m.channel === 'email' && m.direction === 'in' && !(m as any).is_read)
       if (hasUnreadEmail) {
         try {
@@ -186,6 +182,15 @@ export function useConversation(prospectId: string | null) {
           console.warn('[markAsRead] gmail sync failed:', e)
         }
       }
+
+      // 2. Marque tous les messages inbound de cette conv comme lus en local
+      // (le endpoint Gmail le fait déjà pour les emails, mais on couvre SMS/WA aussi)
+      await supabase
+        .from('messages')
+        .update({ is_read: true })
+        .eq('prospect_id', prospectId)
+        .eq('direction', 'in')
+        .eq('is_read', false)
 
       // 3. Update aussi le legacy message_reads pour compat
       if (user?.id && organisation?.id) {
