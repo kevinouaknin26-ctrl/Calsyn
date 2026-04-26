@@ -300,21 +300,24 @@ serve(async (req) => {
     // tous les messages email du prospect (direction='in', is_read=false).
     if (action === 'mark-read' && req.method === 'POST') {
       const body = await req.json()
-      const { prospect_id } = body
+      const { prospect_id, force } = body
       if (!prospect_id) {
         return new Response(JSON.stringify({ error: 'Missing prospect_id' }), {
           status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         })
       }
 
-      // Récupère les messages email non-lus de ce prospect
-      const { data: msgs } = await admin
+      // Récupère les messages email du prospect.
+      // Si force=true : tous les emails inbound (pour récupérer le désync local/Gmail).
+      // Sinon : seulement les non-lus en local.
+      let q = admin
         .from('messages')
         .select('id, external_id')
         .eq('prospect_id', prospect_id)
         .eq('channel', 'email')
         .eq('direction', 'in')
-        .eq('is_read', false)
+      if (!force) q = q.eq('is_read', false)
+      const { data: msgs } = await q
       if (!msgs || msgs.length === 0) {
         return new Response(JSON.stringify({ ok: true, updated: 0 }), {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -346,24 +349,15 @@ serve(async (req) => {
         }
       }
 
-      // Update local SEULEMENT si Gmail a accepté (sinon on retente la prochaine fois)
-      let updatedCount = 0
-      if (!gmailError && gmailStatus !== null && gmailStatus < 400) {
-        const { data: updated } = await admin
-          .from('messages')
-          .update({ is_read: true })
-          .in('id', msgs.map(m => m.id))
-          .select('id')
-        updatedCount = updated?.length || 0
-      } else if (ids.length === 0) {
-        // Cas messages sans external_id (legacy) — on update quand même en local
-        const { data: updated } = await admin
-          .from('messages')
-          .update({ is_read: true })
-          .in('id', msgs.map(m => m.id))
-          .select('id')
-        updatedCount = updated?.length || 0
-      }
+      // Update local is_read=true (UX prioritaire). L'erreur Gmail est remontée
+      // séparément dans la réponse pour diagnostic, mais on n'y subordonne plus l'UX.
+      const { data: updated } = await admin
+        .from('messages')
+        .update({ is_read: true })
+        .in('id', msgs.map(m => m.id))
+        .eq('is_read', false)  // ne fait quelque chose que si nécessaire
+        .select('id')
+      const updatedCount = updated?.length || 0
 
       return new Response(JSON.stringify({
         ok: !gmailError,

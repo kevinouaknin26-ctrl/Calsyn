@@ -25,17 +25,43 @@ interface ToastNotif {
   body: string
 }
 
-// Son synthétisé via WebAudio (pas de fichier à host).
+// Son synthétisé via WebAudio. Singleton AudioContext créé/débloqué au premier
+// user gesture pour contourner la autoplay policy des navigateurs.
+let audioCtx: AudioContext | null = null
+let unlocked = false
+
+function getCtx(): AudioContext | null {
+  if (audioCtx) return audioCtx
+  const Ctx: typeof AudioContext = (window as any).AudioContext || (window as any).webkitAudioContext
+  if (!Ctx) return null
+  audioCtx = new Ctx()
+  return audioCtx
+}
+
+function unlockAudio() {
+  if (unlocked) return
+  const ctx = getCtx()
+  if (!ctx) return
+  // Joue un sample muet pour débloquer
+  const buf = ctx.createBuffer(1, 1, 22050)
+  const src = ctx.createBufferSource()
+  src.buffer = buf
+  src.connect(ctx.destination)
+  src.start(0)
+  if (ctx.state === 'suspended') ctx.resume().catch(() => {})
+  unlocked = true
+}
+
 // Petit "ding" doux à 880Hz puis 1318Hz, 200ms total.
 function playNotifSound() {
   try {
-    const Ctx: typeof AudioContext = (window as any).AudioContext || (window as any).webkitAudioContext
-    if (!Ctx) return
-    const ctx = new Ctx()
+    const ctx = getCtx()
+    if (!ctx) return
+    if (ctx.state === 'suspended') ctx.resume().catch(() => {})
     const now = ctx.currentTime
     const tones = [
-      { freq: 880, start: 0, dur: 0.10 },     // A5
-      { freq: 1318.5, start: 0.08, dur: 0.16 }, // E6
+      { freq: 880, start: 0, dur: 0.10 },
+      { freq: 1318.5, start: 0.08, dur: 0.16 },
     ]
     for (const t of tones) {
       const osc = ctx.createOscillator()
@@ -43,14 +69,15 @@ function playNotifSound() {
       osc.type = 'sine'
       osc.frequency.value = t.freq
       gain.gain.setValueAtTime(0.0001, now + t.start)
-      gain.gain.exponentialRampToValueAtTime(0.18, now + t.start + 0.015)
+      gain.gain.exponentialRampToValueAtTime(0.22, now + t.start + 0.015)
       gain.gain.exponentialRampToValueAtTime(0.0001, now + t.start + t.dur)
       osc.connect(gain).connect(ctx.destination)
       osc.start(now + t.start)
       osc.stop(now + t.start + t.dur + 0.02)
     }
-    setTimeout(() => ctx.close().catch(() => {}), 600)
-  } catch {}
+  } catch (e) {
+    console.warn('[notif] audio play failed:', e)
+  }
 }
 
 export default function MessagingNotifier() {
@@ -65,6 +92,19 @@ export default function MessagingNotifier() {
       return v !== '0'
     } catch { return true }
   })()
+
+  // Débloque AudioContext au premier user gesture (contourne autoplay policy)
+  useEffect(() => {
+    const onGesture = () => unlockAudio()
+    window.addEventListener('click', onGesture, { once: false, capture: true })
+    window.addEventListener('keydown', onGesture, { once: false, capture: true })
+    window.addEventListener('touchstart', onGesture, { once: false, capture: true })
+    return () => {
+      window.removeEventListener('click', onGesture, { capture: true } as any)
+      window.removeEventListener('keydown', onGesture, { capture: true } as any)
+      window.removeEventListener('touchstart', onGesture, { capture: true } as any)
+    }
+  }, [])
 
   useEffect(() => {
     if (!organisation?.id || !user?.id) return
