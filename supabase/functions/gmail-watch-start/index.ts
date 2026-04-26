@@ -20,6 +20,7 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.0'
 import { corsHeaders } from '../_shared/cors.ts'
+import { captureError } from '../_shared/sentry.ts'
 
 const GMAIL_API = 'https://gmail.googleapis.com/gmail/v1/users/me'
 
@@ -125,8 +126,13 @@ serve(async (req) => {
 
   const results = []
   for (const ig of integrations as any[]) {
-    const r = await startWatchForUser(ig.user_id)
-    results.push({ user_id: ig.user_id, ...r })
+    try {
+      const r = await startWatchForUser(ig.user_id)
+      results.push({ user_id: ig.user_id, ...r })
+    } catch (err) {
+      results.push({ user_id: ig.user_id, error: (err as Error).message })
+      captureError(err, { tags: { fn: 'gmail-watch-start' }, user: { id: ig.user_id } }).catch(() => {})
+    }
   }
 
   return new Response(JSON.stringify({ ok: true, results }), {

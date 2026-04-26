@@ -10,6 +10,8 @@
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.0'
+import { captureError } from '../_shared/sentry.ts'
+import { verifyTwilioSignature } from '../_shared/twilio-signature.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -24,6 +26,11 @@ serve(async (req) => {
   try {
     const text = await req.text()
     const params = Object.fromEntries(new URLSearchParams(text).entries())
+
+    if (!await verifyTwilioSignature(req, params)) {
+      console.warn('[wa-webhook] Invalid Twilio signature, rejecting')
+      return new Response('Forbidden', { status: 403, headers: corsHeaders })
+    }
 
     const messageSid = params.MessageSid || params.SmsMessageSid || ''
     const from = params.From || ''  // 'whatsapp:+33XXX...'
@@ -79,6 +86,7 @@ serve(async (req) => {
     })
   } catch (err) {
     console.error('[wa-webhook] Error:', err)
+    captureError(err, { tags: { fn: 'wa-webhook' } }).catch(() => {})
     return new Response('<Response/>', {
       headers: { ...corsHeaders, 'Content-Type': 'text/xml' },
     })

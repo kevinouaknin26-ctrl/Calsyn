@@ -11,6 +11,7 @@
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.0'
+import { captureError } from '../_shared/sentry.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': 'https://calsyn.app',
@@ -202,6 +203,7 @@ serve(async (req) => {
 
   } catch (err) {
     console.error('[twilio-numbers] Error:', err)
+    captureError(err, { tags: { fn: 'twilio-numbers' } }).catch(() => {})
     return new Response(JSON.stringify({ error: 'Internal error' }), {
       status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     })

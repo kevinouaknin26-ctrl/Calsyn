@@ -20,6 +20,7 @@ import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.0'
 import { corsHeaders } from '../_shared/cors.ts'
 import { deriveSigningKey, signHex, RECORDING_SID_RE } from '../_shared/recording-signing.ts'
+import { captureError } from '../_shared/sentry.ts'
 
 const TTL_SECONDS = 10 * 60
 const STORAGE_BUCKET = 'recordings'
@@ -149,6 +150,7 @@ serve(async (req) => {
   } catch (err) {
     // 3. Fallback : ancienne signed URL HMAC vers le proxy (legacy)
     console.warn('[recording-sign] Storage ingest failed, fallback proxy:', err)
+    captureError(err, { tags: { fn: 'recording-sign', stage: 'storage_ingest_fallback' }, level: 'warning', extra: { sid } }).catch(() => {})
     const exp = Math.floor(Date.now() / 1000) + TTL_SECONDS
     const key = await deriveSigningKey()
     const sig = await signHex(key, `${sid}|${exp}`)

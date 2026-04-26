@@ -14,6 +14,8 @@
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.0'
+import { captureError } from '../_shared/sentry.ts'
+import { verifyTwilioSignature } from '../_shared/twilio-signature.ts'
 
 function getAdmin() {
   return createClient(
@@ -26,6 +28,11 @@ serve(async (req) => {
   try {
     const text = await req.text()
     const params = Object.fromEntries(new URLSearchParams(text).entries())
+
+    if (!await verifyTwilioSignature(req, params)) {
+      console.warn('[sms-webhook] Invalid Twilio signature, rejecting')
+      return new Response('Forbidden', { status: 403 })
+    }
 
     const from = params.From || ''
     const to = params.To || ''
@@ -89,6 +96,7 @@ serve(async (req) => {
     })
   } catch (err) {
     console.error('[sms-webhook] Error:', err)
+    captureError(err, { tags: { fn: 'sms-webhook' } }).catch(() => {})
     return new Response('<?xml version="1.0" encoding="UTF-8"?><Response/>', {
       headers: { 'Content-Type': 'text/xml' },
     })

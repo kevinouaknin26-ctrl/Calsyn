@@ -15,6 +15,8 @@
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.0'
+import { captureError } from '../_shared/sentry.ts'
+import { verifyTwilioSignature } from '../_shared/twilio-signature.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -30,6 +32,11 @@ serve(async (req) => {
   try {
     const text = await req.text()
     const params = Object.fromEntries(new URLSearchParams(text).entries())
+
+    if (!await verifyTwilioSignature(req, params)) {
+      console.warn('[recording-callback] Invalid Twilio signature, rejecting')
+      return new Response('Forbidden', { status: 403, headers: corsHeaders })
+    }
 
     const callSid = params.CallSid || ''
     const conferenceSid = params.ConferenceSid || ''
@@ -163,6 +170,7 @@ serve(async (req) => {
 
   } catch (err) {
     console.error('[recording-callback] Error:', err)
+    captureError(err, { tags: { fn: 'recording-callback' } }).catch(() => {})
     return new Response(JSON.stringify({ ok: true }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     })

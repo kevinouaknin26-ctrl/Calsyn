@@ -7,6 +7,7 @@
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.0'
+import { captureError } from '../_shared/sentry.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -51,6 +52,7 @@ serve(async (req) => {
       results.push({ user_id: ig.user_id, status: r.status, ...data })
     } catch (err) {
       results.push({ user_id: ig.user_id, error: (err as Error).message })
+      captureError(err, { tags: { fn: 'gmail-watch-renew' }, user: { id: ig.user_id } }).catch(() => {})
     }
   }
 
