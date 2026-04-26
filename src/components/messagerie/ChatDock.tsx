@@ -93,19 +93,30 @@ function ChatBubble({ prospectId, minimized }: { prospectId: string; minimized: 
   const ch = getChannel(activeChannel)
   const initial = (prospect?.name || '?')[0].toUpperCase()
 
-  // Mode minimisé : pastille avec avatar + badge
+  // Mode minimisé : onglet rectangulaire style LinkedIn (avatar + nom + close)
   if (minimized) {
     return (
-      <button onClick={() => toggleMinimize(prospectId)}
-        title={prospect?.name || 'Conversation'}
-        className="relative w-12 h-12 rounded-full bg-gradient-to-br from-indigo-400 to-violet-500 shadow-lg hover:scale-105 transition-transform flex items-center justify-center text-white font-bold mb-3">
-        {initial}
-        {unreadInChat > 0 && (
-          <span className="absolute -top-1 -right-1 min-w-[16px] h-[16px] px-1 rounded-full bg-red-500 text-white text-[9px] font-bold flex items-center justify-center">
-            {unreadInChat > 9 ? '9+' : unreadInChat}
-          </span>
-        )}
-      </button>
+      <div className="relative flex items-stretch h-[44px] bg-gradient-to-r from-indigo-500 to-violet-500 rounded-t-xl shadow-lg overflow-hidden border border-violet-300 border-b-0">
+        <button onClick={() => toggleMinimize(prospectId)}
+          title={prospect?.name || 'Conversation'}
+          className="flex items-center gap-2 pl-2.5 pr-2 hover:bg-white/10 transition-colors min-w-[140px] max-w-[200px]">
+          <div className="w-7 h-7 rounded-full bg-white/20 flex items-center justify-center text-white font-bold text-[12px] flex-shrink-0">
+            {initial}
+          </div>
+          <div className="text-[12px] font-bold text-white truncate flex-1 text-left">
+            {prospect?.name || 'Inconnu'}
+          </div>
+          {unreadInChat > 0 && (
+            <span className="min-w-[16px] h-[16px] px-1 rounded-full bg-red-500 text-white text-[9px] font-bold flex items-center justify-center flex-shrink-0">
+              {unreadInChat > 9 ? '9+' : unreadInChat}
+            </span>
+          )}
+        </button>
+        <button onClick={() => closeChat(prospectId)} title="Fermer"
+          className="px-1.5 text-white/80 hover:text-white hover:bg-white/10 transition-colors border-l border-white/20">
+          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+        </button>
+      </div>
     )
   }
 

@@ -217,10 +217,21 @@ export default function DuplicatesDetector({
               <div className="flex flex-wrap gap-3 p-3 bg-gray-50">
                 {g.prospects.map((p, idx) => {
                   const isCanonical = idx === 0
-                  const card = (
-                    <div className={`relative bg-white rounded-xl border ${isCanonical ? 'border-violet-300 ring-2 ring-violet-100' : 'border-gray-200'} shadow-sm group-hover:shadow-md group-hover:-translate-y-0.5 transition-all p-3 text-[11px] flex-1 min-w-[260px]`}>
+                  const handleClick = (e: React.MouseEvent) => {
+                    e.stopPropagation()
+                    e.preventDefault()
+                    if (onProspectClick) onProspectClick(p)
+                  }
+                  return (
+                    <div
+                      key={p.id}
+                      onClick={handleClick}
+                      role={onProspectClick ? 'button' : undefined}
+                      tabIndex={onProspectClick ? 0 : undefined}
+                      className={`group relative bg-white rounded-xl border ${isCanonical ? 'border-violet-300 ring-2 ring-violet-100' : 'border-gray-200'} shadow-sm hover:shadow-lg hover:-translate-y-0.5 hover:border-indigo-400 transition-all p-3 text-[11px] flex-1 min-w-[260px] ${onProspectClick ? 'cursor-pointer' : ''}`}
+                    >
                       {isCanonical && (
-                        <div className="absolute -top-2 left-3 bg-violet-600 text-white text-[8px] font-bold uppercase px-1.5 py-0.5 rounded">
+                        <div className="absolute -top-2 left-3 bg-violet-600 text-white text-[8px] font-bold uppercase px-1.5 py-0.5 rounded shadow">
                           ⭐ Canonique (gardé)
                         </div>
                       )}
@@ -232,29 +243,21 @@ export default function DuplicatesDetector({
                           {p.name || '(sans nom)'}
                         </div>
                       </div>
-                      {p.email && <div className="text-gray-600 truncate flex items-center gap-1">📧 {p.email}</div>}
-                      {p.phone && <div className="text-gray-600 flex items-center gap-1">📞 {p.phone}</div>}
-                      {(p as any).phone2 && <div className="text-gray-500 flex items-center gap-1">📞 {(p as any).phone2}</div>}
+                      {p.email && <div className="text-gray-600 truncate">📧 {p.email}</div>}
+                      {p.phone && <div className="text-gray-600">📞 {p.phone}</div>}
+                      {(p as any).phone2 && <div className="text-gray-500">📞 {(p as any).phone2}</div>}
                       {p.listNames && p.listNames.length > 0 && (
                         <div className="text-[10px] text-gray-400 mt-1.5 truncate">📋 {p.listNames.join(', ')}</div>
                       )}
-                      <div className="text-[9px] text-gray-400 mt-1.5 pt-1.5 border-t border-gray-100">
-                        Créé le {new Date(p.created_at).toLocaleDateString('fr-FR')}
-                        {onProspectClick && <span className="float-right text-indigo-500 group-hover:text-indigo-700">Voir la fiche →</span>}
+                      <div className="text-[9px] text-gray-400 mt-1.5 pt-1.5 border-t border-gray-100 flex items-center justify-between">
+                        <span>Créé le {new Date(p.created_at).toLocaleDateString('fr-FR')}</span>
+                        {onProspectClick && (
+                          <span className="text-indigo-500 group-hover:text-indigo-700 font-medium opacity-0 group-hover:opacity-100 transition-opacity">
+                            Ouvrir la fiche →
+                          </span>
+                        )}
                       </div>
                     </div>
-                  )
-                  return onProspectClick ? (
-                    <button
-                      key={p.id}
-                      type="button"
-                      onClick={() => onProspectClick(p)}
-                      className="group flex-1 min-w-[260px] text-left cursor-pointer"
-                    >
-                      {card}
-                    </button>
-                  ) : (
-                    <div key={p.id} className="group flex-1 min-w-[260px]">{card}</div>
                   )
                 })}
               </div>
