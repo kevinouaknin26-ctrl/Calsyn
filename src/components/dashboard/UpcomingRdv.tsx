@@ -53,7 +53,7 @@ export default function UpcomingRdv({ prospects }: { prospects: ProspectLite[] }
   }, [prospects])
 
   return (
-    <div ref={ref} className="bg-white dark:bg-[#f0eaf5] rounded-xl border border-gray-200 dark:border-[#d4cade] overflow-hidden">
+    <div ref={ref} className="bg-white dark:bg-[#f0eaf5] rounded-xl border border-gray-200 dark:border-[#d4cade] overflow-hidden h-full flex flex-col">
       <div className="px-4 py-2.5 border-b border-gray-100 flex items-baseline justify-between">
         <h3 className="text-[12px] font-bold text-gray-700 flex items-center gap-2">
           📅 Prochains RDV

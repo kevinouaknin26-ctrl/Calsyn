@@ -250,11 +250,11 @@ export default function Dashboard() {
             </div>
 
             {/* ─── Prochains RDV + Funnel + Ressources (3 cards de taille égale) ─── */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-              <Reveal direction="left" className="lg:col-span-1">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 items-stretch">
+              <Reveal direction="left" className="lg:col-span-1 h-full">
                 <UpcomingRdv prospects={prospects} />
               </Reveal>
-              <Reveal direction="up" delay={80} className="lg:col-span-1">
+              <Reveal direction="up" delay={80} className="lg:col-span-1 h-full">
                 <Funnel steps={[
                   { label: 'Appels lancés', value: stats.total, color: '#a5b4fc' },
                   { label: 'Connectés à un humain', value: stats.connected, color: '#10b981' },
@@ -262,7 +262,7 @@ export default function Dashboard() {
                   { label: 'RDV pris', value: stats.rdv, color: '#8b5cf6' },
                 ]} />
               </Reveal>
-              <Reveal direction="right" delay={160} className="lg:col-span-1">
+              <Reveal direction="right" delay={160} className="lg:col-span-1 h-full">
                 <SharedResources />
               </Reveal>
             </div>
