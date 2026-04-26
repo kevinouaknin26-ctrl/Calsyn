@@ -14,6 +14,7 @@
 
 import 'jsr:@supabase/functions-js/edge-runtime.d.ts'
 import { createClient } from 'npm:@supabase/supabase-js@2'
+import { captureError } from '../_shared/sentry.ts'
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
 const SERVICE_ROLE = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
@@ -56,7 +57,7 @@ Deno.serve(async (req: Request) => {
 
     // Récupère target
     const { data: target } = await admin
-      .from('profiles').select('id, email, full_name, role').eq('id', targetUserId).single()
+      .from('profiles').select('id, email, full_name, role, organisation_id').eq('id', targetUserId).single()
     if (!target) return json({ error: 'User cible introuvable' }, 404)
     if (target.role === 'super_admin') {
       return json({ error: 'Impossible d\'impersonner un autre super_admin' }, 403)
@@ -76,11 +77,17 @@ Deno.serve(async (req: Request) => {
       return json({ error: 'Échec génération du lien' }, 500)
     }
 
-    // Audit log
-    await admin.from('activity_logs').insert({
-      action: 'impersonate',
-      details: `Super admin ${callerProfile.full_name || caller.email} → impersonne ${target.full_name || target.email} (${target.role})`,
-      user_id: caller.id,
+    // Audit log enrichi
+    await admin.rpc('log_audit_event', {
+      p_organisation_id: target.organisation_id,
+      p_actor_user_id: caller.id,
+      p_event_type: 'user.impersonated',
+      p_event_category: 'security',
+      p_description: `Super admin ${callerProfile.full_name || caller.email} → impersonne ${target.full_name || target.email} (${target.role})`,
+      p_target_user_id: target.id,
+      p_metadata: { target_role: target.role },
+      p_ip: req.headers.get('x-forwarded-for') || req.headers.get('cf-connecting-ip') || null,
+      p_ua: req.headers.get('user-agent') || null,
     }).then(() => {}, () => {})
 
     return json({
@@ -89,6 +96,7 @@ Deno.serve(async (req: Request) => {
     })
   } catch (err) {
     console.error('[impersonate] Error:', err)
+    captureError(err, { tags: { fn: 'impersonate' } }).catch(() => {})
     return json({ error: 'Internal error' }, 500)
   }
 })

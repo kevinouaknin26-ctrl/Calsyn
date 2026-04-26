@@ -1,6 +1,7 @@
 import 'jsr:@supabase/functions-js/edge-runtime.d.ts'
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import { renderInviteEmail } from './email-template.ts'
+import { captureError } from '../_shared/sentry.ts'
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
 const SERVICE_ROLE = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
@@ -172,6 +173,18 @@ Deno.serve(async (req: Request) => {
         return json({ error: `Envoi email échoué : ${errText}` }, 502)
       }
 
+      // Audit log
+      await admin.rpc('log_audit_event', {
+        p_organisation_id: targetOrgId,
+        p_actor_user_id: user.id,
+        p_event_type: 'user.invited',
+        p_description: `Invitation envoyée à ${email} (rôle ${role})`,
+        p_target_user_id: linkData.user?.id || null,
+        p_metadata: { email, role, license, provider: 'resend', expires_at: expiresAt },
+        p_ip: req.headers.get('x-forwarded-for') || req.headers.get('cf-connecting-ip') || null,
+        p_ua: req.headers.get('user-agent') || null,
+      }).then(() => {}, () => {})
+
       return json({ ok: true, userId: linkData.user?.id, email, role, call_license: license, invite_expires_at: expiresAt, provider: 'resend' })
     }
 
@@ -181,8 +194,19 @@ Deno.serve(async (req: Request) => {
       redirectTo: `${APP_URL}/accept-invite`,
     })
     if (error) return json({ error: error.message }, 400)
+    await admin.rpc('log_audit_event', {
+      p_organisation_id: targetOrgId,
+      p_actor_user_id: user.id,
+      p_event_type: 'user.invited',
+      p_description: `Invitation envoyée à ${email} (rôle ${role})`,
+      p_target_user_id: data.user?.id || null,
+      p_metadata: { email, role, license, provider: 'supabase', expires_at: expiresAt },
+      p_ip: req.headers.get('x-forwarded-for') || req.headers.get('cf-connecting-ip') || null,
+      p_ua: req.headers.get('user-agent') || null,
+    }).then(() => {}, () => {})
     return json({ ok: true, userId: data.user?.id, email, role, call_license: license, invite_expires_at: expiresAt, provider: 'supabase' })
   } catch (e) {
+    captureError(e, { tags: { fn: 'invite-member' } }).catch(() => {})
     return json({ error: (e as Error).message }, 500)
   }
 })
