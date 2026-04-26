@@ -1,0 +1,123 @@
+name: CI
+                                                                                                                                    
+  on:                                                    
+    push:
+      branches: [main]
+    pull_request:
+      branches: [main]                                                                                                              
+   
+  jobs:                                                                                                                             
+    quality-gates:                                       
+      name: Quality gates
+      runs-on: ubuntu-latest
+      timeout-minutes: 8
+                                                                                                                                    
+      steps:
+        - name: Checkout                                                                                                            
+          uses: actions/checkout@v4                      
+
+        - name: Setup Node 20
+          uses: actions/setup-node@v4
+          with:
+            node-version: 20                                                                                                        
+            cache: 'npm'
+                                                                                                                                    
+        - name: Install dependencies                     
+          run: npm ci --no-audit --no-fund
+
+        - name: Type check
+          run: npx tsc --noEmit
+                                                                                                                                    
+        - name: Production build
+          run: npx vite build                                                                                                       
+          env:                                           
+            VITE_SUPABASE_URL: https://enrpuayypjnpfmdgpfhs.supabase.co
+            VITE_SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVucnB1YXl5cGpucGZtZGdwZmh
+  zIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU4MzIzODUsImV4cCI6MjA5MTQwODM4NX0.Gd5B6y3hpdduTpeSAu0PP_1EqVIDYAkwCH6m5h1-kSI                  
+                                                                                                                                    
+        - name: Bundle size warning                                                                                                 
+          run: |                                         
+            BUNDLE_KB=$(du -k dist/assets/index-*.js | awk '{print $1}')
+            echo "Bundle size: ${BUNDLE_KB}KB"                                                                                      
+            if [ "$BUNDLE_KB" -gt 2500 ]; then                                                                                      
+              echo "::warning::Bundle size ${BUNDLE_KB}KB > 2500KB threshold"                                                       
+            fi                                                                                                                      
+                                                         
+    e2e-smoke:                                                                                                                      
+      name: E2E smoke tests                              
+      runs-on: ubuntu-latest
+      timeout-minutes: 8                                                                                                            
+      needs: quality-gates
+                                                                                                                                    
+      steps:                                             
+        - name: Checkout
+          uses: actions/checkout@v4
+
+        - name: Setup Node 20                                                                                                       
+          uses: actions/setup-node@v4
+          with:                                                                                                                     
+            node-version: 20                             
+            cache: 'npm'
+
+        - name: Install dependencies
+          run: npm ci --no-audit --no-fund
+                                                                                                                                    
+        - name: Install Playwright browsers
+          run: npx playwright install --with-deps chromium                                                                          
+                                                         
+        - name: Run E2E smoke tests
+          run: npx playwright test
+          env:
+            CI: 'true'                                                                                                              
+            PLAYWRIGHT_BASE_URL: https://calsyn.app
+                                                                                                                                    
+        - name: Upload Playwright report on failure      
+          if: failure()
+          uses: actions/upload-artifact@v4
+          with:                                                                                                                     
+            name: playwright-report
+            path: playwright-report/                                                                                                
+            retention-days: 7                            
+
+    migration-safety:
+      name: Migration safety check
+      runs-on: ubuntu-latest                                                                                                        
+      timeout-minutes: 2
+      if: github.event_name == 'pull_request'                                                                                       
+                                                         
+      steps:
+        - name: Checkout
+          uses: actions/checkout@v4
+          with:                                                                                                                     
+            fetch-depth: 0
+                                                                                                                                    
+        - name: Detect risky migrations                  
+          run: |
+            NEW_MIGRATIONS=$(git diff --name-only --diff-filter=A origin/main...HEAD -- 'supabase/migrations/*.sql' || true)
+                                                                                                                                    
+            if [ -z "$NEW_MIGRATIONS" ]; then
+              echo "✓ Aucune nouvelle migration"                                                                                    
+              exit 0                                     
+            fi                                                                                                                      
+                                                         
+            echo "Nouvelles migrations détectées :"
+            echo "$NEW_MIGRATIONS"
+                                                                                                                                    
+            FAIL=0
+            for FILE in $NEW_MIGRATIONS; do                                                                                         
+              echo "── Analyse $FILE"                    
+              RISKY_LINES=$(grep -nE '(DROP\s+TABLE|TRUNCATE|DELETE\s+FROM\s+[a-zA-Z_]+\s*;|ALTER\s+TABLE.*DROP\s+COLUMN)' "$FILE"
+  || true)                                                                                                                          
+              if [ -n "$RISKY_LINES" ]; then
+                echo "::warning file=$FILE::Action destructive détectée — vérifier qu'elle est intentionnelle"                      
+                echo "$RISKY_LINES"                                                                                                 
+              fi
+              FIRST_LINE=$(head -1 "$FILE")                                                                                         
+              if ! echo "$FIRST_LINE" | grep -qE '^--'; then                                                                        
+                echo "::error file=$FILE::Migration manque le header commentaire de description"
+                FAIL=1                                                                                                              
+              fi                                                                                                                    
+            done
+                                                                                                                                    
+            if [ $FAIL -eq 1 ]; then exit 1; fi          
+            echo "✓ Migrations OK (review humaine requise pour les warnings)"
