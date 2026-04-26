@@ -68,7 +68,7 @@ function ChatBubble({ prospectId, minimized }: { prospectId: string; minimized: 
   }, [prospect])
 
   const unreadInChat = useMemo(() => {
-    return messages.filter(m => m.direction === 'in').length // simplified — markAsRead s'occupe du reset
+    return messages.filter(m => m.direction === 'in' && !(m as any).is_read).length
   }, [messages])
 
   async function handleSend() {
