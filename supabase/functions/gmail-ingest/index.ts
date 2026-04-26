@@ -18,6 +18,7 @@
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.0'
+import { isAutomatedEmail, normalizeName } from '../_shared/email-filters.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -120,11 +121,48 @@ async function createProspectFromEmail(
   organisationId: string, mailListId: string, email: string, displayName: string
 ): Promise<string | null> {
   const admin = getAdmin()
-  const { data: maybeExisting } = await admin
-    .from('prospects').select('id')
+  // 1. Match exact par email (déjà existe)
+  const { data: byEmail } = await admin.from('prospects').select('id')
     .eq('organisation_id', organisationId).eq('email', email)
     .is('deleted_at', null).maybeSingle()
-  if (maybeExisting) return maybeExisting.id
+  if (byEmail) return byEmail.id
+  // Aussi check email2/email3
+  const { data: byEmail23 } = await admin.from('prospects').select('id')
+    .eq('organisation_id', organisationId)
+    .or(`email2.eq.${email},email3.eq.${email}`)
+    .is('deleted_at', null).maybeSingle()
+  if (byEmail23) return byEmail23.id
+
+  // 2. Match par NOM normalisé → fusionne email dans email2/email3 du prospect existant
+  if (displayName) {
+    const norm = normalizeName(displayName)
+    if (norm.length > 2 && norm.includes(' ')) { // au moins prénom + nom (évite faux match sur "Eric")
+      const { data: candidates } = await admin.from('prospects')
+        .select('id, name, email, email2, email3')
+        .eq('organisation_id', organisationId).is('deleted_at', null)
+        .ilike('name', `%${displayName.split(' ')[0]}%`)
+        .limit(20)
+      for (const c of candidates || []) {
+        if (normalizeName(c.name as string) === norm) {
+          // Match fort → ajoute l'email dans le 1er slot libre
+          const update: Record<string, string> = {}
+          if (!c.email) update.email = email
+          else if (c.email !== email && !c.email2) update.email2 = email
+          else if (c.email !== email && c.email2 !== email && !c.email3) update.email3 = email
+          if (Object.keys(update).length > 0) {
+            await admin.from('prospects').update(update).eq('id', c.id)
+          }
+          // Add membership Mails (utile pour visibilité)
+          await admin.from('prospect_list_memberships').insert({
+            prospect_id: c.id, list_id: mailListId, organisation_id: organisationId,
+          }).then(() => {}, () => {})
+          return c.id as string
+        }
+      }
+    }
+  }
+
+  // 3. Création complète
   const { data: created, error } = await admin.from('prospects').insert({
     organisation_id: organisationId,
     list_id: mailListId,
@@ -229,6 +267,8 @@ async function ingestForUser(userId: string, organisationId: string): Promise<{ 
         const candidateEmail = isFromMe ? toEmails.find(e => e && e !== myEmail) : fromEmail
         const candidateName = isFromMe ? '' : extractName(from)
         if (!candidateEmail) continue
+        // Filter automatisés : skip noreply, notion.so, mailer-daemon, calendar, etc.
+        if (isAutomatedEmail(candidateEmail, headers)) continue
         if (!mailListId) mailListId = await getOrCreateMailList(organisationId, userId)
         if (!mailListId) continue
         const newProspectId = await createProspectFromEmail(organisationId, mailListId, candidateEmail, candidateName)
