@@ -46,7 +46,8 @@ type SavedView = {
   sortDir: 'asc' | 'desc'
   // Filtres pipeline (optionnels — null/undefined = pas de filtre)
   hiddenStageKeys?: string[]
-  listFilterId?: string | null
+  listFilterId?: string | null  // legacy v1 (single)
+  listFilterIds?: string[]  // v2 (multi)
   viewAsUserId?: string | null
 }
 
@@ -349,12 +350,19 @@ export default function CRMGlobal() {
     else localStorage.removeItem('calsyn_crm_view_as')
   }, [viewAsUserId])
   const [showViewAsMenu, setShowViewAsMenu] = useState(false)
-  // Filtre par liste pour le pipeline (null = toutes listes)
-  const [listFilterId, setListFilterId] = useState<string | null>(() => localStorage.getItem('calsyn_crm_list_filter') || null)
+  // Filtre par listes pour le pipeline (vide = toutes listes, multi-sélection)
+  const [listFilterIds, setListFilterIds] = useState<string[]>(() => {
+    try {
+      const v2 = localStorage.getItem('calsyn_crm_list_filter_v2')
+      if (v2) return JSON.parse(v2)
+      // Migration v1 (single id) → v2 (array)
+      const v1 = localStorage.getItem('calsyn_crm_list_filter')
+      return v1 ? [v1] : []
+    } catch { return [] }
+  })
   useEffect(() => {
-    if (listFilterId) localStorage.setItem('calsyn_crm_list_filter', listFilterId)
-    else localStorage.removeItem('calsyn_crm_list_filter')
-  }, [listFilterId])
+    localStorage.setItem('calsyn_crm_list_filter_v2', JSON.stringify(listFilterIds))
+  }, [listFilterIds])
   const [showListMenu, setShowListMenu] = useState(false)
 
   // Saved views (localStorage)
@@ -681,8 +689,9 @@ export default function CRMGlobal() {
     }
 
     // Filtre par liste (pipeline + table) — null = toutes
-    if (listFilterId) {
-      result = result.filter(p => p.listIds.includes(listFilterId))
+    if (listFilterIds.length > 0) {
+      // Match si le prospect appartient à AU MOINS une des listes cochées
+      result = result.filter(p => p.listIds.some(lid => listFilterIds.includes(lid)))
     }
 
     // Text search
@@ -723,7 +732,7 @@ export default function CRMGlobal() {
     })
 
     return result
-  }, [mergedProspects, search, filters, sortBy, sortDir, allProperties, allCustomValues, viewAsUserId, profile?.id, listSdrsMap, listFilterId])
+  }, [mergedProspects, search, filters, sortBy, sortDir, allProperties, allCustomValues, viewAsUserId, profile?.id, listSdrsMap, listFilterIds])
 
   // Stats
   const stats = useMemo(() => ({
@@ -845,7 +854,7 @@ export default function CRMGlobal() {
       sortBy,
       sortDir,
       hiddenStageKeys,
-      listFilterId,
+      listFilterIds,
       viewAsUserId,
     }
     persistViews([...savedViews, view])
@@ -861,7 +870,8 @@ export default function CRMGlobal() {
     setSortDir(view.sortDir)
     // Pipeline filters (avec défauts si vue ancienne sans ces champs)
     setHiddenStageKeys(view.hiddenStageKeys || [])
-    setListFilterId(view.listFilterId ?? null)
+    // v2 multi OU fallback v1 single
+    setListFilterIds(view.listFilterIds || (view.listFilterId ? [view.listFilterId] : []))
     setViewAsUserId(view.viewAsUserId ?? null)
     setActiveViewId(view.id)
   }
@@ -870,7 +880,7 @@ export default function CRMGlobal() {
     setActiveViewId(null)
     setFilters([])
     setHiddenStageKeys([])
-    setListFilterId(null)
+    setListFilterIds([])
     setViewAsUserId(null)
     setSearch('')
   }
@@ -1064,32 +1074,46 @@ export default function CRMGlobal() {
             </div>
           )}
 
-          {/* Filtre par liste (dropdown) */}
+          {/* Filtre par listes (multi-sélection à coches) */}
           <div className="relative">
             <button onClick={() => setShowListMenu(v => !v)}
-              title="Filtrer le pipeline sur une liste précise"
+              title="Filtrer le pipeline sur une ou plusieurs listes"
               className={`flex items-center gap-1.5 text-[13px] px-3 py-1.5 rounded-lg border transition-colors ${
-                listFilterId ? 'bg-indigo-50 border-indigo-200 text-indigo-700 font-medium' : 'bg-white border-gray-200 text-gray-500 hover:text-gray-700'
+                listFilterIds.length > 0 ? 'bg-indigo-50 border-indigo-200 text-indigo-700 font-medium' : 'bg-white border-gray-200 text-gray-500 hover:text-gray-700'
               }`}>
               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h10M4 18h6" /></svg>
-              {listFilterId ? (lists?.find(l => l.id === listFilterId)?.name || 'Liste') : 'Toutes listes'}
+              {listFilterIds.length === 0
+                ? 'Toutes listes'
+                : listFilterIds.length === 1
+                  ? (lists?.find(l => l.id === listFilterIds[0])?.name || 'Liste')
+                  : `${listFilterIds.length} listes`}
               <svg className="w-3 h-3 opacity-60" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
             </button>
             {showListMenu && (
               <>
                 <div className="fixed inset-0 z-40" onClick={() => setShowListMenu(false)} />
-                <div className="absolute right-0 top-10 w-[260px] bg-white rounded-xl shadow-xl border border-gray-200 z-50 py-1 max-h-[360px] overflow-y-auto animate-slide-down">
-                  <button onClick={() => { setListFilterId(null); setShowListMenu(false) }}
-                    className={`w-full text-left px-3 py-1.5 text-[12px] hover:bg-gray-50 transition-colors ${!listFilterId ? 'font-semibold text-indigo-600' : 'text-gray-600'}`}>
-                    Toutes les listes
-                  </button>
-                  <div className="border-t border-gray-100 my-1" />
-                  {(lists || []).map(l => (
-                    <button key={l.id} onClick={() => { setListFilterId(l.id); setShowListMenu(false) }}
-                      className={`w-full text-left px-3 py-1.5 text-[12px] hover:bg-gray-50 transition-colors truncate ${listFilterId === l.id ? 'font-semibold text-indigo-600' : 'text-gray-600'}`}>
-                      {l.name}
-                    </button>
-                  ))}
+                <div className="absolute right-0 top-10 w-[280px] bg-white rounded-xl shadow-xl border border-gray-200 z-50 py-1 max-h-[400px] overflow-y-auto animate-slide-down">
+                  <div className="flex items-center justify-between px-3 py-1.5 border-b border-gray-100">
+                    <button onClick={() => setListFilterIds((lists || []).map(l => l.id))}
+                      className="text-[10px] text-indigo-600 hover:text-indigo-800 font-medium">Tout cocher</button>
+                    <span className="text-[10px] text-gray-400">{listFilterIds.length}/{(lists || []).length}</span>
+                    <button onClick={() => setListFilterIds([])}
+                      className="text-[10px] text-gray-500 hover:text-gray-700 font-medium">Tout décocher</button>
+                  </div>
+                  {(lists || []).map(l => {
+                    const checked = listFilterIds.includes(l.id)
+                    return (
+                      <label key={l.id}
+                        className="w-full flex items-center gap-2 px-3 py-1.5 text-[12px] hover:bg-gray-50 cursor-pointer">
+                        <input type="checkbox" checked={checked}
+                          onChange={() => {
+                            setListFilterIds(prev => checked ? prev.filter(id => id !== l.id) : [...prev, l.id])
+                          }}
+                          className="w-3.5 h-3.5 accent-indigo-600" />
+                        <span className={`truncate flex-1 ${checked ? 'font-semibold text-indigo-700' : 'text-gray-700'}`}>{l.name}</span>
+                      </label>
+                    )
+                  })}
                   {(!lists || lists.length === 0) && <p className="px-3 py-2 text-[11px] text-gray-400 italic">Aucune liste</p>}
                 </div>
               </>
@@ -1295,7 +1319,7 @@ export default function CRMGlobal() {
                         <button onClick={e => {
                           e.stopPropagation()
                           // Préremplit la liste avec celle filtrée si elle existe, sinon la première dispo
-                          setQuickAdd({ stageKey: stage.key, stageLabel: stage.label, name: '', phone: '', listId: listFilterId || lists?.[0]?.id || '' })
+                          setQuickAdd({ stageKey: stage.key, stageLabel: stage.label, name: '', phone: '', listId: listFilterIds[0] || lists?.[0]?.id || '' })
                         }} title={`Ajouter un contact dans "${stage.label}"`}
                           className="w-5 h-5 rounded-md text-gray-300 hover:text-violet-600 hover:bg-violet-100 flex items-center justify-center transition-colors flex-shrink-0">
                           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" /></svg>
