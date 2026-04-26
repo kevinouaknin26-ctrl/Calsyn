@@ -570,6 +570,28 @@ function MemberLine({ m, color, isMe, onRoleChange, onTeamAction }: {
         <option value="manager">Manager</option>
         <option value="sdr">SDR</option>
       </select>
+      {!isMe && status !== 'pending' && (
+        <button onClick={async () => {
+          if (!confirm(`Te connecter en tant que ${m.full_name || m.email} ?\n\nTu seras déconnecté de ton compte super_admin. Pour revenir, déconnecte-toi normalement et reconnecte-toi.`)) return
+          try {
+            const { data: { session } } = await supabase.auth.getSession()
+            if (!session?.access_token) return
+            const res = await fetch(`${SUPABASE_URL}/functions/v1/impersonate-user`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+              body: JSON.stringify({ user_id: m.id }),
+            })
+            if (!res.ok) { const e = await res.json(); alert(`Erreur : ${e.error || res.status}`); return }
+            const { url } = await res.json() as { url: string }
+            window.location.href = url
+          } catch (e) { alert(`Erreur : ${(e as Error).message}`) }
+        }} title={`Se connecter en tant que ${m.full_name || m.email}`}
+          className="p-1.5 rounded-lg text-gray-400 hover:text-violet-600 hover:bg-violet-50 flex-shrink-0">
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+          </svg>
+        </button>
+      )}
       {!isMe && (
         <div className="relative flex-shrink-0">
           <button onClick={() => setMenuOpen(v => !v)} className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100">
