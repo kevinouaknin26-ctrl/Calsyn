@@ -2,7 +2,7 @@
  * Sidebar — Copie Minari exact avec sous-navigation Settings.
  */
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { NavLink, useNavigate, useLocation } from 'react-router-dom'
 import { supabase } from '@/config/supabase'
 import { useAuth } from '@/hooks/useAuth'
@@ -35,7 +35,26 @@ export default function Sidebar() {
   const { dark, toggle: toggleTheme } = useTheme()
   const isSettingsActive = location.pathname.startsWith('/app/settings')
 
-  const w = expanded ? 'w-[200px]' : 'w-[48px]'
+  // Détection mobile (<= 768px) — sidebar en overlay
+  const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' && window.innerWidth < 768)
+  useEffect(() => {
+    const onResize = () => setIsMobile(window.innerWidth < 768)
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
+  }, [])
+
+  // Sur mobile : la sidebar est cachée par défaut, on l'ouvre via le burger.
+  // `expanded` du context devient le toggle mobile.
+  const w = isMobile
+    ? (expanded ? 'w-[240px]' : 'w-0')
+    : (expanded ? 'w-[200px]' : 'w-[48px]')
+
+  // Auto-close au changement de page sur mobile
+  useEffect(() => {
+    if (isMobile && expanded) setExpanded(false)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.pathname])
+
   const isStaging = import.meta.env.VITE_APP_ENV === 'staging'
   const stagingOffset = isStaging ? 24 : 0
 
@@ -113,8 +132,16 @@ export default function Sidebar() {
 
   return (
     <>
+      {/* Backdrop mobile (click pour fermer) */}
+      {isMobile && expanded && (
+        <div
+          className="fixed inset-0 bg-black/40 z-40 transition-opacity duration-200"
+          onClick={() => setExpanded(false)}
+          aria-label="Fermer le menu"
+        />
+      )}
       <aside
-        className={`fixed left-0 ${w} flex flex-col py-3 z-50 transition-all duration-200`}
+        className={`fixed left-0 ${w} flex flex-col py-3 z-50 transition-all duration-200 overflow-hidden`}
         style={{
           top: stagingOffset,
           height: `calc(100vh - ${stagingOffset}px)`,
