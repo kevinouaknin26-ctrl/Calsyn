@@ -321,10 +321,13 @@ function CRMDesktop() {
 
   // State
   const [viewMode, setViewMode] = useState<'table' | 'board'>(() => {
-    const saved = localStorage.getItem('calsyn_crm_view_mode')
-    return saved === 'table' || saved === 'board' ? saved : 'board'
+    // Migration : on a forcé pipeline comme default 2026-04-27. Si l'user a explicitement
+    // choisi table après cette date (flag), on respecte. Sinon force board.
+    const v2 = localStorage.getItem('calsyn_crm_view_mode_v2')
+    if (v2 === 'table' || v2 === 'board') return v2
+    return 'board'
   })
-  useEffect(() => { localStorage.setItem('calsyn_crm_view_mode', viewMode) }, [viewMode])
+  useEffect(() => { localStorage.setItem('calsyn_crm_view_mode_v2', viewMode) }, [viewMode])
   const [search, setSearch] = useState('')
   const [sortBy, setSortBy] = useState('created_at')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
