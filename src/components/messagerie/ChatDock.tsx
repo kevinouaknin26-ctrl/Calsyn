@@ -19,9 +19,9 @@ export default function ChatDock() {
   if (location.pathname.startsWith('/app/messagerie')) return null
   if (chats.length === 0) return null
 
-  // Décalé à droite de 280px pour laisser la place à MessagingDockBar (260px + marge)
+  // Décalé à 340px pour laisser la place à MessagingDockBar même ouverte (320px + 16 + marge)
   return (
-    <div className="fixed bottom-0 right-[284px] flex items-end gap-3 z-40 pointer-events-none">
+    <div className="fixed bottom-0 right-[344px] flex items-end gap-3 z-40 pointer-events-none">
       {chats.map(c => (
         <div key={c.prospectId} className="pointer-events-auto">
           <ChatBubble prospectId={c.prospectId} minimized={c.minimized} />

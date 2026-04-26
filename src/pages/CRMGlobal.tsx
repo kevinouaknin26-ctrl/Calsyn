@@ -19,6 +19,7 @@ import SocialLinks from '@/components/call/SocialLinks'
 import ProspectModal from '@/components/call/ProspectModal'
 import MultiSelectFilter from '@/components/ui/MultiSelectFilter'
 import UpcomingRdvBar from '@/components/ui/UpcomingRdvBar'
+import DuplicatesDetector from '@/components/crm/DuplicatesDetector'
 import { InlineEditCell } from '@/pages/Dialer'
 import type { Prospect } from '@/types/prospect'
 import { normalizePhone } from '@/utils/phone'
@@ -320,6 +321,7 @@ export default function CRMGlobal() {
   const [sortBy, setSortBy] = useState('created_at')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
   const [selectedProspect, setSelectedProspect] = useState<MergedProspect | null>(null)
+  const [showDuplicates, setShowDuplicates] = useState(false)
 
   // Call history — DOIT être après selectedProspect
   const { data: callHistory } = useCallsByProspect(selectedProspect?.id || null, selectedProspect?.phone)
@@ -1175,6 +1177,12 @@ export default function CRMGlobal() {
             </button>
           )}
 
+          {/* Détecteur doublons — toujours visible */}
+          <button onClick={() => setShowDuplicates(true)} title="Détecter les fiches en doublon"
+            className="text-[11px] text-amber-700 hover:text-amber-900 font-medium flex items-center gap-1">
+            🔍 Doublons
+          </button>
+
           {/* Bulk actions */}
           {selectedIds.size > 0 && (
             <div className="flex items-center gap-2 ml-2 pl-2 border-l border-gray-200">
@@ -1615,6 +1623,14 @@ export default function CRMGlobal() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* ── Détecteur de doublons ── */}
+      {showDuplicates && (
+        <DuplicatesDetector
+          prospects={mergedProspects}
+          onClose={() => setShowDuplicates(false)}
+        />
       )}
 
       {/* ── ProspectModal (interactif — peut appeler) ── */}
