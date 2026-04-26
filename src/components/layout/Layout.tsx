@@ -5,6 +5,8 @@ import CallBar from '@/components/call/CallBar'
 import ChatDock from '@/components/messagerie/ChatDock'
 import MessagingDockBar from '@/components/messagerie/MessagingDockBar'
 import MessagingNotifier from '@/components/messagerie/MessagingNotifier'
+import MobileBottomNav from './MobileBottomNav'
+import MobileHeader from './MobileHeader'
 import { ChatDockProvider } from '@/contexts/ChatDockContext'
 import { CallBarVisibilityContext } from './CallBarVisibilityContext'
 import { SidebarContext } from './SidebarContext'
@@ -30,29 +32,28 @@ export default function Layout({ children }: { children: ReactNode }) {
         <ChatDockProvider>
           <StagingBanner />
 
-          {/* Burger button mobile (visible uniquement < 768px) */}
-          {isMobile && !expanded && (
-            <button
-              onClick={() => setExpanded(true)}
-              aria-label="Ouvrir le menu"
-              className="md:hidden fixed top-3 left-3 z-30 w-10 h-10 rounded-lg bg-white shadow-md border border-gray-200 flex items-center justify-center text-gray-700 hover:bg-gray-50"
-              style={{ marginTop: bannerOffset }}
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-              </svg>
-            </button>
-          )}
+          {/* Header mobile (titre contextuel + avatar — remplace le burger) */}
+          <MobileHeader />
 
           <div
             className="flex h-screen overflow-hidden"
             style={{ background: 'var(--bg-page)', paddingTop: bannerOffset }}
           >
             <Sidebar />
-            <main className={`${mainMargin} flex-1 h-full overflow-hidden transition-all duration-200 relative`}>
+            <main
+              className={`${mainMargin} flex-1 h-full overflow-hidden transition-all duration-200 relative`}
+              style={isMobile ? {
+                paddingTop: 'calc(env(safe-area-inset-top, 0px) + 52px)',  // header height
+                paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 60px)',  // bottom nav height
+              } : undefined}
+            >
               {children}
             </main>
           </div>
+
+          {/* Bottom navigation mobile (style appli native) */}
+          <MobileBottomNav />
+
           <CallBar hidden={hideGlobal} />
           <ChatDock />
           <MessagingDockBar />
