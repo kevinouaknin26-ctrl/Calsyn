@@ -852,8 +852,8 @@ export function InlineEditCell({ prospectId, col, value, customValues, enumLabel
     return (
       <span className="flex items-center gap-1">
         <span onClick={e => { e.stopPropagation(); setDraft(value); setEditing(true) }}
-          className={`cursor-text hover:bg-indigo-50 hover:text-indigo-700 rounded px-1 -mx-1 transition-colors truncate ${
-            isPhone ? 'text-gray-400 font-mono' : 'text-gray-500'
+          className={`text-[13px] cursor-text hover:bg-indigo-50 hover:text-indigo-700 rounded px-1 -mx-1 transition-colors truncate ${
+            isPhone ? 'text-gray-500 font-mono' : 'text-gray-600'
           }`}>
           {value}
         </span>
@@ -873,8 +873,8 @@ export function InlineEditCell({ prospectId, col, value, customValues, enumLabel
 
   return (
     <span onClick={e => { e.stopPropagation(); setDraft(value); setEditing(true) }}
-      className={`cursor-text hover:bg-indigo-50 hover:text-indigo-700 rounded px-1 -mx-1 transition-colors block truncate ${
-        isPhone ? 'text-gray-400 font-mono' : 'text-gray-500'
+      className={`text-[13px] cursor-text hover:bg-indigo-50 hover:text-indigo-700 rounded px-1 -mx-1 transition-colors block truncate ${
+        isPhone ? 'text-gray-500 font-mono' : 'text-gray-600'
       }`}>
       {displayValue || <span className="text-gray-300">-</span>}
     </span>
