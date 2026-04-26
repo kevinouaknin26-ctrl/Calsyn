@@ -33,13 +33,6 @@ const KIND_ICONS: Record<ResourceKind, string> = {
   link: '🔗',
 }
 
-const KIND_LABELS: Record<ResourceKind, string> = {
-  document: 'Document',
-  audio: 'Audio',
-  call_recording: 'Appel',
-  link: 'Lien',
-}
-
 function formatBytes(n: number | null): string {
   if (!n) return ''
   if (n < 1024) return `${n} o`
@@ -106,63 +99,62 @@ export default function SharedResources() {
   }, [resources])
 
   return (
-    <section className="bg-white dark:bg-[#f0eaf5] rounded-xl border border-gray-200 p-5 shadow-sm">
-      {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-        <div>
-          <h2 className="text-[15px] font-bold text-gray-800 flex items-center gap-2">
-            📚 Ressources partagées
-            {resources.length > 0 && (
-              <span className="text-[11px] font-normal text-gray-400">{resources.length}</span>
-            )}
-          </h2>
-          <p className="text-[11px] text-gray-500 mt-0.5">
-            Brochures, playbooks, audios d'appels — partagés entre l'équipe
-          </p>
-        </div>
+    <div className="bg-white dark:bg-[#f0eaf5] rounded-xl border border-gray-200 dark:border-[#d4cade] overflow-hidden flex flex-col h-full">
+      {/* Header (matche style UpcomingRdv) */}
+      <div className="px-4 py-2.5 border-b border-gray-100 flex items-center justify-between flex-shrink-0">
+        <h3 className="text-[12px] font-bold text-gray-700 flex items-center gap-2">
+          📚 Ressources partagées
+          {resources.length > 0 && (
+            <span className="text-[10px] font-normal text-gray-400">{resources.length}</span>
+          )}
+        </h3>
         <button
           onClick={() => setShowUpload(true)}
-          className="px-3 py-1.5 rounded-lg bg-violet-600 text-white text-[12px] font-semibold hover:bg-violet-700 transition-colors"
+          className="text-[10px] font-semibold text-violet-600 hover:text-violet-700 px-2 py-0.5 rounded hover:bg-violet-50 transition-colors"
         >
           + Ajouter
         </button>
       </div>
 
-      {/* Filtres */}
-      <div className="flex flex-wrap items-center gap-2 mb-4">
+      {/* Filtres compacts (search + select) */}
+      <div className="px-3 py-2 border-b border-gray-50 flex items-center gap-1.5 flex-shrink-0">
         <input
           type="text"
           value={search}
           onChange={e => setSearch(e.target.value)}
           placeholder="Rechercher..."
-          className="px-3 py-1.5 text-[12px] rounded-lg border border-gray-200 bg-gray-50 outline-none focus:border-indigo-300 focus:bg-white w-48"
+          className="flex-1 min-w-0 px-2 py-1 text-[11px] rounded-md border border-gray-200 bg-gray-50 outline-none focus:border-indigo-300 focus:bg-white"
         />
-        <div className="flex gap-1">
-          <FilterPill active={filter === 'all'} onClick={() => setFilter('all')} label="Tous" count={counts.all} />
-          <FilterPill active={filter === 'document'} onClick={() => setFilter('document')} label="📄 Docs" count={counts.document || 0} />
-          <FilterPill active={filter === 'audio'} onClick={() => setFilter('audio')} label="🎙️ Audios" count={counts.audio || 0} />
-          <FilterPill active={filter === 'call_recording'} onClick={() => setFilter('call_recording')} label="📞 Appels" count={counts.call_recording || 0} />
-          <FilterPill active={filter === 'link'} onClick={() => setFilter('link')} label="🔗 Liens" count={counts.link || 0} />
-        </div>
+        <select
+          value={filter}
+          onChange={e => setFilter(e.target.value as any)}
+          className="px-1.5 py-1 text-[11px] rounded-md border border-gray-200 bg-white outline-none focus:border-indigo-300 flex-shrink-0"
+        >
+          <option value="all">Tous ({counts.all})</option>
+          <option value="document">📄 Docs ({counts.document || 0})</option>
+          <option value="audio">🎙️ Audios ({counts.audio || 0})</option>
+          <option value="call_recording">📞 Appels ({counts.call_recording || 0})</option>
+          <option value="link">🔗 Liens ({counts.link || 0})</option>
+        </select>
       </div>
 
-      {/* Liste */}
+      {/* Liste compacte (scroll, hauteur ~ UpcomingRdv) */}
       {isLoading ? (
-        <div className="text-center py-12 text-[12px] text-gray-400">Chargement...</div>
+        <div className="text-center py-12 text-[12px] text-gray-400 flex-1">Chargement...</div>
       ) : filtered.length === 0 ? (
-        <div className="text-center py-10">
+        <div className="text-center py-12 px-4 flex-1">
           <p className="text-3xl mb-2">📚</p>
-          <p className="text-[13px] font-semibold text-gray-700">
-            {resources.length === 0 ? 'Aucune ressource partagée pour le moment' : 'Aucun résultat'}
+          <p className="text-[12px] font-semibold text-gray-700">
+            {resources.length === 0 ? 'Aucune ressource' : 'Aucun résultat'}
           </p>
           <p className="text-[11px] text-gray-400 mt-1">
-            {resources.length === 0 ? 'Clique sur Ajouter pour partager un doc ou un audio' : 'Essaie un autre filtre'}
+            {resources.length === 0 ? 'Clique sur + Ajouter pour partager' : 'Essaie un autre filtre'}
           </p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+        <div className="flex-1 overflow-y-auto max-h-[360px] divide-y divide-gray-50">
           {filtered.map(r => (
-            <ResourceCard
+            <ResourceRow
               key={r.id}
               resource={r}
               canDelete={!!(r.created_by === profile?.id || isManager)}
@@ -172,32 +164,15 @@ export default function SharedResources() {
       )}
 
       {showUpload && <UploadModal onClose={() => setShowUpload(false)} />}
-    </section>
+    </div>
   )
 }
 
-function FilterPill({ active, onClick, label, count }: {
-  active: boolean; onClick: () => void; label: string; count: number
-}) {
-  return (
-    <button
-      onClick={onClick}
-      className={`px-2.5 py-1 rounded-md text-[11px] font-semibold transition-colors flex items-center gap-1.5 ${
-        active ? 'bg-violet-100 text-violet-700' : 'text-gray-500 hover:bg-gray-100'
-      }`}
-    >
-      <span>{label}</span>
-      <span className={`text-[9px] tabular-nums px-1 rounded ${active ? 'bg-violet-200' : 'bg-gray-100 text-gray-400'}`}>
-        {count}
-      </span>
-    </button>
-  )
-}
-
-function ResourceCard({ resource, canDelete }: { resource: SharedResource; canDelete: boolean }) {
+function ResourceRow({ resource, canDelete }: { resource: SharedResource; canDelete: boolean }) {
   const del = useDeleteResource()
   const [audioUrl, setAudioUrl] = useState<string | null>(null)
   const [loadingAudio, setLoadingAudio] = useState(false)
+  const [expanded, setExpanded] = useState(false)
 
   const isAudio = resource.kind === 'audio' || resource.kind === 'call_recording'
 
@@ -211,6 +186,7 @@ function ResourceCard({ resource, canDelete }: { resource: SharedResource; canDe
     if (url) {
       if (isAudio) {
         setAudioUrl(url)
+        setExpanded(true)
       } else {
         window.open(url, '_blank', 'noopener,noreferrer')
       }
@@ -218,15 +194,16 @@ function ResourceCard({ resource, canDelete }: { resource: SharedResource; canDe
   }
 
   async function handlePlay() {
-    if (audioUrl) return  // déjà chargé
+    if (audioUrl) { setExpanded(!expanded); return }
     if (!resource.storage_path) return
     setLoadingAudio(true)
     const url = await getResourceSignedUrl(resource.storage_path, 3600)
     setLoadingAudio(false)
-    if (url) setAudioUrl(url)
+    if (url) { setAudioUrl(url); setExpanded(true) }
   }
 
-  async function handleDelete() {
+  async function handleDelete(e: React.MouseEvent) {
+    e.stopPropagation()
     if (!confirm(`Supprimer "${resource.title}" ?`)) return
     try {
       await del.mutateAsync(resource)
@@ -236,69 +213,43 @@ function ResourceCard({ resource, canDelete }: { resource: SharedResource; canDe
   }
 
   return (
-    <div className="bg-gray-50 dark:bg-[#ede6f3] border border-gray-200 rounded-lg p-3 hover:shadow-sm transition-shadow flex flex-col gap-2">
-      <div className="flex items-start gap-2">
-        <span className="text-2xl flex-shrink-0">{KIND_ICONS[resource.kind]}</span>
+    <div className="px-3 py-2 hover:bg-violet-50/40 transition-colors">
+      <div className="flex items-center gap-2.5 cursor-pointer" onClick={isAudio ? handlePlay : handleOpen}>
+        <span className="text-base flex-shrink-0">{KIND_ICONS[resource.kind]}</span>
         <div className="flex-1 min-w-0">
-          <h3 className="text-[13px] font-bold text-gray-800 truncate">{resource.title}</h3>
-          {resource.description && (
-            <p className="text-[11px] text-gray-500 line-clamp-2 mt-0.5">{resource.description}</p>
-          )}
+          <div className="flex items-center gap-1.5">
+            <span className="text-[12px] font-semibold text-gray-800 truncate">{resource.title}</span>
+            {resource.tags.slice(0, 2).map(t => (
+              <span key={t} className="text-[8px] px-1 py-0.5 rounded bg-violet-50 text-violet-600 font-medium flex-shrink-0">{t}</span>
+            ))}
+          </div>
+          <div className="text-[10px] text-gray-400 truncate">
+            {(resource.created_by_name || resource.created_by_email || 'inconnu').split('@')[0]}
+            {resource.file_size_bytes ? ` · ${formatBytes(resource.file_size_bytes)}` : ''}
+            {resource.duration_seconds ? ` · ${formatDuration(resource.duration_seconds)}` : ''}
+            {' · '}{relativeDate(resource.created_at)}
+          </div>
         </div>
+        <button
+          onClick={e => { e.stopPropagation(); isAudio ? handlePlay() : handleOpen() }}
+          disabled={loadingAudio}
+          className="text-violet-600 hover:text-violet-700 text-[11px] font-bold flex-shrink-0 px-1.5"
+          title={isAudio ? 'Écouter' : 'Ouvrir'}
+        >
+          {loadingAudio ? '…' : isAudio ? (audioUrl && expanded ? '⏸' : '▶') : '↗'}
+        </button>
         {canDelete && (
           <button
             onClick={handleDelete}
-            className="text-gray-300 hover:text-red-500 transition-colors text-[14px]"
+            className="text-gray-300 hover:text-red-500 text-[10px] flex-shrink-0"
             title="Supprimer"
           >
             ✕
           </button>
         )}
       </div>
-
-      {resource.tags.length > 0 && (
-        <div className="flex flex-wrap gap-1">
-          {resource.tags.map(t => (
-            <span key={t} className="text-[9px] px-1.5 py-0.5 rounded bg-violet-50 text-violet-700 font-medium">
-              {t}
-            </span>
-          ))}
-        </div>
-      )}
-
-      <div className="flex items-center justify-between text-[10px] text-gray-400 mt-auto pt-1">
-        <span className="truncate">
-          {KIND_LABELS[resource.kind]}
-          {resource.file_size_bytes ? ` • ${formatBytes(resource.file_size_bytes)}` : ''}
-          {resource.duration_seconds ? ` • ${formatDuration(resource.duration_seconds)}` : ''}
-        </span>
-        <span>{relativeDate(resource.created_at)}</span>
-      </div>
-
-      <div className="text-[10px] text-gray-500 truncate">
-        Par {resource.created_by_name || resource.created_by_email || 'inconnu'}
-      </div>
-
-      {/* Actions */}
-      {isAudio && resource.storage_path ? (
-        audioUrl ? (
-          <audio controls preload="none" src={audioUrl} className="w-full h-9" />
-        ) : (
-          <button
-            onClick={handlePlay}
-            disabled={loadingAudio}
-            className="w-full px-2 py-1.5 rounded text-[11px] font-semibold bg-violet-100 text-violet-700 hover:bg-violet-200 transition-colors disabled:opacity-50"
-          >
-            {loadingAudio ? 'Chargement...' : '▶ Écouter'}
-          </button>
-        )
-      ) : (
-        <button
-          onClick={handleOpen}
-          className="w-full px-2 py-1.5 rounded text-[11px] font-semibold bg-indigo-100 text-indigo-700 hover:bg-indigo-200 transition-colors"
-        >
-          {resource.kind === 'link' ? '↗ Ouvrir le lien' : '↗ Ouvrir / Télécharger'}
-        </button>
+      {audioUrl && expanded && (
+        <audio controls autoPlay preload="metadata" src={audioUrl} className="w-full h-8 mt-1.5" onEnded={() => setExpanded(false)} />
       )}
     </div>
   )

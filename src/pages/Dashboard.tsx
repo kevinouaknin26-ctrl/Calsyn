@@ -249,18 +249,21 @@ export default function Dashboard() {
               <KpiCard index={7} label="Messages échangés" value={stats.messages} sub={`${stats.messagesIn} reçus`} spark={sparkMsg} color="#06b6d4" icon="💌" />
             </div>
 
-            {/* ─── Prochains RDV + Funnel ─── */}
+            {/* ─── Prochains RDV + Funnel + Ressources (3 cards de taille égale) ─── */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
               <Reveal direction="left" className="lg:col-span-1">
                 <UpcomingRdv prospects={prospects} />
               </Reveal>
-              <Reveal direction="right" delay={120} className="lg:col-span-2">
+              <Reveal direction="up" delay={80} className="lg:col-span-1">
                 <Funnel steps={[
                   { label: 'Appels lancés', value: stats.total, color: '#a5b4fc' },
                   { label: 'Connectés à un humain', value: stats.connected, color: '#10b981' },
                   { label: 'Conversations 1min+', value: stats.longCalls, color: '#f97316' },
                   { label: 'RDV pris', value: stats.rdv, color: '#8b5cf6' },
                 ]} />
+              </Reveal>
+              <Reveal direction="right" delay={160} className="lg:col-span-1">
+                <SharedResources />
               </Reveal>
             </div>
 
@@ -300,11 +303,6 @@ export default function Dashboard() {
                 <ActivityFeed calls={calls} messages={messages as any} />
               </Reveal>
             </div>
-
-            {/* ─── Ressources partagées (docs + audios) ─── */}
-            <Reveal direction="up">
-              <SharedResources />
-            </Reveal>
 
             <p className="text-center text-[10px] text-gray-400 pt-2">
               {isManager ? `Données agrégées de ${profiles.length} membres` : `Connecté en tant que ${profile?.full_name || profile?.email}`}
