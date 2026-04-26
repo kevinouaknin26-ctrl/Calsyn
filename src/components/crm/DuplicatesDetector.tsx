@@ -10,7 +10,7 @@
  * "Fusionner" (RPC merge_prospects) et "Ignorer" (persisté en localStorage).
  */
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { supabase } from '@/config/supabase'
 import { useQueryClient } from '@tanstack/react-query'
 import { normalizePhone } from '@/utils/phone'
@@ -78,6 +78,10 @@ export default function DuplicatesDetector({
   const queryClient = useQueryClient()
   const [ignored, setIgnoredState] = useState<Set<string>>(getIgnored())
   const [merging, setMerging] = useState<string | null>(null)
+
+  useEffect(() => {
+    console.log('[DuplicatesDetector] mounted v2 — Kanban cards cliquables, onProspectClick =', !!onProspectClick)
+  }, [onProspectClick])
 
   const groups = useMemo<DuplicateGroup[]>(() => {
     const out: DuplicateGroup[] = []
@@ -220,6 +224,7 @@ export default function DuplicatesDetector({
                   const handleClick = (e: React.MouseEvent) => {
                     e.stopPropagation()
                     e.preventDefault()
+                    console.log('[DuplicatesDetector] card clicked:', p.name, p.id, 'has callback:', !!onProspectClick)
                     if (onProspectClick) onProspectClick(p)
                   }
                   return (
