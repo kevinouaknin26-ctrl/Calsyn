@@ -40,7 +40,7 @@ export default function ResetPassword() {
     setLoading(true)
     const { error: err } = await supabase.auth.updateUser({ password })
     if (err) { setError(err.message); setLoading(false); return }
-    navigate('/app/dialer')
+    navigate('/app/contacts')
   }
 
   return (

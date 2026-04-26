@@ -51,8 +51,8 @@ function Protected({ children, admin, superAdmin }: { children: ReactNode; admin
   )
 
   if (!user) return <Navigate to="/login" replace />
-  if (superAdmin && !isSuperAdmin) return <Navigate to="/app/dialer" replace />
-  if (admin && !isAdmin) return <Navigate to="/app/dialer" replace />
+  if (superAdmin && !isSuperAdmin) return <Navigate to="/app/contacts" replace />
+  if (admin && !isAdmin) return <Navigate to="/app/contacts" replace />
   return <>{children}</>
 }
 
@@ -73,7 +73,7 @@ function AppRoutes() {
       <Route path="/app/notifications" element={<Protected><Layout><Notifications /></Layout></Protected>} />
       <Route path="/app/enrichissement" element={<Protected><Layout><Enrichissement /></Layout></Protected>} />
       <Route path="/app/settings" element={<Protected><Layout><Settings /></Layout></Protected>} />
-      <Route path="*" element={<Navigate to="/app/dialer" replace />} />
+      <Route path="*" element={<Navigate to="/app/contacts" replace />} />
     </Routes>
   )
 }

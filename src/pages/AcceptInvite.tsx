@@ -44,7 +44,7 @@ export default function AcceptInvite() {
       if (profile?.full_name) setFullName(profile.full_name)
       // Si user déjà onboardé (last_seen_at set) → pas besoin de repasser par accept-invite
       if (profile?.last_seen_at) {
-        navigate('/app/dialer')
+        navigate('/app/contacts')
         return
       }
       setLoading(false)
@@ -73,7 +73,7 @@ export default function AcceptInvite() {
       await supabase.rpc('touch_last_seen').then(() => {})
       await supabase.from('profiles').update({ invite_expires_at: null }).eq('id', user?.id)
 
-      navigate('/app/dialer')
+      navigate('/app/contacts')
     } catch (e) {
       setError((e as Error).message)
     } finally {

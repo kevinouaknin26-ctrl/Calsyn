@@ -49,7 +49,7 @@ export default function MobileHeader() {
     >
       {/* Logo + titre */}
       <button
-        onClick={() => navigate('/app/dialer')}
+        onClick={() => navigate('/app/contacts')}
         className="flex items-center gap-2 active:scale-95 transition-transform"
       >
         <img src="/favicon.svg" alt="Calsyn" className="w-7 h-7" />
