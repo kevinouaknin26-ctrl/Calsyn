@@ -68,6 +68,37 @@ export default function Sidebar() {
     )
   }
 
+  function NotificationsNavItem({ expanded }: { expanded: boolean }) {
+    // Pas de hook dédié pour le count, on lit le badge "à rappeler" + "messages non lus" en aggregé.
+    // Pour rester léger, on s'appuie juste sur unread messages qu'on a déjà.
+    const unread = useTotalUnread()
+    return (
+      <NavLink to="/app/notifications" title="Notifications" className={({ isActive }) =>
+        `relative ${expanded ? 'px-3' : ''} h-9 rounded-lg flex items-center gap-3 transition-all ${
+          isActive ? 'bg-gray-200/60 text-gray-800' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'
+        } ${expanded ? '' : 'w-9 justify-center'}`}>
+        <span className="flex-shrink-0 relative">
+          <svg className="w-[18px] h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg>
+          {unread > 0 && !expanded && (
+            <span className="absolute -top-1 -right-1 min-w-[14px] h-[14px] px-1 rounded-full bg-red-500 text-white text-[8px] font-bold flex items-center justify-center">
+              {unread > 9 ? '9+' : unread}
+            </span>
+          )}
+        </span>
+        {expanded && (
+          <>
+            <span className="text-[13px]">Notifications</span>
+            {unread > 0 && (
+              <span className="ml-auto min-w-[16px] h-[16px] px-1 rounded-full bg-red-500 text-white text-[9px] font-bold flex items-center justify-center">
+                {unread > 9 ? '9+' : unread}
+              </span>
+            )}
+          </>
+        )}
+      </NavLink>
+    )
+  }
+
   function NavItem({ to, icon, label, green }: { to: string; icon: JSX.Element; label: string; green?: boolean }) {
     return (
       <NavLink to={to} title={label} className={({ isActive }) =>
@@ -118,14 +149,13 @@ export default function Sidebar() {
 
           <MessagerieNavItem expanded={expanded} />
 
-          <button className={`${expanded ? 'px-3' : ''} h-9 rounded-lg flex items-center gap-3 text-gray-400 hover:text-gray-600 hover:bg-gray-100 ${expanded ? '' : 'w-9 justify-center'}`}>
+          <NavLink to="/app/enrichissement" title="Enrichissement" className={({ isActive }) =>
+            `${expanded ? 'px-3' : ''} h-9 rounded-lg flex items-center gap-3 transition-all ${isActive ? 'bg-gray-200/60 text-gray-800 font-medium' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'} ${expanded ? '' : 'w-9 justify-center'}`}>
             <svg className="w-[18px] h-[18px] flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
             {expanded && <span className="text-[13px]">Enrichissement</span>}
-          </button>
-          <button className={`${expanded ? 'px-3' : ''} h-9 rounded-lg flex items-center gap-3 text-gray-400 hover:text-gray-600 hover:bg-gray-100 ${expanded ? '' : 'w-9 justify-center'}`}>
-            <svg className="w-[18px] h-[18px] flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg>
-            {expanded && <span className="text-[13px]">Notifications</span>}
-          </button>
+          </NavLink>
+          <NotificationsNavItem expanded={expanded} />
+
 
           <div className="flex-1" />
 
