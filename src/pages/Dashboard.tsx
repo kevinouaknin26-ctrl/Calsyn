@@ -305,8 +305,8 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-[#f8f9fa] dark:bg-[#e8e0f0] p-6 overflow-y-auto">
-      <div className="max-w-7xl mx-auto">
+    <div className="h-full bg-[#f8f9fa] dark:bg-[#e8e0f0] overflow-y-auto">
+      <div className="max-w-7xl mx-auto p-6 pb-12">
         <div className="flex items-baseline justify-between mb-6">
           <h1 className="text-xl font-bold text-gray-800">Tableau de bord</h1>
           <span className="text-[11px] text-gray-400">{isManager ? 'Vue équipe' : 'Mes performances'}</span>

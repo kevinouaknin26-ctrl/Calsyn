@@ -206,8 +206,8 @@ export default function Notifications() {
   }
 
   return (
-    <div className="min-h-screen bg-[#f8f9fa] dark:bg-[#e8e0f0] p-6 overflow-y-auto">
-      <div className="max-w-4xl mx-auto">
+    <div className="h-full bg-[#f8f9fa] dark:bg-[#e8e0f0] overflow-y-auto">
+      <div className="max-w-4xl mx-auto p-6 pb-12">
         <div className="flex items-baseline justify-between mb-6">
           <div>
             <h1 className="text-xl font-bold text-gray-800">Notifications</h1>
