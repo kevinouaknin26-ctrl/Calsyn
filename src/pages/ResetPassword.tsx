@@ -7,6 +7,7 @@
 import { useState, useEffect, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '@/config/supabase'
+import { validatePassword } from '@/lib/password'
 
 export default function ResetPassword() {
   const [password, setPassword] = useState('')
@@ -35,7 +36,8 @@ export default function ResetPassword() {
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
     setError(null)
-    if (password.length < 8) { setError('Le mot de passe doit contenir au moins 8 caractères.'); return }
+    const check = validatePassword(password)
+    if (!check.ok) { setError(`Mot de passe invalide : ${check.errors.join(', ')}`); return }
     if (password !== confirm) { setError('Les deux mots de passe ne correspondent pas.'); return }
     setLoading(true)
     const { error: err } = await supabase.auth.updateUser({ password })

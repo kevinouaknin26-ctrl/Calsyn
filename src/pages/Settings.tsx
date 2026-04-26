@@ -11,6 +11,7 @@ import { useGoogleCalendar } from '@/hooks/useGoogleCalendar'
 import { useCrmStatuses, useCreateCrmStatus, useDeleteCrmStatus } from '@/hooks/useProperties'
 import { supabase } from '@/config/supabase'
 import { SYSTEM_PROPERTIES } from '@/config/properties'
+import { validatePassword } from '@/lib/password'
 import { usePermissions } from '@/hooks/usePermissions'
 import VoicemailRecorder from '@/components/VoicemailRecorder'
 
@@ -1191,7 +1192,8 @@ function AccountSection() {
 
   const submit = async () => {
     setMsg(null)
-    if (pwd.length < 8) { setMsg({ type: 'err', text: 'Minimum 8 caractères.' }); return }
+    const check = validatePassword(pwd, [profile?.email || ''])
+    if (!check.ok) { setMsg({ type: 'err', text: `Mot de passe invalide : ${check.errors.join(', ')}` }); return }
     if (pwd !== confirm) { setMsg({ type: 'err', text: 'Les deux mots de passe ne correspondent pas.' }); return }
     setBusy(true)
     const { error } = await supabase.auth.updateUser({ password: pwd })

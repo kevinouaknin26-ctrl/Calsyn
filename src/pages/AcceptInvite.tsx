@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '@/config/supabase'
+import { validatePassword } from '@/lib/password'
 
 /**
  * Page d'accueil après clic sur le mail d'invitation.
@@ -54,7 +55,8 @@ export default function AcceptInvite() {
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
     setError(null)
-    if (password.length < 8) { setError('Le mot de passe doit contenir au moins 8 caractères'); return }
+    const check = validatePassword(password, [email, fullName])
+    if (!check.ok) { setError(`Mot de passe invalide : ${check.errors.join(', ')}`); return }
     if (password !== confirm) { setError('Les mots de passe ne correspondent pas'); return }
     if (!fullName.trim()) { setError('Votre nom complet est requis'); return }
     setSaving(true)
