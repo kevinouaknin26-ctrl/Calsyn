@@ -159,6 +159,12 @@ export default function Team() {
     }
   }
   const handleToggleStatus = async (u: Profile) => {
+    // Confirm explicite si c'est un super_admin (action critique)
+    if (u.role === 'super_admin' && !u.deactivated_at) {
+      if (!confirm(`⚠️ ${u.email} est SUPER ADMIN.\n\nSuspendre un super admin coupe son accès à toute la plateforme y compris la facturation et la gestion d'équipe.\n\nConfirmer la suspension ?`)) return
+    } else if (!u.deactivated_at) {
+      if (!confirm(`Suspendre ${u.email} ? L'accès est révoqué jusqu'à réactivation.`)) return
+    }
     const r = await callTeamAction('toggle_status', u.id)
     if (r.error) pushFeedback({ type: 'err', msg: r.error })
     else {
@@ -179,7 +185,14 @@ export default function Team() {
     }
   }
   const handleDelete = async (u: Profile) => {
-    if (!confirm(`Archiver ${u.email} ? L'accès est révoqué, les données sont conservées (récupérables par un admin).`)) return
+    // Double confirmation pour un super_admin (perte d'accès admin de l'org possible)
+    if (u.role === 'super_admin') {
+      if (!confirm(`⚠️ DANGER : ${u.email} est SUPER ADMIN.\n\nArchiver le dernier super admin de l'org est BLOQUÉ par le serveur. Sinon, tu perds l'accès admin permanent.\n\nConfirmer l'archivage de ce super admin ?`)) return
+      const txt = prompt(`Pour confirmer, tape exactement : ARCHIVER`)
+      if (txt !== 'ARCHIVER') { pushFeedback({ type: 'err', msg: 'Confirmation invalide — annulé' }); return }
+    } else {
+      if (!confirm(`Archiver ${u.email} ? L'accès est révoqué, les données sont conservées (récupérables par un admin).`)) return
+    }
     const r = await callTeamAction('delete_user', u.id)
     if (r.error) pushFeedback({ type: 'err', msg: r.error })
     else {
@@ -509,12 +522,17 @@ function MemberRow({ m, isMe, canManage, twilioNumbers, phonesUsedByOthers, conf
                       <MenuItem danger onClick={() => { setMenuOpen(false); onCancelInvite() }}>Annuler l'invitation</MenuItem>
                     </>
                   )}
-                  {status !== 'pending' && (
+                  {status !== 'pending' && !isMe && (
                     <MenuItem onClick={() => { setMenuOpen(false); onToggleStatus() }}>
                       {m.deactivated_at ? 'Réactiver' : 'Suspendre'}
                     </MenuItem>
                   )}
-                  <MenuItem danger onClick={() => { setMenuOpen(false); onDelete() }}>Archiver</MenuItem>
+                  {!isMe && (
+                    <MenuItem danger onClick={() => { setMenuOpen(false); onDelete() }}>Archiver</MenuItem>
+                  )}
+                  {isMe && (
+                    <div className="px-3 py-2 text-[10px] text-gray-400 italic">Action sur toi-même bloquée</div>
+                  )}
                 </div>
               </>,
               document.body

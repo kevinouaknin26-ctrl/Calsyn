@@ -60,12 +60,36 @@ Deno.serve(async (req: Request) => {
         return json({ ok: true, action })
       }
       case 'toggle_status': {
+        // Si on suspend un super_admin, vérifier qu'il en reste au moins 1 actif après
+        if (target.role === 'super_admin' && !target.deactivated_at) {
+          const { count } = await admin.from('profiles')
+            .select('id', { count: 'exact', head: true })
+            .eq('organisation_id', caller.organisation_id)
+            .eq('role', 'super_admin')
+            .is('deactivated_at', null)
+            .neq('id', targetId)
+          if ((count || 0) === 0) {
+            return json({ error: 'Impossible de suspendre le dernier super_admin actif de l\'organisation' }, 403)
+          }
+        }
         const newVal = target.deactivated_at ? null : new Date().toISOString()
         const { error } = await admin.from('profiles').update({ deactivated_at: newVal }).eq('id', targetId)
         if (error) return json({ error: error.message }, 400)
         return json({ ok: true, action, deactivated: !!newVal })
       }
       case 'delete_user': {
+        // Si on supprime un super_admin, vérifier qu'il en reste au moins 1 actif après
+        if (target.role === 'super_admin') {
+          const { count } = await admin.from('profiles')
+            .select('id', { count: 'exact', head: true })
+            .eq('organisation_id', caller.organisation_id)
+            .eq('role', 'super_admin')
+            .is('deactivated_at', null)
+            .neq('id', targetId)
+          if ((count || 0) === 0) {
+            return json({ error: 'Impossible d\'archiver le dernier super_admin de l\'organisation' }, 403)
+          }
+        }
         const { error } = await admin.auth.admin.deleteUser(targetId)
         if (error) return json({ error: error.message }, 400)
         return json({ ok: true, action })
