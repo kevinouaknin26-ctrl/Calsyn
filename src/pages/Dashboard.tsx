@@ -42,6 +42,7 @@ import HeatMap from '@/components/dashboard/HeatMap'
 import UpcomingRdv from '@/components/dashboard/UpcomingRdv'
 import Reveal from '@/components/dashboard/Reveal'
 import SharedResources from '@/components/dashboard/SharedResources'
+import Announcements from '@/components/dashboard/Announcements'
 
 export default function Dashboard() {
   const { isManager, profile } = useAuth()
@@ -249,18 +250,13 @@ export default function Dashboard() {
               <KpiCard index={7} label="Messages échangés" value={stats.messages} sub={`${stats.messagesIn} reçus`} spark={sparkMsg} color="#06b6d4" icon="💌" />
             </div>
 
-            {/* ─── Prochains RDV + Funnel + Ressources (3 cards de taille égale) ─── */}
+            {/* ─── Prochains RDV + Annonces + Ressources (3 cards de taille égale) ─── */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 items-stretch">
               <Reveal direction="left" className="lg:col-span-1 h-full">
                 <UpcomingRdv prospects={prospects} />
               </Reveal>
               <Reveal direction="up" delay={80} className="lg:col-span-1 h-full">
-                <Funnel steps={[
-                  { label: 'Appels lancés', value: stats.total, color: '#a5b4fc' },
-                  { label: 'Connectés à un humain', value: stats.connected, color: '#10b981' },
-                  { label: 'Conversations 1min+', value: stats.longCalls, color: '#f97316' },
-                  { label: 'RDV pris', value: stats.rdv, color: '#8b5cf6' },
-                ]} />
+                <Announcements />
               </Reveal>
               <Reveal direction="right" delay={160} className="lg:col-span-1 h-full">
                 <SharedResources />
@@ -270,6 +266,16 @@ export default function Dashboard() {
             {/* ─── Activity chart full width ─── */}
             <Reveal direction="up">
               <ActivityChart buckets={buckets} />
+            </Reveal>
+
+            {/* ─── Tunnel de conversion (descendu en bas, format long horizontal) ─── */}
+            <Reveal direction="up" duration={600}>
+              <Funnel steps={[
+                { label: 'Appels lancés', value: stats.total, color: '#a5b4fc' },
+                { label: 'Connectés à un humain', value: stats.connected, color: '#10b981' },
+                { label: 'Conversations 1min+', value: stats.longCalls, color: '#f97316' },
+                { label: 'RDV pris', value: stats.rdv, color: '#8b5cf6' },
+              ]} />
             </Reveal>
 
             {/* ─── AI Insights (full width) ─── */}

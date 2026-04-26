@@ -95,6 +95,8 @@ export interface Profile {
   availability_schedule: Record<string, Array<{ start: string; end: string }>> | null
   /** Dernière visite onglet Ressources — pour badge "X nouveaux docs". */
   last_seen_resources_at: string | null
+  /** Dernière visite onglet Annonces — pour badge "X nouvelles annonces". */
+  last_seen_announcements_at: string | null
   created_at: string
 }
 
