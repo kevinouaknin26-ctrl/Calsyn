@@ -49,8 +49,15 @@ serve(async (req) => {
       .limit(1)
     const matched = prospects?.[0]
 
-    // Match l'organisation par le numéro destinataire (organisations.from_number)
-    let orgId = matched?.organisation_id
+    // Match l'user destinataire via assigned_phone(s) — chacun sa boîte messagerie
+    const { data: ownerProfile } = await admin
+      .from('profiles')
+      .select('id, organisation_id')
+      .or(`assigned_phone.eq.${to},assigned_phones.cs.{${to}}`)
+      .limit(1).maybeSingle()
+
+    // Match l'organisation : owner > prospect > org from_number
+    let orgId = ownerProfile?.organisation_id || matched?.organisation_id
     if (!orgId) {
       const { data: org } = await admin
         .from('organisations').select('id').eq('from_number', to).is('deleted_at', null).maybeSingle()
@@ -67,6 +74,7 @@ serve(async (req) => {
     await admin.from('sms_messages').insert({
       organisation_id: orgId,
       prospect_id: matched?.id || null,
+      user_id: ownerProfile?.id || null,
       twilio_sid: sid,
       from_number: from,
       to_number: to,

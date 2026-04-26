@@ -43,13 +43,17 @@ export function useConversations() {
     queryFn: async (): Promise<ConversationSummary[]> => {
       if (!orgId) return []
 
-      // 1. Pull tous les messages récents de l'org (300 derniers)
-      const { data: msgs, error } = await supabase
+      // 1. Pull les messages récents de l'org (300 derniers)
+      // STRICT : chacun voit UNIQUEMENT ses propres messages (chacun son mail/num).
+      // Les admins voient les messages de leur équipe via impersonation, pas via la messagerie.
+      let q = supabase
         .from('messages')
         .select('*')
         .eq('organisation_id', orgId)
         .order('sent_at', { ascending: false })
         .limit(300)
+      if (userId) q = q.eq('user_id', userId)
+      const { data: msgs, error } = await q
       if (error) throw error
 
       // 2. Group by prospect_id (unread = is_read=false sur message_reads obsolète)
@@ -105,15 +109,18 @@ export function useConversation(prospectId: string | null) {
   const { user, organisation } = useAuth()
 
   const messagesQuery = useQuery({
-    queryKey: ['conversation', prospectId],
+    queryKey: ['conversation', prospectId, user?.id],
     queryFn: async (): Promise<UnifiedMessage[]> => {
       if (!prospectId) return []
-      const { data, error } = await supabase
+      // STRICT : un user ne voit que ses propres conversations (son mail/num).
+      let q = supabase
         .from('messages')
         .select('*')
         .eq('prospect_id', prospectId)
         .order('sent_at', { ascending: true })
         .limit(500)
+      if (user?.id) q = q.eq('user_id', user.id)
+      const { data, error } = await q
       if (error) throw error
       return (data || []) as UnifiedMessage[]
     },
