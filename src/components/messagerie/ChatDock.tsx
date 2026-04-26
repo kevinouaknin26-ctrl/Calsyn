@@ -38,6 +38,7 @@ function ChatBubble({ prospectId, minimized }: { prospectId: string; minimized: 
   const { profile } = useAuth()
   const { messages, send, sending, defaultReplyChannel, markAsRead } = useConversation(prospectId)
   const [draft, setDraft] = useState('')
+  const [draftSubject, setDraftSubject] = useState('')
   const [activeChannel, setActiveChannel] = useState<ChannelId>(defaultReplyChannel)
   const [attachments, setAttachments] = useState<File[]>([])
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -90,12 +91,13 @@ function ChatBubble({ prospectId, minimized }: { prospectId: string; minimized: 
         prospectId,
         body: finalBody,
         subject: isEmail
-          ? (replyTo?.subject ? `Re: ${replyTo.subject.replace(/^Re:\s*/i, '')}` : '')
+          ? (draftSubject.trim() || (replyTo?.subject ? `Re: ${replyTo.subject.replace(/^Re:\s*/i, '')}` : ''))
           : undefined,
         replyTo,
         attachments: isEmail && attachments.length > 0 ? attachments : undefined,
       })
       setDraft('')
+      setDraftSubject('')
       setAttachments([])
     } catch (e) {
       alert('Erreur envoi : ' + (e as Error).message)
@@ -191,6 +193,23 @@ function ChatBubble({ prospectId, minimized }: { prospectId: string; minimized: 
             )
           })}
         </div>
+
+        {/* Objet (email only) */}
+        {activeChannel === 'email' && (() => {
+          const lastEmailIn = lastIncomingByChannel.get('email')
+          const placeholder = lastEmailIn?.subject
+            ? `Re: ${lastEmailIn.subject.replace(/^Re:\s*/i, '')}`
+            : 'Objet du mail…'
+          return (
+            <input
+              type="text"
+              value={draftSubject}
+              onChange={e => setDraftSubject(e.target.value)}
+              placeholder={placeholder}
+              className="w-full mb-1.5 px-2.5 py-1 rounded-lg border border-gray-200 bg-white text-[11px] outline-none focus:border-indigo-300"
+            />
+          )
+        })()}
 
         {/* Pièces jointes (email only) */}
         {activeChannel === 'email' && attachments.length > 0 && (
