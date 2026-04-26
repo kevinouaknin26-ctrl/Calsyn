@@ -52,7 +52,8 @@ function unlockAudio() {
   unlocked = true
 }
 
-// Petit "ding" doux à 880Hz puis 1318Hz, 200ms total.
+// "Pop" doux et discret, ~120ms — non intrusif même pendant un appel.
+// 2 tons sine très feutrés (G4 → C5) avec attaque douce et fade rapide.
 function playNotifSound() {
   try {
     const ctx = getCtx()
@@ -60,8 +61,8 @@ function playNotifSound() {
     if (ctx.state === 'suspended') ctx.resume().catch(() => {})
     const now = ctx.currentTime
     const tones = [
-      { freq: 880, start: 0, dur: 0.10 },
-      { freq: 1318.5, start: 0.08, dur: 0.16 },
+      { freq: 392.0, start: 0,    dur: 0.10, peak: 0.06 }, // G4
+      { freq: 523.25, start: 0.05, dur: 0.12, peak: 0.05 }, // C5
     ]
     for (const t of tones) {
       const osc = ctx.createOscillator()
@@ -69,7 +70,7 @@ function playNotifSound() {
       osc.type = 'sine'
       osc.frequency.value = t.freq
       gain.gain.setValueAtTime(0.0001, now + t.start)
-      gain.gain.exponentialRampToValueAtTime(0.22, now + t.start + 0.015)
+      gain.gain.exponentialRampToValueAtTime(t.peak, now + t.start + 0.025)
       gain.gain.exponentialRampToValueAtTime(0.0001, now + t.start + t.dur)
       osc.connect(gain).connect(ctx.destination)
       osc.start(now + t.start)

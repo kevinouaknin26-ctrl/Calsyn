@@ -3,6 +3,7 @@ import Sidebar from './Sidebar'
 import StagingBanner from './StagingBanner'
 import CallBar from '@/components/call/CallBar'
 import ChatDock from '@/components/messagerie/ChatDock'
+import MessagingDockBar from '@/components/messagerie/MessagingDockBar'
 import MessagingNotifier from '@/components/messagerie/MessagingNotifier'
 import { ChatDockProvider } from '@/contexts/ChatDockContext'
 import { CallBarVisibilityContext } from './CallBarVisibilityContext'
@@ -27,6 +28,7 @@ export default function Layout({ children }: { children: ReactNode }) {
           </div>
           <CallBar hidden={hideGlobal} />
           <ChatDock />
+          <MessagingDockBar />
           <MessagingNotifier />
         </ChatDockProvider>
       </CallBarVisibilityContext.Provider>
