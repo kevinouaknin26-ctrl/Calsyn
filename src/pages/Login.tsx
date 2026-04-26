@@ -7,6 +7,9 @@ export default function Login() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  const [showForgot, setShowForgot] = useState(false)
+  const [forgotEmail, setForgotEmail] = useState('')
+  const [forgotState, setForgotState] = useState<'idle' | 'sending' | 'sent'>('idle')
   const navigate = useNavigate()
 
   // Si user arrive ici via magic link invite (anciens liens pointaient vers /login),
@@ -32,6 +35,24 @@ export default function Login() {
     navigate('/app/dialer')
   }
 
+  async function handleForgot(e: FormEvent) {
+    e.preventDefault()
+    if (!forgotEmail.trim()) return
+    setForgotState('sending')
+    const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string
+    try {
+      await fetch(`${SUPABASE_URL}/functions/v1/password-reset`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: forgotEmail.trim() }),
+      })
+      // Toujours succès affiché (pas de leak emails)
+      setForgotState('sent')
+    } catch {
+      setForgotState('sent') // idem
+    }
+  }
+
   return (
     <div className="min-h-screen bg-[#1a1a2e] flex items-center justify-center">
       <div className="w-96 px-10">
@@ -55,7 +76,42 @@ export default function Login() {
             className="w-full py-3.5 text-sm font-bold bg-violet-500 text-white rounded-xl hover:bg-violet-600 transition-colors disabled:opacity-50">
             {loading ? 'Connexion...' : 'Se connecter'}
           </button>
+
+          <button type="button" onClick={() => { setShowForgot(true); setForgotEmail(email); setForgotState('idle') }}
+            className="text-xs text-white/40 hover:text-white/70 transition-colors mt-1">
+            Mot de passe oublié ?
+          </button>
         </form>
+
+        {showForgot && (
+          <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center px-4"
+            onClick={e => { if (e.target === e.currentTarget) setShowForgot(false) }}>
+            <div className="bg-[#1a1a2e] border border-white/10 rounded-2xl p-6 w-full max-w-sm">
+              <h3 className="text-lg font-bold text-white mb-2">Mot de passe oublié</h3>
+              <p className="text-xs text-white/50 mb-4">Saisis ton email, on t'envoie un lien pour choisir un nouveau mot de passe.</p>
+              {forgotState === 'sent' ? (
+                <div className="text-center py-3">
+                  <div className="text-4xl mb-2">📬</div>
+                  <p className="text-sm text-white/80 mb-4">Si cet email est enregistré, tu vas recevoir un lien dans quelques secondes.</p>
+                  <button onClick={() => setShowForgot(false)}
+                    className="text-xs text-violet-400 hover:text-violet-300 underline">Fermer</button>
+                </div>
+              ) : (
+                <form onSubmit={handleForgot} className="flex flex-col gap-3">
+                  <input type="email" placeholder="ton@email.com" required autoFocus
+                    value={forgotEmail} onChange={e => setForgotEmail(e.target.value)}
+                    className="w-full px-3 py-2.5 text-sm bg-white/5 border border-white/10 rounded-lg text-white outline-none focus:border-violet-500 placeholder:text-white/30" />
+                  <button type="submit" disabled={forgotState === 'sending'}
+                    className="w-full py-2.5 text-sm font-semibold bg-violet-500 text-white rounded-lg hover:bg-violet-600 disabled:opacity-50">
+                    {forgotState === 'sending' ? 'Envoi…' : 'Envoyer le lien'}
+                  </button>
+                  <button type="button" onClick={() => setShowForgot(false)}
+                    className="text-xs text-white/40 hover:text-white/70">Annuler</button>
+                </form>
+              )}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )

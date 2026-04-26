@@ -6,6 +6,7 @@ import { CallProvider } from '@/contexts/CallContext'
 import Layout from '@/components/layout/Layout'
 import Login from '@/pages/Login'
 import AcceptInvite from '@/pages/AcceptInvite'
+import ResetPassword from '@/pages/ResetPassword'
 import Dialer from '@/pages/Dialer'
 import History from '@/pages/History'
 import CRMGlobal from '@/pages/CRMGlobal'
@@ -41,6 +42,7 @@ function AppRoutes() {
     <Routes>
       <Route path="/login" element={<Login />} />
       <Route path="/accept-invite" element={<AcceptInvite />} />
+      <Route path="/reset-password" element={<ResetPassword />} />
       <Route path="/app/super-admin" element={<Protected superAdmin><Layout><SuperAdmin /></Layout></Protected>} />
       <Route path="/app/dialer" element={<Protected><Layout><Dialer /></Layout></Protected>} />
       <Route path="/app/contacts" element={<Protected><Layout><CRMGlobal /></Layout></Protected>} />
