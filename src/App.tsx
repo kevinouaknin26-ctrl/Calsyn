@@ -49,7 +49,7 @@ function AppRoutes() {
       <Route path="/app/dialer" element={<Protected><Layout><Dialer /></Layout></Protected>} />
       <Route path="/app/contacts" element={<Protected><Layout><CRMGlobal /></Layout></Protected>} />
       <Route path="/app/history" element={<Protected><Layout><History /></Layout></Protected>} />
-      <Route path="/app/dashboard" element={<Protected admin><Layout><Dashboard /></Layout></Protected>} />
+      <Route path="/app/dashboard" element={<Protected><Layout><Dashboard /></Layout></Protected>} />
       <Route path="/app/team" element={<Protected admin><Layout><Team /></Layout></Protected>} />
       <Route path="/app/calendar" element={<Protected><Layout><Calendar /></Layout></Protected>} />
       <Route path="/app/messagerie" element={<Protected><Layout><Messagerie /></Layout></Protected>} />
