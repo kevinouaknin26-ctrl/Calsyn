@@ -24,7 +24,10 @@ interface NotifItem {
   kind: NotifKind
   title: string
   subtitle: string
-  ts: string  // ISO date pour tri
+  /** Date à afficher (peut être future pour un RDV) */
+  ts: string
+  /** Date à utiliser pour le tri chrono (= date où la notif a "été créée") */
+  sortTs: string
   href?: string
   prospectId?: string
   unread?: boolean
@@ -87,21 +90,45 @@ export default function Notifications() {
 
   useEffect(() => { writePrefs(prefs) }, [prefs])
 
-  // ── Source 1 : RDV à venir (24h) + rappels dûs ──
+  // ── Source 1 : 3 queries séparées (la .or() imbriquée Supabase ne gère
+  // pas correctement le and(...) imbriqué avec .in()) ──
   const { data: prospects = [] } = useQuery({
     queryKey: ['notif-prospects', organisation?.id, user?.id],
     queryFn: async () => {
       if (!organisation?.id) return []
       const now = new Date()
-      const in24h = new Date(now.getTime() + 24 * 3600 * 1000)
-      const { data } = await supabase
-        .from('prospects')
-        .select('id, name, phone, email, rdv_date, snoozed_until, last_call_outcome, last_call_at')
-        .eq('organisation_id', organisation.id)
-        .is('deleted_at', null)
-        .or(`rdv_date.gte.${now.toISOString()},snoozed_until.lte.${in24h.toISOString()},and(last_call_outcome.in.(no_answer,voicemail),last_call_at.gte.${new Date(now.getTime() - 24 * 3600 * 1000).toISOString()})`)
-        .limit(500)
-      return data || []
+      const in24h = new Date(now.getTime() + 24 * 3600 * 1000).toISOString()
+      const past1h = new Date(now.getTime() - 3600 * 1000).toISOString()
+      const past24h = new Date(now.getTime() - 24 * 3600 * 1000).toISOString()
+      const cols = 'id, name, phone, email, rdv_date, snoozed_until, last_call_outcome, last_call_at'
+
+      // RDV à venir (de -1h à +24h)
+      const rdvP = supabase.from('prospects').select(cols)
+        .eq('organisation_id', organisation.id).is('deleted_at', null)
+        .gte('rdv_date', past1h).lte('rdv_date', in24h)
+        .limit(200)
+
+      // Rappels dûs (snoozed_until passé ou dans <24h)
+      const cbP = supabase.from('prospects').select(cols)
+        .eq('organisation_id', organisation.id).is('deleted_at', null)
+        .not('snoozed_until', 'is', null).lte('snoozed_until', in24h)
+        .limit(200)
+
+      // Appels manqués récents (no_answer OU voicemail dans les 24h)
+      const mcP = supabase.from('prospects').select(cols)
+        .eq('organisation_id', organisation.id).is('deleted_at', null)
+        .in('last_call_outcome', ['no_answer', 'voicemail'])
+        .gte('last_call_at', past24h)
+        .limit(200)
+
+      const [rdv, cb, mc] = await Promise.all([rdvP, cbP, mcP])
+
+      // Dédoublonne par id (un même prospect peut matcher plusieurs queries)
+      const seen = new Map<string, any>()
+      for (const list of [rdv.data || [], cb.data || [], mc.data || []]) {
+        for (const p of list) seen.set(p.id, p)
+      }
+      return Array.from(seen.values())
     },
     enabled: !!organisation?.id,
     refetchInterval: 60000,
@@ -135,7 +162,9 @@ export default function Notifications() {
     const past24h = now - 24 * 3600 * 1000
 
     for (const p of prospects) {
-      // RDV imminent (24h)
+      // RDV imminent (de -1h à +24h)
+      // sortTs = quand la notif a été "créée" = quand le RDV a été booké.
+      // Approximation : last_call_at (RDV souvent pris pendant un appel) sinon now (juste créé).
       if (p.rdv_date && new Date(p.rdv_date).getTime() <= in24h && new Date(p.rdv_date).getTime() >= now - 3600 * 1000) {
         out.push({
           id: `rdv:${p.id}`,
@@ -143,10 +172,12 @@ export default function Notifications() {
           title: `RDV avec ${p.name || 'inconnu'}`,
           subtitle: `${timeUntil(p.rdv_date)} • ${new Date(p.rdv_date).toLocaleString('fr-FR', { weekday: 'short', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}`,
           ts: p.rdv_date,
+          sortTs: p.last_call_at || new Date(now - 3600 * 1000).toISOString(),
           prospectId: p.id,
         })
       }
       // Rappel dû (snoozed_until passé ou dans <24h)
+      // sortTs = last_call_at (le rappel a été créé pendant l'appel précédent)
       if (p.snoozed_until && new Date(p.snoozed_until).getTime() <= in24h) {
         out.push({
           id: `cb:${p.id}`,
@@ -154,6 +185,7 @@ export default function Notifications() {
           title: `À rappeler : ${p.name || 'inconnu'}`,
           subtitle: `${timeUntil(p.snoozed_until)} • ${p.phone || p.email || ''}`,
           ts: p.snoozed_until,
+          sortTs: p.last_call_at || p.snoozed_until,
           prospectId: p.id,
         })
       }
@@ -166,6 +198,7 @@ export default function Notifications() {
           title: `Pas de réponse : ${p.name || 'inconnu'}`,
           subtitle: `${timeAgo(p.last_call_at)} • ${p.last_call_outcome === 'voicemail' ? 'messagerie' : 'pas répondu'}`,
           ts: p.last_call_at,
+          sortTs: p.last_call_at,
           prospectId: p.id,
         })
       }
@@ -179,15 +212,16 @@ export default function Notifications() {
         title: `Nouveau ${m.channel === 'email' ? 'email' : m.channel === 'sms' ? 'SMS' : 'message'}`,
         subtitle: `${m.from_address || ''} • ${(m.body || '').slice(0, 80)}`,
         ts: m.sent_at,
+        sortTs: m.sent_at,
         prospectId: m.prospect_id,
         unread: true,
       })
     }
 
-    // Filtrer par préférences (afficher seulement les types activés)
+    // Filtrer par préférences + tri chrono pur sur sortTs (récent en haut)
     return out
       .filter(it => prefs[it.kind])
-      .sort((a, b) => new Date(b.ts).getTime() - new Date(a.ts).getTime())
+      .sort((a, b) => new Date(b.sortTs).getTime() - new Date(a.sortTs).getTime())
   }, [prospects, unreadMessages, prefs])
 
   const filtered = filterKind === 'all' ? items : items.filter(i => i.kind === filterKind)
