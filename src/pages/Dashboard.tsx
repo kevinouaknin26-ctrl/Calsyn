@@ -255,14 +255,15 @@ export default function Dashboard() {
 
         {isLoading ? (
           <div className="text-center py-20 text-[12px] text-gray-400">Chargement des données...</div>
-        ) : stats.total === 0 && stats.messages === 0 ? (
-          <div className="text-center py-20 bg-white dark:bg-[#f0eaf5] rounded-xl border border-gray-200">
-            <p className="text-4xl mb-3">📊</p>
-            <p className="text-sm font-semibold text-gray-700">Pas encore de données sur cette période</p>
-            <p className="text-xs text-gray-400 mt-1">Élargis la période ou commence à appeler</p>
-          </div>
         ) : (
           <>
+            {stats.total === 0 && stats.messages === 0 && (
+              <div className="text-center py-8 bg-white dark:bg-[#f0eaf5] rounded-xl border border-gray-200">
+                <p className="text-3xl mb-2">📊</p>
+                <p className="text-sm font-semibold text-gray-700">Pas encore d'activité sur cette période</p>
+                <p className="text-xs text-gray-400 mt-1">Élargis la période ou commence à appeler — les annonces et ressources restent dispo ci-dessous.</p>
+              </div>
+            )}
             {/* ─── KPIs (toujours visibles, indépendamment de l'onglet) ─── */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               <KpiCard index={0} label="Appels" value={stats.total} trendPct={kpiCalls.pct} spark={sparkCalls} color="#0ea5e9" icon="📞" />
