@@ -17,7 +17,7 @@
  *  └─────────────────────────────────────────────────────────────┘
  */
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useAuth } from '@/hooks/useAuth'
 import { useRealtimeCalls } from '@/hooks/useRealtime'
 import {
@@ -48,6 +48,11 @@ export default function Dashboard() {
   const { isManager, profile } = useAuth()
   const [range, setRange] = useState<TimeRange>('30d')
   const [sdrFilter, setSdrFilter] = useState<string | 'all'>('all')
+  const [tab, setTab] = useState<'overview' | 'analytics'>(() => {
+    const saved = localStorage.getItem('calsyn_dashboard_tab')
+    return saved === 'overview' || saved === 'analytics' ? saved : 'overview'
+  })
+  useEffect(() => { localStorage.setItem('calsyn_dashboard_tab', tab) }, [tab])
 
   useRealtimeCalls()
   const { calls: rawCalls, profiles, prospects, messages, isLoading, days } = useDashboardData(range)
@@ -189,7 +194,7 @@ export default function Dashboard() {
         <div className="flex flex-wrap items-baseline justify-between gap-3 animate-dash-up">
           <div>
             <h1 className="text-2xl font-extrabold text-gray-800 flex items-center gap-2.5">
-              Statistiques
+              Dashboard & analyse
               <span className="live-dot" title="Live" />
             </h1>
             <p className="text-[12px] text-gray-500 mt-0.5 flex items-center gap-1.5">
@@ -228,6 +233,26 @@ export default function Dashboard() {
           </div>
         </div>
 
+        {/* ─── Onglets : Vue d'ensemble | Analyse ─── */}
+        <div className="flex items-center gap-1 border-b border-gray-200">
+          <button
+            onClick={() => setTab('overview')}
+            className={`px-4 py-2 text-[13px] font-semibold transition-colors border-b-2 -mb-px ${
+              tab === 'overview' ? 'text-violet-700 border-violet-600' : 'text-gray-500 border-transparent hover:text-gray-700'
+            }`}
+          >
+            🏠 Vue d'ensemble
+          </button>
+          <button
+            onClick={() => setTab('analytics')}
+            className={`px-4 py-2 text-[13px] font-semibold transition-colors border-b-2 -mb-px ${
+              tab === 'analytics' ? 'text-violet-700 border-violet-600' : 'text-gray-500 border-transparent hover:text-gray-700'
+            }`}
+          >
+            📊 Analyse
+          </button>
+        </div>
+
         {isLoading ? (
           <div className="text-center py-20 text-[12px] text-gray-400">Chargement des données...</div>
         ) : stats.total === 0 && stats.messages === 0 ? (
@@ -238,7 +263,7 @@ export default function Dashboard() {
           </div>
         ) : (
           <>
-            {/* ─── KPIs ─── */}
+            {/* ─── KPIs (toujours visibles, indépendamment de l'onglet) ─── */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               <KpiCard index={0} label="Appels" value={stats.total} trendPct={kpiCalls.pct} spark={sparkCalls} color="#0ea5e9" icon="📞" />
               <KpiCard index={1} label="Connectés" value={stats.connected} trendPct={kpiConnected.pct} sub={`${connectRate}% taux`} spark={sparkConnected} color="#10b981" icon="✅" />
@@ -250,65 +275,68 @@ export default function Dashboard() {
               <KpiCard index={7} label="Messages échangés" value={stats.messages} sub={`${stats.messagesIn} reçus`} spark={sparkMsg} color="#06b6d4" icon="💌" />
             </div>
 
-            {/* ─── Prochains RDV + Annonces + Ressources (3 cards de taille égale) ─── */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 items-stretch">
-              <Reveal direction="left" className="lg:col-span-1 h-full">
-                <UpcomingRdv prospects={prospects} />
-              </Reveal>
-              <Reveal direction="up" delay={80} className="lg:col-span-1 h-full">
-                <Announcements />
-              </Reveal>
-              <Reveal direction="right" delay={160} className="lg:col-span-1 h-full">
-                <SharedResources />
-              </Reveal>
-            </div>
+            {/* ─── Vue d'ensemble : RDV + Annonces + Ressources + activité légère ─── */}
+            {tab === 'overview' && (
+              <>
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 items-stretch">
+                  <Reveal direction="left" className="lg:col-span-1 h-full">
+                    <UpcomingRdv prospects={prospects} />
+                  </Reveal>
+                  <Reveal direction="up" delay={80} className="lg:col-span-1 h-full">
+                    <Announcements />
+                  </Reveal>
+                  <Reveal direction="right" delay={160} className="lg:col-span-1 h-full">
+                    <SharedResources />
+                  </Reveal>
+                </div>
 
-            {/* ─── Activity chart full width ─── */}
-            <Reveal direction="up">
-              <ActivityChart buckets={buckets} />
-            </Reveal>
-
-            {/* ─── Tunnel de conversion (descendu en bas, format long horizontal) ─── */}
-            <Reveal direction="up" duration={600}>
-              <Funnel steps={[
-                { label: 'Appels lancés', value: stats.total, color: '#a5b4fc' },
-                { label: 'Connectés à un humain', value: stats.connected, color: '#10b981' },
-                { label: 'Conversations 1min+', value: stats.longCalls, color: '#f97316' },
-                { label: 'RDV pris', value: stats.rdv, color: '#8b5cf6' },
-              ]} />
-            </Reveal>
-
-            {/* ─── AI Insights (full width) ─── */}
-            <Reveal direction="up" duration={700}>
-              <AIInsights calls={calls} />
-            </Reveal>
-
-            {/* ─── Leaderboard (admin) ─── */}
-            {isManager && (
-              <Reveal direction="up" duration={650}>
-                <Leaderboard rows={sdrRows} />
-              </Reveal>
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                  <Reveal direction="left">
+                    <PipelineDistribution prospects={prospects} />
+                  </Reveal>
+                  <Reveal direction="right" delay={150}>
+                    <ActivityFeed calls={calls} messages={messages as any} />
+                  </Reveal>
+                </div>
+              </>
             )}
 
-            {/* ─── Pipeline + Messagerie ─── */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              <Reveal direction="left">
-                <PipelineDistribution prospects={prospects} />
-              </Reveal>
-              <Reveal direction="right" delay={150}>
-                <MessagingStats messages={messages} />
-              </Reveal>
-            </div>
+            {/* ─── Analyse : Funnel + Activity chart + AI + Leaderboard + HeatMap ─── */}
+            {tab === 'analytics' && (
+              <>
+                <Reveal direction="up">
+                  <ActivityChart buckets={buckets} />
+                </Reveal>
 
-            {/* ─── HeatMap + Activity feed ─── */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              <Reveal direction="scale">
-                <HeatMap calls={calls} />
-              </Reveal>
-              <Reveal direction="right" delay={120}>
-                <ActivityFeed calls={calls} messages={messages as any} />
-              </Reveal>
-            </div>
+                <Reveal direction="up" duration={600}>
+                  <Funnel steps={[
+                    { label: 'Appels lancés', value: stats.total, color: '#a5b4fc' },
+                    { label: 'Connectés à un humain', value: stats.connected, color: '#10b981' },
+                    { label: 'Conversations 1min+', value: stats.longCalls, color: '#f97316' },
+                    { label: 'RDV pris', value: stats.rdv, color: '#8b5cf6' },
+                  ]} />
+                </Reveal>
+
+                <Reveal direction="up" duration={700}>
+                  <AIInsights calls={calls} />
+                </Reveal>
+
+                {isManager && (
+                  <Reveal direction="up" duration={650}>
+                    <Leaderboard rows={sdrRows} />
+                  </Reveal>
+                )}
+
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                  <Reveal direction="scale">
+                    <HeatMap calls={calls} />
+                  </Reveal>
+                  <Reveal direction="right" delay={150}>
+                    <MessagingStats messages={messages} />
+                  </Reveal>
+                </div>
+              </>
+            )}
 
             <p className="text-center text-[10px] text-gray-400 pt-2">
               {isManager ? `Données agrégées de ${profiles.length} membres` : `Connecté en tant que ${profile?.full_name || profile?.email}`}
