@@ -37,6 +37,7 @@ export default function Announcements() {
   const create = useCreateAnnouncement()
 
   const [showCompose, setShowCompose] = useState(false)
+  const [title, setTitle] = useState('')
   const [body, setBody] = useState('')
   const [pinned, setPinned] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -54,7 +55,8 @@ export default function Announcements() {
     setError(null)
     setBusy(true)
     try {
-      await create.mutateAsync({ body, pinned })
+      await create.mutateAsync({ title: title.trim() || undefined, body, pinned })
+      setTitle('')
       setBody('')
       setPinned(false)
       setShowCompose(false)
@@ -114,6 +116,19 @@ export default function Announcements() {
             {/* Body */}
             <div className="p-6 space-y-4 overflow-y-auto flex-1">
               <div>
+                <label className="text-[11px] font-bold text-gray-600 uppercase tracking-wider block mb-2">Titre (optionnel)</label>
+                <input
+                  type="text"
+                  value={title}
+                  onChange={e => setTitle(e.target.value)}
+                  placeholder="Ex: Mise à jour Calsyn — connectez votre Gmail"
+                  maxLength={120}
+                  className="w-full px-4 py-2.5 text-[14px] font-bold border border-gray-200 rounded-xl outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-100"
+                />
+                <p className="text-[10px] text-gray-400 mt-1">Si présent, affiché en gros au-dessus du message dans le fil.</p>
+              </div>
+
+              <div>
                 <label className="text-[11px] font-bold text-gray-600 uppercase tracking-wider block mb-2">Message</label>
                 <textarea
                   value={body}
@@ -163,6 +178,9 @@ export default function Announcements() {
                     <div className="flex items-start gap-2">
                       {pinned && <span className="text-[12px] flex-shrink-0 mt-0.5">📌</span>}
                       <div className="flex-1 min-w-0">
+                        {title.trim() && (
+                          <h4 className="text-[13px] font-bold text-gray-900 mb-1">{title.trim()}</h4>
+                        )}
                         <p className="text-[12px] text-gray-800 whitespace-pre-wrap leading-snug">{body}</p>
                         <div className="text-[10px] text-gray-400 mt-2 flex items-center gap-1.5">
                           <span>{(profile?.full_name || profile?.email || 'toi').split('@')[0]}</span>
@@ -184,7 +202,7 @@ export default function Announcements() {
               <div className="flex gap-2">
                 <button
                   type="button"
-                  onClick={() => { setShowCompose(false); setBody(''); setPinned(false); setError(null) }}
+                  onClick={() => { setShowCompose(false); setTitle(''); setBody(''); setPinned(false); setError(null) }}
                   className="px-4 py-2 text-[12px] font-semibold text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors"
                 >
                   Annuler
@@ -233,11 +251,19 @@ function AnnouncementRow({ announcement, canEdit }: { announcement: Announcement
   const del = useDeleteAnnouncement()
   const update = useUpdateAnnouncement()
   const [editing, setEditing] = useState(false)
+  const [draftTitle, setDraftTitle] = useState(announcement.title || '')
   const [draft, setDraft] = useState(announcement.body)
 
   async function save() {
     if (!draft.trim()) return
-    try { await update.mutateAsync({ id: announcement.id, body: draft }); setEditing(false) }
+    try {
+      await update.mutateAsync({
+        id: announcement.id,
+        title: draftTitle.trim() || null,
+        body: draft,
+      })
+      setEditing(false)
+    }
     catch (e) { alert((e as Error).message) }
   }
 
@@ -261,6 +287,14 @@ function AnnouncementRow({ announcement, canEdit }: { announcement: Announcement
         <div className="flex-1 min-w-0">
           {editing ? (
             <div className="space-y-1.5">
+              <input
+                type="text"
+                value={draftTitle}
+                onChange={e => setDraftTitle(e.target.value)}
+                placeholder="Titre (optionnel)"
+                maxLength={120}
+                className="w-full px-2 py-1.5 text-[12px] font-bold border border-violet-300 rounded-md outline-none"
+              />
               <textarea
                 value={draft}
                 onChange={e => setDraft(e.target.value)}
@@ -270,11 +304,14 @@ function AnnouncementRow({ announcement, canEdit }: { announcement: Announcement
               />
               <div className="flex gap-1.5">
                 <button onClick={save} className="px-2 py-0.5 text-[10px] font-bold rounded bg-violet-600 text-white hover:bg-violet-700">Enregistrer</button>
-                <button onClick={() => { setEditing(false); setDraft(announcement.body) }} className="px-2 py-0.5 text-[10px] text-gray-500 hover:text-gray-700">Annuler</button>
+                <button onClick={() => { setEditing(false); setDraft(announcement.body); setDraftTitle(announcement.title || '') }} className="px-2 py-0.5 text-[10px] text-gray-500 hover:text-gray-700">Annuler</button>
               </div>
             </div>
           ) : (
             <>
+              {announcement.title && (
+                <h4 className="text-[13px] font-bold text-gray-900 mb-1 leading-tight">{announcement.title}</h4>
+              )}
               <p className="text-[12px] text-gray-800 whitespace-pre-wrap leading-snug">{announcement.body}</p>
               <div className="text-[10px] text-gray-400 mt-1 flex items-center gap-1.5">
                 <span>{(announcement.created_by_name || announcement.created_by_email || 'inconnu').split('@')[0]}</span>

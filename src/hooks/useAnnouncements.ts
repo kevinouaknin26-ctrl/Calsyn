@@ -15,6 +15,7 @@ import { useAuth } from '@/hooks/useAuth'
 export interface Announcement {
   id: string
   organisation_id: string
+  title: string | null
   body: string
   pinned: boolean
   created_by: string | null
@@ -91,12 +92,13 @@ export function useCreateAnnouncement() {
   const queryClient = useQueryClient()
   const { profile, organisation } = useAuth()
   return useMutation({
-    mutationFn: async (input: { body: string; pinned?: boolean }) => {
+    mutationFn: async (input: { title?: string; body: string; pinned?: boolean }) => {
       if (!organisation?.id || !profile?.id) throw new Error('Non authentifié')
       const { data, error } = await supabase
         .from('announcements')
         .insert({
           organisation_id: organisation.id,
+          title: input.title?.trim() || null,
           body: input.body.trim(),
           pinned: input.pinned || false,
           created_by: profile.id,
@@ -117,8 +119,9 @@ export function useCreateAnnouncement() {
 export function useUpdateAnnouncement() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async (input: { id: string; body?: string; pinned?: boolean }) => {
+    mutationFn: async (input: { id: string; title?: string | null; body?: string; pinned?: boolean }) => {
       const updates: Record<string, unknown> = {}
+      if (input.title !== undefined) updates.title = input.title?.trim() || null
       if (input.body !== undefined) updates.body = input.body.trim()
       if (input.pinned !== undefined) updates.pinned = input.pinned
       const { error } = await supabase.from('announcements').update(updates).eq('id', input.id)
