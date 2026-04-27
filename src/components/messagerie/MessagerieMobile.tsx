@@ -275,8 +275,8 @@ function MobileThreadView({ prospectId, onBack }: { prospectId: string; onBack: 
           const isOut = m.direction === 'out'
           return (
             <div key={m.id} className={`flex ${isOut ? 'justify-end' : 'justify-start'}`}>
-              <div className={`max-w-[80%] ${isOut ? 'bg-indigo-500 text-white' : 'bg-white text-gray-800 border border-gray-200'} rounded-2xl px-3 py-2 shadow-sm`}>
-                {m.subject && <div className={`text-[11px] font-bold mb-1 ${isOut ? 'text-white/90' : 'text-gray-700'}`}>{m.subject}</div>}
+              <div className={`max-w-[80%] ${isOut ? 'bg-violet-100 text-violet-900 border border-violet-200' : 'bg-white text-gray-800 border border-gray-200'} rounded-2xl px-3 py-2 shadow-sm`}>
+                {m.subject && <div className={`text-[11px] font-bold mb-1 ${isOut ? 'text-violet-700' : 'text-gray-700'}`}>{m.subject}</div>}
                 {(m as any).body_html && m.channel === 'email' ? (
                   <div className="text-[13px] leading-relaxed prose-sm max-w-none [&_a]:underline" dangerouslySetInnerHTML={{ __html: stripGmailQuote((m as any).body_html) }} />
                 ) : (
@@ -284,7 +284,7 @@ function MobileThreadView({ prospectId, onBack }: { prospectId: string; onBack: 
                     {(m.channel === 'email' ? stripPlainTextQuote(m.body || '') : (m.body || '')) || '(vide)'}
                   </div>
                 )}
-                <div className={`text-[9px] mt-1 ${isOut ? 'text-white/70' : 'text-gray-400'}`}>{c.icon} {new Date(m.sent_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</div>
+                <div className={`text-[9px] mt-1 ${isOut ? 'text-violet-600' : 'text-gray-400'}`}>{c.icon} {new Date(m.sent_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</div>
               </div>
             </div>
           )

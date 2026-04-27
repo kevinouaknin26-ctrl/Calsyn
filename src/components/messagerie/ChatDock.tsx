@@ -138,7 +138,7 @@ function ChatBubble({ prospectId, minimized }: { prospectId: string; minimized: 
   }
 
   return (
-    <div className="w-[360px] h-[calc(100vh-80px)] max-h-[760px] min-h-[440px] bg-white dark:bg-[#f0eaf5] rounded-t-2xl shadow-2xl border border-gray-200 flex flex-col overflow-hidden mb-0">
+    <div className="w-[360px] h-[calc(100vh-200px)] max-h-[600px] min-h-[440px] bg-white dark:bg-[#f0eaf5] rounded-t-2xl shadow-2xl border border-gray-200 flex flex-col overflow-hidden mb-0">
       {/* Header — toute la zone gauche est cliquable pour réduire (style LinkedIn) */}
       <div className="bg-gradient-to-r from-indigo-500 to-violet-500 flex items-center">
         <button
@@ -172,8 +172,8 @@ function ChatBubble({ prospectId, minimized }: { prospectId: string; minimized: 
           const isOut = m.direction === 'out'
           return (
             <div key={m.id} className={`flex ${isOut ? 'justify-end' : 'justify-start'}`}>
-              <div className={`max-w-[85%] ${isOut ? 'bg-indigo-500 text-white' : 'bg-gray-100 text-gray-800'} rounded-xl px-2.5 py-1.5`}>
-                {m.subject && <div className={`text-[10px] font-bold mb-0.5 ${isOut ? 'text-white/80' : 'text-gray-700'}`}>{m.subject}</div>}
+              <div className={`max-w-[85%] ${isOut ? 'bg-violet-100 text-violet-900 border border-violet-200' : 'bg-gray-100 text-gray-800'} rounded-xl px-2.5 py-1.5`}>
+                {m.subject && <div className={`text-[10px] font-bold mb-0.5 ${isOut ? 'text-violet-700' : 'text-gray-700'}`}>{m.subject}</div>}
                 {(m as any).body_html && m.channel === 'email' ? (
                   <div className="text-[11px] leading-snug prose-sm max-w-none [&_a]:underline" dangerouslySetInnerHTML={{ __html: stripGmailQuote((m as any).body_html) }} />
                 ) : (
@@ -181,7 +181,7 @@ function ChatBubble({ prospectId, minimized }: { prospectId: string; minimized: 
                     {(m.channel === 'email' ? stripPlainTextQuote(m.body || '') : (m.body || '')) || '(vide)'}
                   </div>
                 )}
-                <div className={`text-[8px] mt-0.5 ${isOut ? 'text-white/70' : 'text-gray-400'}`}>{c.icon} {new Date(m.sent_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</div>
+                <div className={`text-[8px] mt-0.5 ${isOut ? 'text-violet-600' : 'text-gray-400'}`}>{c.icon} {new Date(m.sent_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</div>
               </div>
             </div>
           )

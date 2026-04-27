@@ -311,9 +311,9 @@ function ConversationView({ prospectId }: { prospectId: string }) {
                 </div>
               )}
               <div className={`flex ${isOut ? 'justify-end' : 'justify-start'}`}>
-                <div className={`max-w-[70%] ${isOut ? 'bg-indigo-500 text-white' : 'bg-white border border-gray-200 text-gray-800'} rounded-2xl px-3.5 py-2 shadow-sm`}>
+                <div className={`max-w-[70%] ${isOut ? 'bg-violet-100 text-violet-900 border border-violet-200' : 'bg-white border border-gray-200 text-gray-800'} rounded-2xl px-3.5 py-2 shadow-sm`}>
                   {m.subject && (
-                    <div className={`text-[11px] font-bold mb-1 ${isOut ? 'text-white/80' : 'text-gray-700'}`}>{m.subject}</div>
+                    <div className={`text-[11px] font-bold mb-1 ${isOut ? 'text-violet-700' : 'text-gray-700'}`}>{m.subject}</div>
                   )}
                   {m.body_html && m.channel === 'email' ? (
                     <div className="text-[12px] leading-relaxed prose-sm max-w-none [&_a]:underline" dangerouslySetInnerHTML={{ __html: stripGmailQuote(m.body_html) }} />
@@ -322,7 +322,7 @@ function ConversationView({ prospectId }: { prospectId: string }) {
                       {(m.channel === 'email' ? stripPlainTextQuote(m.body || '') : (m.body || '')) || '(message vide)'}
                     </div>
                   )}
-                  <div className={`flex items-center gap-1.5 mt-1 ${isOut ? 'text-white/70' : 'text-gray-400'}`}>
+                  <div className={`flex items-center gap-1.5 mt-1 ${isOut ? 'text-violet-600' : 'text-gray-400'}`}>
                     <span className="text-[9px]">{c.icon}</span>
                     <span className="text-[9px]">{formatTimeFull(m.sent_at)}</span>
                   </div>
