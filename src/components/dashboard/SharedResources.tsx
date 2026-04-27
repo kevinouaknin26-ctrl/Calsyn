@@ -66,12 +66,14 @@ export default function SharedResources() {
   const { profile, isManager } = useAuth()
   const { data: resources = [], isLoading } = useSharedResources()
   const touchSeen = useTouchResourcesSeen()
+  const upload = useUploadResource()
 
   const [showUpload, setShowUpload] = useState(false)
   const [initialFile, setInitialFile] = useState<File | null>(null)
   const [filter, setFilter] = useState<'all' | 'document' | 'call' | 'link'>('all')
   const [search, setSearch] = useState('')
   const [dragOver, setDragOver] = useState(false)
+  const [batchProgress, setBatchProgress] = useState<{ done: number; total: number; failed: number } | null>(null)
 
   // Marque l'onglet comme vu au mount (reset le badge)
   useEffect(() => {
@@ -110,13 +112,37 @@ export default function SharedResources() {
     return { all: resources.length, document: docs, call: calls, link: links }
   }, [resources])
 
-  function handleDrop(e: React.DragEvent) {
+  async function handleDrop(e: React.DragEvent) {
     e.preventDefault()
     setDragOver(false)
-    const file = e.dataTransfer.files?.[0]
-    if (!file) return
-    setInitialFile(file)
-    setShowUpload(true)
+    const files = Array.from(e.dataTransfer.files || [])
+    if (files.length === 0) return
+
+    // 1 seul fichier → ouvre la modale pour customiser titre/desc/tags
+    if (files.length === 1) {
+      setInitialFile(files[0])
+      setShowUpload(true)
+      return
+    }
+
+    // Plusieurs fichiers → upload silent en batch, titre = filename
+    setBatchProgress({ done: 0, total: files.length, failed: 0 })
+    let done = 0
+    let failed = 0
+    for (const f of files) {
+      try {
+        if (f.size > 50 * 1024 * 1024) { failed++; continue }
+        const title = f.name.replace(/\.[^.]+$/, '').replace(/[_-]+/g, ' ').slice(0, 80)
+        await upload.mutateAsync({ file: f, title, kind: 'document' })
+        done++
+      } catch {
+        failed++
+      } finally {
+        setBatchProgress({ done: done + failed, total: files.length, failed })
+      }
+    }
+    // Laisse le toast 3s puis efface
+    setTimeout(() => setBatchProgress(null), 3000)
   }
 
   function handleDragOver(e: React.DragEvent) {
@@ -154,8 +180,31 @@ export default function SharedResources() {
       {dragOver && (
         <div className="absolute inset-0 bg-violet-50/95 z-10 flex flex-col items-center justify-center pointer-events-none rounded-xl">
           <p className="text-3xl mb-2">📥</p>
-          <p className="text-[13px] font-bold text-violet-700">Déposez le fichier ici</p>
-          <p className="text-[11px] text-violet-500 mt-0.5">Sera ajouté comme document</p>
+          <p className="text-[13px] font-bold text-violet-700">Déposez ici</p>
+          <p className="text-[11px] text-violet-500 mt-0.5">1 fichier → modale · Plusieurs → upload direct</p>
+        </div>
+      )}
+
+      {/* Toast progress batch upload */}
+      {batchProgress && (
+        <div className="absolute top-2 left-2 right-2 z-10 bg-violet-600 text-white rounded-lg px-3 py-2 shadow-lg flex items-center gap-2">
+          {batchProgress.done < batchProgress.total ? (
+            <>
+              <span className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin flex-shrink-0" />
+              <span className="text-[11px] font-semibold flex-1">
+                Upload {batchProgress.done}/{batchProgress.total}…
+              </span>
+            </>
+          ) : (
+            <>
+              <span className="text-[14px]">{batchProgress.failed === 0 ? '✓' : '⚠️'}</span>
+              <span className="text-[11px] font-semibold flex-1">
+                {batchProgress.failed === 0
+                  ? `${batchProgress.total} fichiers ajoutés`
+                  : `${batchProgress.done - batchProgress.failed}/${batchProgress.total} OK · ${batchProgress.failed} échec`}
+              </span>
+            </>
+          )}
         </div>
       )}
 
