@@ -16,6 +16,7 @@ import { useAuth } from '@/hooks/useAuth'
 import { useChatDock } from '@/contexts/ChatDockContext'
 import { useIsMobile } from '@/hooks/useIsMobile'
 import MessagerieMobile from '@/components/messagerie/MessagerieMobile'
+import NewDiscussionModal from '@/components/messagerie/NewDiscussionModal'
 import { CHANNELS, ENABLED_CHANNELS, getChannel, type ChannelId, type UnifiedMessage } from '@/services/channels'
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '@/config/supabase'
@@ -52,6 +53,7 @@ function MessagerieDesktop() {
   const [search, setSearch] = useState('')
   const [readFilter, setReadFilter] = useState<ReadFilter>('all')
   const [channelFilter, setChannelFilter] = useState<ChannelId | 'all'>('all')
+  const [showNewDiscussion, setShowNewDiscussion] = useState(false)
 
   const filtered = useMemo(() => {
     const s = search.trim().toLowerCase()
@@ -86,7 +88,17 @@ function MessagerieDesktop() {
       {/* Liste conversations */}
       <div className="w-[340px] flex-shrink-0 bg-white dark:bg-[#f0eaf5] border-r border-gray-200 dark:border-[#d4cade] flex flex-col">
         <div className="px-4 py-3 border-b border-gray-100 space-y-2">
-          <h1 className="text-base font-bold text-gray-800">Messagerie</h1>
+          <div className="flex items-center justify-between gap-2">
+            <h1 className="text-base font-bold text-gray-800">Messagerie</h1>
+            <button
+              onClick={() => setShowNewDiscussion(true)}
+              className="px-2.5 py-1 rounded-lg bg-violet-600 text-white text-[11px] font-bold hover:bg-violet-700 flex items-center gap-1"
+              title="Démarrer une discussion (1 ou plusieurs destinataires)"
+            >
+              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" /></svg>
+              <span>Nouvelle</span>
+            </button>
+          </div>
           <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-gray-200 bg-white">
             <svg className="w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
             <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Nom, email, contenu…"
@@ -172,6 +184,8 @@ function MessagerieDesktop() {
           </div>
         )}
       </div>
+
+      {showNewDiscussion && <NewDiscussionModal onClose={() => setShowNewDiscussion(false)} />}
     </div>
   )
 }
