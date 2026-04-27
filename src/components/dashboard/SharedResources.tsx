@@ -231,6 +231,7 @@ function ResourceRow({ resource, canDelete }: { resource: SharedResource; canDel
   const [audioUrl, setAudioUrl] = useState<string | null>(null)
   const [loadingAudio, setLoadingAudio] = useState(false)
   const [expanded, setExpanded] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState(false)
 
   const isAudio = resource.kind === 'audio' || resource.kind === 'call_recording'
 
@@ -260,11 +261,15 @@ function ResourceRow({ resource, canDelete }: { resource: SharedResource; canDel
     if (url) { setAudioUrl(url); setExpanded(true) }
   }
 
-  async function handleDelete(e: React.MouseEvent) {
+  function handleDelete(e: React.MouseEvent) {
     e.stopPropagation()
-    if (!confirm(`Supprimer "${resource.title}" ?`)) return
+    setConfirmDelete(true)
+  }
+
+  async function confirmAndDelete() {
     try {
       await del.mutateAsync(resource)
+      setConfirmDelete(false)
     } catch (e) {
       alert(`Erreur : ${(e as Error).message}`)
     }
@@ -308,6 +313,37 @@ function ResourceRow({ resource, canDelete }: { resource: SharedResource; canDel
       </div>
       {audioUrl && expanded && (
         <audio controls autoPlay preload="metadata" src={audioUrl} className="w-full h-8 mt-1.5" onEnded={() => setExpanded(false)} />
+      )}
+      {confirmDelete && createPortal(
+        <div className="fixed inset-0 bg-black/40 z-[60] flex items-center justify-center p-4 animate-fade-in" onClick={() => setConfirmDelete(false)}>
+          <div className="bg-white rounded-xl w-full max-w-sm shadow-xl animate-fade-in-scale p-5" onClick={e => e.stopPropagation()}>
+            <div className="flex items-start gap-3 mb-4">
+              <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center text-red-600 text-xl flex-shrink-0">⚠️</div>
+              <div className="flex-1 min-w-0">
+                <h3 className="text-[14px] font-bold text-gray-800">Supprimer cette ressource ?</h3>
+                <p className="text-[12px] text-gray-500 mt-1 break-words">
+                  <span className="font-semibold">{resource.title}</span> sera retiré pour toute l'équipe. Action irréversible.
+                </p>
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setConfirmDelete(false)}
+                className="flex-1 py-2 rounded-lg text-[12px] font-semibold bg-gray-100 text-gray-700 hover:bg-gray-200"
+              >
+                Annuler
+              </button>
+              <button
+                onClick={confirmAndDelete}
+                disabled={del.isPending}
+                className="flex-1 py-2 rounded-lg text-[12px] font-bold bg-red-600 text-white hover:bg-red-700 disabled:opacity-50"
+              >
+                {del.isPending ? 'Suppression...' : 'Supprimer'}
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body,
       )}
     </div>
   )
@@ -397,14 +433,39 @@ function UploadModal({ onClose, initialFile }: { onClose: () => void; initialFil
           {mode === 'file' ? (
             <div>
               <label className="text-[11px] font-semibold text-gray-600 block mb-1.5">Fichier (max 50 Mo)</label>
-              <input
-                type="file"
-                onChange={e => setFile(e.target.files?.[0] || null)}
-                accept=".pdf,.ppt,.pptx,.doc,.docx,.txt,.md,.png,.jpg,.jpeg,.mp3,.m4a,.wav,.mp4"
-                className="w-full text-[12px] file:mr-3 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:bg-violet-50 file:text-violet-700 file:font-semibold hover:file:bg-violet-100"
-              />
-              {file && (
-                <p className="text-[10px] text-gray-400 mt-1">{file.name} • {formatBytes(file.size)}</p>
+              {file ? (
+                // Widget custom : affiche le fichier choisi (drop ou picker)
+                <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-violet-200 bg-violet-50">
+                  <span className="text-xl flex-shrink-0">📎</span>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-[12px] font-semibold text-gray-800 truncate">{file.name}</div>
+                    <div className="text-[10px] text-gray-500">{formatBytes(file.size)}</div>
+                  </div>
+                  <label className="text-[11px] font-semibold text-violet-700 hover:text-violet-800 cursor-pointer px-2 py-1 hover:bg-violet-100 rounded">
+                    Changer
+                    <input
+                      type="file"
+                      onChange={e => { const f = e.target.files?.[0]; if (f) setFile(f) }}
+                      accept=".pdf,.ppt,.pptx,.doc,.docx,.txt,.md,.png,.jpg,.jpeg,.mp3,.m4a,.wav,.mp4"
+                      className="hidden"
+                    />
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setFile(null)}
+                    className="text-gray-400 hover:text-red-500 px-1 text-[14px]"
+                    title="Retirer"
+                  >
+                    ✕
+                  </button>
+                </div>
+              ) : (
+                <input
+                  type="file"
+                  onChange={e => setFile(e.target.files?.[0] || null)}
+                  accept=".pdf,.ppt,.pptx,.doc,.docx,.txt,.md,.png,.jpg,.jpeg,.mp3,.m4a,.wav,.mp4"
+                  className="w-full text-[12px] file:mr-3 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:bg-violet-50 file:text-violet-700 file:font-semibold hover:file:bg-violet-100"
+                />
               )}
             </div>
           ) : (
