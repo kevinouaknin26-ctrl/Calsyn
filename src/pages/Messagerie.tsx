@@ -384,8 +384,17 @@ function ConversationView({ prospectId }: { prospectId: string }) {
             </>
           )}
           <textarea value={draft} onChange={e => setDraft(e.target.value)}
-            onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey && !sending) { e.preventDefault(); handleSend() } }}
-            placeholder={`Écrire en ${ch.label}… (Maj+Entrée pour saut de ligne)`}
+            onKeyDown={e => {
+              // Email : Entrée = saut de ligne, Cmd/Ctrl+Entrée = envoyer (comme Gmail)
+              // SMS/WhatsApp : Entrée = envoyer (style chat), Maj+Entrée = saut de ligne
+              if (e.key !== 'Enter' || sending) return
+              if (activeChannel === 'email') {
+                if (e.metaKey || e.ctrlKey) { e.preventDefault(); handleSend() }
+              } else {
+                if (!e.shiftKey) { e.preventDefault(); handleSend() }
+              }
+            }}
+            placeholder={activeChannel === 'email' ? `Écrire en Email… (Cmd+Entrée pour envoyer)` : `Écrire en ${ch.label}… (Entrée pour envoyer)`}
             rows={5}
             className="flex-1 px-3 py-2 rounded-lg border border-gray-200 bg-white text-[12px] outline-none focus:border-indigo-300 resize-y min-h-[100px]" />
           <button onClick={handleSend} disabled={!draft.trim() || sending}

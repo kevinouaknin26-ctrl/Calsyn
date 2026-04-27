@@ -251,8 +251,15 @@ function ChatBubble({ prospectId, minimized }: { prospectId: string; minimized: 
             </>
           )}
           <textarea value={draft} onChange={e => setDraft(e.target.value)}
-            onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey && !sending) { e.preventDefault(); handleSend() } }}
-            placeholder={`${ch.label}…`}
+            onKeyDown={e => {
+              if (e.key !== 'Enter' || sending) return
+              if (activeChannel === 'email') {
+                if (e.metaKey || e.ctrlKey) { e.preventDefault(); handleSend() }
+              } else {
+                if (!e.shiftKey) { e.preventDefault(); handleSend() }
+              }
+            }}
+            placeholder={activeChannel === 'email' ? `Email… (⌘+Entrée pour envoyer)` : `${ch.label}…`}
             rows={3}
             className="flex-1 px-2.5 py-1.5 rounded-lg border border-gray-200 bg-white text-[11px] outline-none focus:border-indigo-300 resize-y min-h-[64px]" />
           <button onClick={handleSend} disabled={!draft.trim() || sending}
