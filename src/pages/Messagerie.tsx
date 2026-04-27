@@ -385,9 +385,9 @@ function ConversationView({ prospectId }: { prospectId: string }) {
           )}
           <textarea value={draft} onChange={e => setDraft(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey && !sending) { e.preventDefault(); handleSend() } }}
-            placeholder={`Écrire en ${ch.label}…`}
-            rows={2}
-            className="flex-1 px-3 py-2 rounded-lg border border-gray-200 bg-white text-[12px] outline-none focus:border-indigo-300 resize-none" />
+            placeholder={`Écrire en ${ch.label}… (Maj+Entrée pour saut de ligne)`}
+            rows={5}
+            className="flex-1 px-3 py-2 rounded-lg border border-gray-200 bg-white text-[12px] outline-none focus:border-indigo-300 resize-y min-h-[100px]" />
           <button onClick={handleSend} disabled={!draft.trim() || sending}
             className="px-4 py-2 rounded-lg bg-indigo-600 text-white text-[12px] font-semibold disabled:opacity-50 hover:bg-indigo-700">
             {sending ? '…' : 'Envoyer'}

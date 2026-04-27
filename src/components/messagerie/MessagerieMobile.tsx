@@ -349,8 +349,8 @@ function MobileThreadView({ prospectId, onBack }: { prospectId: string; onBack: 
           )}
           <textarea value={draft} onChange={e => setDraft(e.target.value)}
             placeholder={`${ch.label}…`}
-            rows={1}
-            className="flex-1 px-3 py-2 rounded-2xl border border-gray-200 bg-gray-50 text-[13px] outline-none focus:bg-white focus:border-indigo-300 resize-none" />
+            rows={3}
+            className="flex-1 px-3 py-2 rounded-2xl border border-gray-200 bg-gray-50 text-[13px] outline-none focus:bg-white focus:border-indigo-300 resize-none min-h-[72px]" />
           <button onClick={handleSend} disabled={!draft.trim() || sending}
             className="w-10 h-10 rounded-full bg-indigo-600 text-white text-[15px] font-semibold disabled:opacity-30 active:bg-indigo-700 flex items-center justify-center flex-shrink-0">
             ➤

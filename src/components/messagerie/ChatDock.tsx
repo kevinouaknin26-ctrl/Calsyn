@@ -253,8 +253,8 @@ function ChatBubble({ prospectId, minimized }: { prospectId: string; minimized: 
           <textarea value={draft} onChange={e => setDraft(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey && !sending) { e.preventDefault(); handleSend() } }}
             placeholder={`${ch.label}…`}
-            rows={1}
-            className="flex-1 px-2.5 py-1.5 rounded-lg border border-gray-200 bg-white text-[11px] outline-none focus:border-indigo-300 resize-none" />
+            rows={3}
+            className="flex-1 px-2.5 py-1.5 rounded-lg border border-gray-200 bg-white text-[11px] outline-none focus:border-indigo-300 resize-y min-h-[64px]" />
           <button onClick={handleSend} disabled={!draft.trim() || sending}
             className="px-2.5 py-1.5 rounded-lg bg-indigo-600 text-white text-[11px] font-semibold disabled:opacity-50 hover:bg-indigo-700">
             ➤
