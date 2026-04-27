@@ -14,7 +14,10 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { useQuery } from '@tanstack/react-query'
+import { supabase } from '@/config/supabase'
 import { useAuth } from '@/hooks/useAuth'
+import { useGmail } from '@/hooks/useGmail'
 import {
   useSharedResources,
   useUploadResource,
@@ -281,6 +284,31 @@ function ResourceRow({ resource, canDelete }: { resource: SharedResource; canDel
   const [loadingAudio, setLoadingAudio] = useState(false)
   const [expanded, setExpanded] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const [menuOpen, setMenuOpen] = useState(false)
+  const [shareModal, setShareModal] = useState(false)
+  const [copied, setCopied] = useState(false)
+
+  async function getShareableUrl(): Promise<string> {
+    if (resource.external_url) return resource.external_url
+    if (resource.storage_path) {
+      const url = await getResourceSignedUrl(resource.storage_path, 7 * 24 * 3600)  // 7 jours
+      if (url) return url
+    }
+    return ''
+  }
+
+  async function handleCopyLink() {
+    const url = await getShareableUrl()
+    if (!url) { alert('Impossible de générer le lien'); return }
+    try {
+      await navigator.clipboard.writeText(url)
+      setCopied(true)
+      setMenuOpen(false)
+      setTimeout(() => setCopied(false), 2000)
+    } catch {
+      alert('Impossible de copier (clipboard refusé)')
+    }
+  }
 
   const isAudio = resource.kind === 'audio' || resource.kind === 'call_recording'
 
@@ -350,18 +378,52 @@ function ResourceRow({ resource, canDelete }: { resource: SharedResource; canDel
         >
           {loadingAudio ? '…' : isAudio ? (audioUrl && expanded ? '⏸' : '▶') : '↗'}
         </button>
-        {canDelete && (
+        <div className="relative flex-shrink-0">
           <button
-            onClick={handleDelete}
-            className="text-gray-300 hover:text-red-500 text-[10px] flex-shrink-0"
-            title="Supprimer"
+            onClick={e => { e.stopPropagation(); setMenuOpen(v => !v) }}
+            className="text-gray-400 hover:text-gray-700 px-1 text-[14px]"
+            title="Plus d'actions"
           >
-            ✕
+            ⋯
           </button>
-        )}
+          {menuOpen && (
+            <>
+              <div className="fixed inset-0 z-10" onClick={e => { e.stopPropagation(); setMenuOpen(false) }} />
+              <div className="absolute right-0 top-full mt-1 z-20 bg-white border border-gray-200 rounded-lg shadow-lg w-44 py-1 text-[11px]">
+                <button
+                  onClick={e => { e.stopPropagation(); handleCopyLink() }}
+                  className="w-full px-3 py-1.5 text-left hover:bg-gray-50 flex items-center gap-2"
+                >
+                  📋 {copied ? 'Copié !' : 'Copier le lien'}
+                </button>
+                <button
+                  onClick={e => { e.stopPropagation(); setMenuOpen(false); setShareModal(true) }}
+                  className="w-full px-3 py-1.5 text-left hover:bg-gray-50 flex items-center gap-2"
+                >
+                  📤 Envoyer par mail
+                </button>
+                {canDelete && (
+                  <button
+                    onClick={e => { e.stopPropagation(); setMenuOpen(false); setConfirmDelete(true) }}
+                    className="w-full px-3 py-1.5 text-left hover:bg-red-50 text-red-600 flex items-center gap-2 border-t border-gray-100"
+                  >
+                    ✕ Supprimer
+                  </button>
+                )}
+              </div>
+            </>
+          )}
+        </div>
       </div>
       {audioUrl && expanded && (
         <audio controls autoPlay preload="metadata" src={audioUrl} className="w-full h-8 mt-1.5" onEnded={() => setExpanded(false)} />
+      )}
+      {shareModal && (
+        <ShareResourceModal
+          resource={resource}
+          getShareableUrl={getShareableUrl}
+          onClose={() => setShareModal(false)}
+        />
       )}
       {confirmDelete && createPortal(
         <div className="fixed inset-0 bg-black/40 z-[60] flex items-center justify-center p-4 animate-fade-in" onClick={() => setConfirmDelete(false)}>
@@ -395,6 +457,186 @@ function ResourceRow({ resource, canDelete }: { resource: SharedResource; canDel
         document.body,
       )}
     </div>
+  )
+}
+
+function ShareResourceModal({
+  resource,
+  getShareableUrl,
+  onClose,
+}: {
+  resource: SharedResource
+  getShareableUrl: () => Promise<string>
+  onClose: () => void
+}) {
+  const { profile, organisation } = useAuth()
+  const { sendEmail } = useGmail()
+
+  const [recipients, setRecipients] = useState<Array<{ email: string; name?: string }>>([])
+  const [recipientInput, setRecipientInput] = useState('')
+  const [autocompleteOpen, setAutocompleteOpen] = useState(false)
+  const [message, setMessage] = useState(`Salut,\n\nJe te partage cette ressource : "${resource.title}".\n\n`)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
+  const { data: hits = [] } = useQuery({
+    queryKey: ['share-autocomplete', organisation?.id, recipientInput],
+    queryFn: async () => {
+      if (recipientInput.trim().length < 2) return [] as Array<{ email: string; name: string; source: 'team' | 'prospect' }>
+      const q = recipientInput.trim()
+      const [{ data: profiles }, { data: prospects }] = await Promise.all([
+        supabase.from('profiles')
+          .select('id, email, full_name')
+          .or(`email.ilike.%${q}%,full_name.ilike.%${q}%`)
+          .neq('id', profile?.id || '')
+          .is('deactivated_at', null)
+          .limit(5),
+        supabase.from('prospects')
+          .select('id, email, name')
+          .or(`email.ilike.%${q}%,name.ilike.%${q}%`)
+          .not('email', 'is', null)
+          .is('deleted_at', null)
+          .limit(8),
+      ])
+      const out: Array<{ email: string; name: string; source: 'team' | 'prospect' }> = []
+      for (const p of profiles || []) {
+        if (p.email) out.push({ email: p.email, name: p.full_name || p.email, source: 'team' })
+      }
+      for (const p of prospects || []) {
+        if (p.email && !out.some(h => h.email === p.email)) {
+          out.push({ email: p.email, name: p.name || p.email, source: 'prospect' })
+        }
+      }
+      return out.slice(0, 8)
+    },
+    enabled: !!organisation?.id && recipientInput.trim().length >= 2,
+  })
+
+  function addRecipient(r: { email: string; name?: string }) {
+    if (!r.email || !EMAIL_RE.test(r.email)) return
+    if (recipients.some(x => x.email.toLowerCase() === r.email.toLowerCase())) return
+    setRecipients([...recipients, r])
+    setRecipientInput('')
+    setAutocompleteOpen(false)
+  }
+
+  function handleKey(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === 'Backspace' && !recipientInput && recipients.length > 0) {
+      e.preventDefault()
+      setRecipients(recipients.slice(0, -1))
+    }
+    if ((e.key === 'Enter' || e.key === ',' || e.key === 'Tab') && recipientInput.trim()) {
+      e.preventDefault()
+      const v = recipientInput.trim().replace(/,$/, '')
+      if (EMAIL_RE.test(v)) addRecipient({ email: v })
+    }
+  }
+
+  useEffect(() => {
+    setAutocompleteOpen(recipientInput.trim().length >= 2 && hits.length > 0)
+  }, [hits, recipientInput])
+
+  async function handleSend(e: React.FormEvent) {
+    e.preventDefault()
+    setError(null)
+    if (recipients.length === 0) { setError('Ajoute au moins un destinataire'); return }
+    setBusy(true)
+    try {
+      const url = await getShareableUrl()
+      if (!url) throw new Error('Impossible de générer le lien')
+      const to = recipients.map(r => r.email).join(', ')
+      const subject = `Ressource partagée : ${resource.title}`
+      const body = `${message.trim()}\n\n${url}\n\n--\n${profile?.full_name || profile?.email || ''}`
+      const result = await sendEmail({ to, subject, body })
+      if (result.error) throw new Error(result.error)
+      onClose()
+    } catch (e) {
+      setError((e as Error).message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return createPortal(
+    <div className="fixed inset-0 bg-black/40 z-[60] flex items-center justify-center p-4 animate-fade-in overflow-y-auto" onClick={onClose}>
+      <div className="bg-white rounded-xl w-full max-w-md shadow-xl animate-fade-in-scale my-8 max-h-[calc(100vh-4rem)] flex flex-col" onClick={e => e.stopPropagation()}>
+        <div className="p-5 border-b border-gray-100 flex items-center justify-between flex-shrink-0">
+          <h2 className="text-[15px] font-bold text-gray-800">Envoyer par mail</h2>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">✕</button>
+        </div>
+
+        <form onSubmit={handleSend} className="p-5 space-y-3 overflow-y-auto flex-1">
+          <div className="text-[11px] text-gray-500 px-2 py-1.5 rounded-md bg-violet-50 border border-violet-100">
+            📤 <span className="font-semibold">{resource.title}</span> — un mail avec le lien sera envoyé.
+          </div>
+
+          <div className="relative">
+            <label className="text-[11px] font-semibold text-gray-600 block mb-1.5">À</label>
+            <div className="flex flex-wrap gap-1.5 px-2 py-1.5 border border-gray-200 rounded-lg focus-within:border-violet-400 min-h-[40px] items-center">
+              {recipients.map(r => (
+                <span key={r.email} className="inline-flex items-center gap-1 text-[11px] font-medium rounded-full px-2 py-0.5 bg-violet-100 text-violet-700">
+                  <span>{r.name || r.email}</span>
+                  <button type="button" onClick={() => setRecipients(recipients.filter(x => x.email !== r.email))} className="hover:text-red-500">✕</button>
+                </span>
+              ))}
+              <input
+                type="text"
+                value={recipientInput}
+                onChange={e => setRecipientInput(e.target.value)}
+                onKeyDown={handleKey}
+                placeholder={recipients.length === 0 ? 'Email, nom contact ou membre…' : ''}
+                className="flex-1 min-w-[120px] text-[12px] outline-none bg-transparent py-1"
+                autoFocus
+              />
+            </div>
+            {autocompleteOpen && (
+              <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-10 max-h-60 overflow-y-auto">
+                {hits.map(h => (
+                  <button
+                    key={`${h.source}-${h.email}`}
+                    type="button"
+                    onClick={() => addRecipient({ email: h.email, name: h.name })}
+                    className="w-full text-left px-3 py-2 hover:bg-violet-50 flex items-center gap-2 text-[12px]"
+                  >
+                    <span>{h.source === 'team' ? '👥' : '👤'}</span>
+                    <div className="flex-1 min-w-0">
+                      <div className="font-semibold text-gray-800 truncate">{h.name}</div>
+                      <div className="text-[10px] text-gray-500 truncate">{h.email}</div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div>
+            <label className="text-[11px] font-semibold text-gray-600 block mb-1.5">Message</label>
+            <textarea
+              value={message}
+              onChange={e => setMessage(e.target.value)}
+              rows={5}
+              className="w-full px-3 py-2 text-[12px] border border-gray-200 rounded-lg outline-none focus:border-violet-400 resize-y"
+            />
+          </div>
+
+          {error && <div className="text-[11px] text-red-600 bg-red-50 px-3 py-2 rounded-lg">{error}</div>}
+
+          <div className="flex gap-2 pt-1">
+            <button type="button" onClick={onClose} className="flex-1 py-2 rounded-lg text-[12px] font-semibold bg-gray-100 text-gray-700 hover:bg-gray-200">Annuler</button>
+            <button
+              type="submit"
+              disabled={busy || recipients.length === 0}
+              className="flex-1 py-2 rounded-lg text-[12px] font-bold bg-violet-600 text-white hover:bg-violet-700 disabled:opacity-50"
+            >
+              {busy ? 'Envoi…' : `Envoyer${recipients.length > 1 ? ` (${recipients.length})` : ''}`}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>,
+    document.body,
   )
 }
 
