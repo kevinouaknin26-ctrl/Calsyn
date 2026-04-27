@@ -13,7 +13,7 @@ import { usePermissions } from '@/hooks/usePermissions'
 import { useCall } from '@/contexts/CallContext'
 import { useCallsByProspect } from '@/hooks/useCalls'
 import { usePropertyDefinitions, useCustomFieldValues, useCrmStatuses, updatePropertyValue, groupProperties } from '@/hooks/useProperties'
-import { SYSTEM_PROPERTIES, DEFAULT_VISIBLE_COLUMNS, getPropertyValue, matchesSearch, CRM_STATUS_LABELS, type PropertyDefinition } from '@/config/properties'
+import { SYSTEM_PROPERTIES, DEFAULT_VISIBLE_COLUMNS, getPropertyValue, matchesSearch, CRM_STATUS_LABELS, OUT_OF_PIPELINE_STATUSES, type PropertyDefinition } from '@/config/properties'
 import { useProspectLists } from '@/hooks/useProspects'
 import SocialLinks from '@/components/call/SocialLinks'
 import ProspectModal from '@/components/call/ProspectModal'
@@ -321,10 +321,13 @@ function CRMDesktop() {
 
   // State
   const [viewMode, setViewMode] = useState<'table' | 'board'>(() => {
-    const saved = localStorage.getItem('calsyn_crm_view_mode')
-    return saved === 'table' || saved === 'board' ? saved : 'board'
+    // Migration : on a forcé pipeline comme default 2026-04-27. Si l'user a explicitement
+    // choisi table après cette date (flag), on respecte. Sinon force board.
+    const v2 = localStorage.getItem('calsyn_crm_view_mode_v2')
+    if (v2 === 'table' || v2 === 'board') return v2
+    return 'board'
   })
-  useEffect(() => { localStorage.setItem('calsyn_crm_view_mode', viewMode) }, [viewMode])
+  useEffect(() => { localStorage.setItem('calsyn_crm_view_mode_v2', viewMode) }, [viewMode])
   const [search, setSearch] = useState('')
   const [sortBy, setSortBy] = useState('created_at')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
@@ -466,7 +469,9 @@ function CRMDesktop() {
     }
     // 2) nouveaux stages pas encore ordonnés
     for (const s of byKey.values()) ordered.push(s)
-    return ordered
+    // 3) Exclure les statuts hors-pipeline du board kanban (ex: 'internal' pour
+    //    les contacts coéquipiers internes — ils restent visibles en mode table)
+    return ordered.filter(s => !OUT_OF_PIPELINE_STATUSES.has(s.key))
   }, [crmStatuses, stageOrder])
   const { data: lists } = useProspectLists()
 
@@ -639,13 +644,16 @@ function CRMDesktop() {
   // on ouvre automatiquement la fiche du prospect identifie.
   const location = useLocation()
   const navigate = useNavigate()
-  const autoOpenId = (location.state as { openProspectId?: string } | null)?.openProspectId
+  // Auto-open via location.state OU via query param ?prospect=X (cohérent avec CRMMobile)
+  const stateOpenId = (location.state as { openProspectId?: string } | null)?.openProspectId
+  const queryOpenId = new URLSearchParams(location.search).get('prospect')
+  const autoOpenId = stateOpenId || queryOpenId
   useEffect(() => {
     if (!autoOpenId) return
     const target = mergedProspects.find(p => p.id === autoOpenId)
     if (target) {
       setSelectedProspect(target)
-      // Nettoie le state pour eviter de rouvrir au prochain refresh/back
+      // Nettoie state + query pour éviter de rouvrir au refresh/back
       navigate(location.pathname, { replace: true, state: {} })
     }
   }, [autoOpenId, mergedProspects, navigate, location.pathname])
@@ -691,6 +699,16 @@ function CRMDesktop() {
   // ── Filter + Sort ──
   const filtered = useMemo(() => {
     let result = mergedProspects
+
+    // Masque par défaut les contacts "hors pipeline" (ex: coéquipiers internes
+    // utilisés pour les chats par mail). Visibles uniquement via un filtre
+    // explicite crm_status='internal'.
+    const hasExplicitInternalFilter = filters.some(
+      f => f.propertyId === 'system:crm_status' && f.op === 'eq' && f.value === 'internal'
+    )
+    if (!hasExplicitInternalFilter) {
+      result = result.filter(p => !OUT_OF_PIPELINE_STATUSES.has(p.crm_status || 'new'))
+    }
 
     // Filtre par utilisateur visible : "me" = soi-même, sinon user_id d'un SDR (admin can see SDR's view)
     const targetUserId = viewAsUserId === 'me' ? profile?.id : viewAsUserId

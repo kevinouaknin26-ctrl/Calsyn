@@ -22,7 +22,8 @@ export default function Login() {
       if (!session?.user) return
       const { data: p } = await supabase.from('profiles').select('last_seen_at, role').eq('id', session.user.id).single()
       if (!p?.last_seen_at) navigate('/accept-invite')
-      else navigate('/app/dialer')
+      else if (p?.role === 'super_admin') navigate('/app/super-admin')
+      else navigate('/app/contacts')
     })()
   }, [navigate])
 
@@ -32,7 +33,7 @@ export default function Login() {
     setLoading(true)
     const { error: err } = await supabase.auth.signInWithPassword({ email, password })
     if (err) { setError('Email ou mot de passe incorrect'); setLoading(false); return }
-    navigate('/app/dialer')
+    navigate('/app/contacts')
   }
 
   async function handleForgot(e: FormEvent) {

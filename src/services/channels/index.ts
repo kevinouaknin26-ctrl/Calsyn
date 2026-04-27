@@ -43,7 +43,14 @@ export const CHANNELS: Record<ChannelId, MessagingChannel> = {
   },
 }
 
-export const ENABLED_CHANNELS: ChannelId[] = ['sms', 'email', 'whatsapp']
+// WhatsApp masqué tant que TWILIO_WHATSAPP_FROM n'est pas configuré côté
+// edge function. Pour l'activer : setter VITE_WHATSAPP_ENABLED=true sur Vercel
+// + setter TWILIO_WHATSAPP_FROM sur les Edge Functions secrets Supabase.
+const WHATSAPP_ENABLED = (import.meta.env.VITE_WHATSAPP_ENABLED as string) === 'true'
+
+export const ENABLED_CHANNELS: ChannelId[] = WHATSAPP_ENABLED
+  ? ['sms', 'email', 'whatsapp']
+  : ['sms', 'email']
 
 export function getChannel(id: ChannelId | string): MessagingChannel {
   return CHANNELS[id as ChannelId] || CHANNELS.sms

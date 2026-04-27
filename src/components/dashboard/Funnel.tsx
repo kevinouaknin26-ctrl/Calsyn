@@ -15,12 +15,12 @@ export default function Funnel({ steps }: { steps: Step[] }) {
   const max = Math.max(1, ...steps.map(s => s.value))
   const [ref, inView] = useInView<HTMLDivElement>({ threshold: 0.25, once: true })
   return (
-    <div ref={ref} className="bg-white dark:bg-[#f0eaf5] rounded-xl border border-gray-200 dark:border-[#d4cade] p-4">
-      <div className="flex items-center justify-between mb-3">
+    <div ref={ref} className="bg-white dark:bg-[#f0eaf5] rounded-xl border border-gray-200 dark:border-[#d4cade] p-4 h-full flex flex-col">
+      <div className="flex items-center justify-between mb-3 flex-shrink-0">
         <h3 className="text-[12px] font-bold text-gray-700">Tunnel de conversion</h3>
         <span className="text-[10px] text-gray-400">% du palier précédent</span>
       </div>
-      <div className="space-y-2.5">
+      <div className="space-y-2.5 flex-1 flex flex-col justify-around">
         {steps.map((s, idx) => {
           const widthPct = (s.value / max) * 100
           const prev = idx > 0 ? steps[idx - 1] : null

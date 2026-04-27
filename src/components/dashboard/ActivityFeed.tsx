@@ -73,8 +73,8 @@ export default function ActivityFeed({ calls, messages }: { calls: Call[]; messa
   }, [calls, messages])
 
   return (
-    <div className="bg-white dark:bg-[#f0eaf5] rounded-xl border border-gray-200 dark:border-[#d4cade] overflow-hidden">
-      <div className="px-4 py-2.5 border-b border-gray-100 flex items-baseline justify-between">
+    <div className="bg-white dark:bg-[#f0eaf5] rounded-xl border border-gray-200 dark:border-[#d4cade] overflow-hidden h-full flex flex-col">
+      <div className="px-4 py-2.5 border-b border-gray-100 flex items-baseline justify-between flex-shrink-0">
         <h3 className="text-[12px] font-bold text-gray-700 flex items-center gap-2">
           <span className="live-dot" />
           ⚡ Activité récente

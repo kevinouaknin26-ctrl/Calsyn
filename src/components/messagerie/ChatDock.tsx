@@ -13,6 +13,8 @@ import { useChatDock } from '@/contexts/ChatDockContext'
 import { useConversation } from '@/hooks/useMessaging'
 import { useAuth } from '@/hooks/useAuth'
 import { CHANNELS, ENABLED_CHANNELS, getChannel, type ChannelId, type UnifiedMessage } from '@/services/channels'
+import { stripPlainTextQuote } from '@/lib/emailQuote'
+import EmailHtmlContent from '@/components/messagerie/EmailHtmlContent'
 
 export default function ChatDock() {
   const { chats } = useChatDock()
@@ -113,12 +115,18 @@ function ChatBubble({ prospectId, minimized }: { prospectId: string; minimized: 
   if (minimized) {
     return (
       <div className="relative flex items-stretch h-[44px] bg-gradient-to-r from-indigo-500 to-violet-500 rounded-t-xl shadow-lg overflow-hidden border border-violet-300 border-b-0">
-        <button onClick={() => toggleMinimize(prospectId)}
-          title={prospect?.name || 'Conversation'}
-          className="flex items-center gap-2 pl-2.5 pr-2 hover:bg-white/10 transition-colors min-w-[140px] max-w-[200px]">
-          <div className="w-7 h-7 rounded-full bg-white/20 flex items-center justify-center text-white font-bold text-[12px] flex-shrink-0">
+        <button
+          onClick={(e) => { e.stopPropagation(); navigate('/app/contacts', { state: { openProspectId: prospectId } }) }}
+          title="Voir la fiche du prospect"
+          className="flex items-center justify-center pl-2.5 pr-1 hover:bg-white/10 transition-colors flex-shrink-0"
+        >
+          <div className="w-7 h-7 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center text-white font-bold text-[12px] flex-shrink-0 transition-colors">
             {initial}
           </div>
+        </button>
+        <button onClick={() => toggleMinimize(prospectId)}
+          title={prospect?.name || 'Conversation'}
+          className="flex items-center gap-2 pl-1 pr-2 hover:bg-white/10 transition-colors min-w-[120px] max-w-[200px]">
           <div className="text-[12px] font-bold text-white truncate flex-1 text-left">
             {prospect?.name || 'Inconnu'}
           </div>
@@ -137,15 +145,21 @@ function ChatBubble({ prospectId, minimized }: { prospectId: string; minimized: 
   }
 
   return (
-    <div className="w-[320px] h-[440px] bg-white dark:bg-[#f0eaf5] rounded-t-2xl shadow-2xl border border-gray-200 flex flex-col overflow-hidden mb-0">
-      {/* Header — toute la zone gauche est cliquable pour réduire (style LinkedIn) */}
+    <div className="w-[360px] h-[calc(100vh-200px)] max-h-[600px] min-h-[440px] bg-white dark:bg-[#f0eaf5] rounded-t-2xl shadow-2xl border border-gray-200 flex flex-col overflow-hidden mb-0">
+      {/* Header — avatar = ouvre fiche prospect, reste = réduire (style LinkedIn) */}
       <div className="bg-gradient-to-r from-indigo-500 to-violet-500 flex items-center">
+        <button
+          onClick={(e) => { e.stopPropagation(); navigate('/app/contacts', { state: { openProspectId: prospectId } }) }}
+          title="Voir la fiche du prospect"
+          className="w-7 h-7 ml-2.5 my-2 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center text-white font-bold text-[12px] flex-shrink-0 transition-colors cursor-pointer"
+        >
+          {initial}
+        </button>
         <button
           onClick={() => toggleMinimize(prospectId)}
           title="Réduire"
-          className="flex-1 min-w-0 flex items-center gap-2 px-3 py-2 hover:bg-white/10 transition-colors text-left"
+          className="flex-1 min-w-0 flex items-center gap-2 px-2 py-2 hover:bg-white/10 transition-colors text-left"
         >
-          <div className="w-7 h-7 rounded-full bg-white/20 flex items-center justify-center text-white font-bold text-[12px] flex-shrink-0">{initial}</div>
           <div className="flex-1 min-w-0">
             <div className="text-[12px] font-bold text-white truncate">{prospect?.name || 'Inconnu'}</div>
             <div className="text-[10px] text-white/80 truncate">{prospect?.phone || prospect?.email}</div>
@@ -171,10 +185,16 @@ function ChatBubble({ prospectId, minimized }: { prospectId: string; minimized: 
           const isOut = m.direction === 'out'
           return (
             <div key={m.id} className={`flex ${isOut ? 'justify-end' : 'justify-start'}`}>
-              <div className={`max-w-[85%] ${isOut ? 'bg-indigo-500 text-white' : 'bg-gray-100 text-gray-800'} rounded-xl px-2.5 py-1.5`}>
-                {m.subject && <div className={`text-[10px] font-bold mb-0.5 ${isOut ? 'text-white/80' : 'text-gray-700'}`}>{m.subject}</div>}
-                <div className="text-[11px] leading-snug whitespace-pre-wrap break-words">{m.body || '(vide)'}</div>
-                <div className={`text-[8px] mt-0.5 ${isOut ? 'text-white/70' : 'text-gray-400'}`}>{c.icon} {new Date(m.sent_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</div>
+              <div className={`max-w-[85%] min-w-0 ${isOut ? 'bg-violet-100 text-violet-900 border border-violet-200' : 'bg-gray-100 text-gray-800'} rounded-xl px-2.5 py-1.5 overflow-hidden`}>
+                {m.subject && <div className={`text-[10px] font-bold mb-0.5 ${isOut ? 'text-violet-700' : 'text-gray-700'} truncate`}>{m.subject}</div>}
+                {(m as any).body_html && m.channel === 'email' ? (
+                  <EmailHtmlContent html={(m as any).body_html} className="text-[11px] leading-snug prose-sm max-w-none" />
+                ) : (
+                  <div className="text-[11px] leading-snug whitespace-pre-wrap break-words">
+                    {(m.channel === 'email' ? stripPlainTextQuote(m.body || '') : (m.body || '')) || '(vide)'}
+                  </div>
+                )}
+                <div className={`text-[8px] mt-0.5 ${isOut ? 'text-violet-600' : 'text-gray-400'}`}>{c.icon} {new Date(m.sent_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</div>
               </div>
             </div>
           )
@@ -243,10 +263,17 @@ function ChatBubble({ prospectId, minimized }: { prospectId: string; minimized: 
             </>
           )}
           <textarea value={draft} onChange={e => setDraft(e.target.value)}
-            onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey && !sending) { e.preventDefault(); handleSend() } }}
-            placeholder={`${ch.label}…`}
-            rows={1}
-            className="flex-1 px-2.5 py-1.5 rounded-lg border border-gray-200 bg-white text-[11px] outline-none focus:border-indigo-300 resize-none" />
+            onKeyDown={e => {
+              if (e.key !== 'Enter' || sending) return
+              if (activeChannel === 'email') {
+                if (e.metaKey || e.ctrlKey) { e.preventDefault(); handleSend() }
+              } else {
+                if (!e.shiftKey) { e.preventDefault(); handleSend() }
+              }
+            }}
+            placeholder={activeChannel === 'email' ? `Email… (⌘+Entrée pour envoyer)` : `${ch.label}…`}
+            rows={3}
+            className="flex-1 px-2.5 py-1.5 rounded-lg border border-gray-200 bg-white text-[11px] outline-none focus:border-indigo-300 resize-y min-h-[64px]" />
           <button onClick={handleSend} disabled={!draft.trim() || sending}
             className="px-2.5 py-1.5 rounded-lg bg-indigo-600 text-white text-[11px] font-semibold disabled:opacity-50 hover:bg-indigo-700">
             ➤

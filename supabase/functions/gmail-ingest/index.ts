@@ -246,6 +246,12 @@ async function ingestForUser(userId: string, organisationId: string): Promise<{ 
       const fromEmail = extractEmail(from)
       const toEmails = to.split(',').map(extractEmail)
 
+      // Skip TOTAL des mails automatisés (noreply, drive-shares, calendar-notification,
+      // mailchimp, etc.) AVANT toute logique de matching prospect. Évite que des mails
+      // Google Drive / Outlook auto-share s'accrochent par erreur à un prospect existant
+      // (ex: chez Lamia Cherif si un ancien email noreply traînait dans email2/email3).
+      if (isAutomatedEmail(fromEmail, headers)) continue
+
       let prospectId: string | null = null
       let direction: 'in' | 'out' = 'in'
       if (emailToProspect.has(fromEmail)) {
@@ -267,7 +273,7 @@ async function ingestForUser(userId: string, organisationId: string): Promise<{ 
         const candidateEmail = isFromMe ? toEmails.find(e => e && e !== myEmail) : fromEmail
         const candidateName = isFromMe ? '' : extractName(from)
         if (!candidateEmail) continue
-        // Filter automatisés : skip noreply, notion.so, mailer-daemon, calendar, etc.
+        // Double safety : check aussi sur le candidate (vrai pour 'isFromMe' où candidate=toEmail)
         if (isAutomatedEmail(candidateEmail, headers)) continue
         if (!mailListId) mailListId = await getOrCreateMailList(organisationId, userId)
         if (!mailListId) continue

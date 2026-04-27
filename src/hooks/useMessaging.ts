@@ -34,25 +34,29 @@ export interface ConversationSummary {
 }
 
 export function useConversations() {
-  const { organisation, user } = useAuth()
+  const { organisation, user, profile } = useAuth()
   const orgId = organisation?.id
   const userId = user?.id
+  const role = profile?.role
 
   return useQuery({
-    queryKey: ['conversations', orgId, userId],
+    queryKey: ['conversations', orgId, userId, role],
     queryFn: async (): Promise<ConversationSummary[]> => {
       if (!orgId) return []
 
       // 1. Pull les messages récents de l'org (300 derniers)
-      // STRICT : chacun voit UNIQUEMENT ses propres messages (chacun son mail/num).
-      // Les admins voient les messages de leur équipe via impersonation, pas via la messagerie.
+      // SDR/manager : ne voit QUE ses propres messages (chacun son mail/num).
+      // Super_admin/admin : voit TOUS les messages de l'org — utile quand le
+      // Gmail est connecté sur un compte tech différent du compte de login,
+      // ou pour superviser l'équipe sans avoir à impersonate.
+      const isAdmin = role === 'super_admin' || role === 'admin'
       let q = supabase
         .from('messages')
         .select('*')
         .eq('organisation_id', orgId)
         .order('sent_at', { ascending: false })
         .limit(300)
-      if (userId) q = q.eq('user_id', userId)
+      if (userId && !isAdmin) q = q.eq('user_id', userId)
       const { data: msgs, error } = await q
       if (error) throw error
 
@@ -106,20 +110,23 @@ export function useConversations() {
 
 export function useConversation(prospectId: string | null) {
   const queryClient = useQueryClient()
-  const { user, organisation } = useAuth()
+  const { user, organisation, profile } = useAuth()
+  const role = profile?.role
+  const isAdmin = role === 'super_admin' || role === 'admin'
 
   const messagesQuery = useQuery({
-    queryKey: ['conversation', prospectId, user?.id],
+    queryKey: ['conversation', prospectId, user?.id, role],
     queryFn: async (): Promise<UnifiedMessage[]> => {
       if (!prospectId) return []
-      // STRICT : un user ne voit que ses propres conversations (son mail/num).
+      // SDR/manager : ne voit que ses propres messages.
+      // Super_admin/admin : voit tous les messages du prospect (cf useConversations).
       let q = supabase
         .from('messages')
         .select('*')
         .eq('prospect_id', prospectId)
         .order('sent_at', { ascending: true })
         .limit(500)
-      if (user?.id) q = q.eq('user_id', user.id)
+      if (user?.id && !isAdmin) q = q.eq('user_id', user.id)
       const { data, error } = await q
       if (error) throw error
       return (data || []) as UnifiedMessage[]

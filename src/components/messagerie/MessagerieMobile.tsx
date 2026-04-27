@@ -14,6 +14,8 @@ import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '@/config/supabase'
 import { useAuth } from '@/hooks/useAuth'
+import { stripPlainTextQuote } from '@/lib/emailQuote'
+import EmailHtmlContent from '@/components/messagerie/EmailHtmlContent'
 import { useConversations, useConversation } from '@/hooks/useMessaging'
 import { CHANNELS, ENABLED_CHANNELS, getChannel, type ChannelId, type UnifiedMessage } from '@/services/channels'
 
@@ -274,10 +276,16 @@ function MobileThreadView({ prospectId, onBack }: { prospectId: string; onBack: 
           const isOut = m.direction === 'out'
           return (
             <div key={m.id} className={`flex ${isOut ? 'justify-end' : 'justify-start'}`}>
-              <div className={`max-w-[80%] ${isOut ? 'bg-indigo-500 text-white' : 'bg-white text-gray-800 border border-gray-200'} rounded-2xl px-3 py-2 shadow-sm`}>
-                {m.subject && <div className={`text-[11px] font-bold mb-1 ${isOut ? 'text-white/90' : 'text-gray-700'}`}>{m.subject}</div>}
-                <div className="text-[13px] leading-relaxed whitespace-pre-wrap break-words">{m.body || '(vide)'}</div>
-                <div className={`text-[9px] mt-1 ${isOut ? 'text-white/70' : 'text-gray-400'}`}>{c.icon} {new Date(m.sent_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</div>
+              <div className={`max-w-[80%] min-w-0 ${isOut ? 'bg-violet-100 text-violet-900 border border-violet-200' : 'bg-white text-gray-800 border border-gray-200'} rounded-2xl px-3 py-2 shadow-sm overflow-hidden`}>
+                {m.subject && <div className={`text-[11px] font-bold mb-1 ${isOut ? 'text-violet-700' : 'text-gray-700'} truncate`}>{m.subject}</div>}
+                {(m as any).body_html && m.channel === 'email' ? (
+                  <EmailHtmlContent html={(m as any).body_html} className="text-[13px] leading-relaxed prose-sm max-w-none" />
+                ) : (
+                  <div className="text-[13px] leading-relaxed whitespace-pre-wrap break-words">
+                    {(m.channel === 'email' ? stripPlainTextQuote(m.body || '') : (m.body || '')) || '(vide)'}
+                  </div>
+                )}
+                <div className={`text-[9px] mt-1 ${isOut ? 'text-violet-600' : 'text-gray-400'}`}>{c.icon} {new Date(m.sent_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</div>
               </div>
             </div>
           )
@@ -341,8 +349,8 @@ function MobileThreadView({ prospectId, onBack }: { prospectId: string; onBack: 
           )}
           <textarea value={draft} onChange={e => setDraft(e.target.value)}
             placeholder={`${ch.label}…`}
-            rows={1}
-            className="flex-1 px-3 py-2 rounded-2xl border border-gray-200 bg-gray-50 text-[13px] outline-none focus:bg-white focus:border-indigo-300 resize-none" />
+            rows={3}
+            className="flex-1 px-3 py-2 rounded-2xl border border-gray-200 bg-gray-50 text-[13px] outline-none focus:bg-white focus:border-indigo-300 resize-none min-h-[72px]" />
           <button onClick={handleSend} disabled={!draft.trim() || sending}
             className="w-10 h-10 rounded-full bg-indigo-600 text-white text-[15px] font-semibold disabled:opacity-30 active:bg-indigo-700 flex items-center justify-center flex-shrink-0">
             ➤

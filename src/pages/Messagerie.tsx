@@ -16,6 +16,9 @@ import { useAuth } from '@/hooks/useAuth'
 import { useChatDock } from '@/contexts/ChatDockContext'
 import { useIsMobile } from '@/hooks/useIsMobile'
 import MessagerieMobile from '@/components/messagerie/MessagerieMobile'
+import NewDiscussionModal from '@/components/messagerie/NewDiscussionModal'
+import EmailHtmlContent from '@/components/messagerie/EmailHtmlContent'
+import { stripPlainTextQuote } from '@/lib/emailQuote'
 import { CHANNELS, ENABLED_CHANNELS, getChannel, type ChannelId, type UnifiedMessage } from '@/services/channels'
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '@/config/supabase'
@@ -52,6 +55,7 @@ function MessagerieDesktop() {
   const [search, setSearch] = useState('')
   const [readFilter, setReadFilter] = useState<ReadFilter>('all')
   const [channelFilter, setChannelFilter] = useState<ChannelId | 'all'>('all')
+  const [showNewDiscussion, setShowNewDiscussion] = useState(false)
 
   const filtered = useMemo(() => {
     const s = search.trim().toLowerCase()
@@ -86,7 +90,17 @@ function MessagerieDesktop() {
       {/* Liste conversations */}
       <div className="w-[340px] flex-shrink-0 bg-white dark:bg-[#f0eaf5] border-r border-gray-200 dark:border-[#d4cade] flex flex-col">
         <div className="px-4 py-3 border-b border-gray-100 space-y-2">
-          <h1 className="text-base font-bold text-gray-800">Messagerie</h1>
+          <div className="flex items-center justify-between gap-2">
+            <h1 className="text-base font-bold text-gray-800">Messagerie</h1>
+            <button
+              onClick={() => setShowNewDiscussion(true)}
+              className="px-2.5 py-1 rounded-lg bg-violet-600 text-white text-[11px] font-bold hover:bg-violet-700 flex items-center gap-1"
+              title="Démarrer une discussion (1 ou plusieurs destinataires)"
+            >
+              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" /></svg>
+              <span>Nouvelle</span>
+            </button>
+          </div>
           <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-gray-200 bg-white">
             <svg className="w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
             <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Nom, email, contenu…"
@@ -172,6 +186,8 @@ function MessagerieDesktop() {
           </div>
         )}
       </div>
+
+      {showNewDiscussion && <NewDiscussionModal onClose={() => setShowNewDiscussion(false)} />}
     </div>
   )
 }
@@ -296,16 +312,18 @@ function ConversationView({ prospectId }: { prospectId: string }) {
                 </div>
               )}
               <div className={`flex ${isOut ? 'justify-end' : 'justify-start'}`}>
-                <div className={`max-w-[70%] ${isOut ? 'bg-indigo-500 text-white' : 'bg-white border border-gray-200 text-gray-800'} rounded-2xl px-3.5 py-2 shadow-sm`}>
+                <div className={`max-w-[70%] min-w-0 ${isOut ? 'bg-violet-100 text-violet-900 border border-violet-200' : 'bg-white border border-gray-200 text-gray-800'} rounded-2xl px-3.5 py-2 shadow-sm overflow-hidden`}>
                   {m.subject && (
-                    <div className={`text-[11px] font-bold mb-1 ${isOut ? 'text-white/80' : 'text-gray-700'}`}>{m.subject}</div>
+                    <div className={`text-[11px] font-bold mb-1 ${isOut ? 'text-violet-700' : 'text-gray-700'} truncate`}>{m.subject}</div>
                   )}
                   {m.body_html && m.channel === 'email' ? (
-                    <div className="text-[12px] leading-relaxed prose-sm max-w-none [&_a]:underline" dangerouslySetInnerHTML={{ __html: stripGmailQuote(m.body_html) }} />
+                    <EmailHtmlContent html={m.body_html} className="text-[12px] leading-relaxed prose-sm max-w-none" />
                   ) : (
-                    <div className="text-[12px] leading-relaxed whitespace-pre-wrap break-words">{m.body || '(message vide)'}</div>
+                    <div className="text-[12px] leading-relaxed whitespace-pre-wrap break-words">
+                      {(m.channel === 'email' ? stripPlainTextQuote(m.body || '') : (m.body || '')) || '(message vide)'}
+                    </div>
                   )}
-                  <div className={`flex items-center gap-1.5 mt-1 ${isOut ? 'text-white/70' : 'text-gray-400'}`}>
+                  <div className={`flex items-center gap-1.5 mt-1 ${isOut ? 'text-violet-600' : 'text-gray-400'}`}>
                     <span className="text-[9px]">{c.icon}</span>
                     <span className="text-[9px]">{formatTimeFull(m.sent_at)}</span>
                   </div>
@@ -366,10 +384,19 @@ function ConversationView({ prospectId }: { prospectId: string }) {
             </>
           )}
           <textarea value={draft} onChange={e => setDraft(e.target.value)}
-            onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey && !sending) { e.preventDefault(); handleSend() } }}
-            placeholder={`Écrire en ${ch.label}…`}
-            rows={2}
-            className="flex-1 px-3 py-2 rounded-lg border border-gray-200 bg-white text-[12px] outline-none focus:border-indigo-300 resize-none" />
+            onKeyDown={e => {
+              // Email : Entrée = saut de ligne, Cmd/Ctrl+Entrée = envoyer (comme Gmail)
+              // SMS/WhatsApp : Entrée = envoyer (style chat), Maj+Entrée = saut de ligne
+              if (e.key !== 'Enter' || sending) return
+              if (activeChannel === 'email') {
+                if (e.metaKey || e.ctrlKey) { e.preventDefault(); handleSend() }
+              } else {
+                if (!e.shiftKey) { e.preventDefault(); handleSend() }
+              }
+            }}
+            placeholder={activeChannel === 'email' ? `Écrire en Email… (Cmd+Entrée pour envoyer)` : `Écrire en ${ch.label}… (Entrée pour envoyer)`}
+            rows={5}
+            className="flex-1 px-3 py-2 rounded-lg border border-gray-200 bg-white text-[12px] outline-none focus:border-indigo-300 resize-y min-h-[100px]" />
           <button onClick={handleSend} disabled={!draft.trim() || sending}
             className="px-4 py-2 rounded-lg bg-indigo-600 text-white text-[12px] font-semibold disabled:opacity-50 hover:bg-indigo-700">
             {sending ? '…' : 'Envoyer'}
@@ -381,9 +408,3 @@ function ConversationView({ prospectId }: { prospectId: string }) {
 }
 
 // Strip les quotes Gmail (>>) d'un HTML pour ne garder que le contenu utile
-function stripGmailQuote(html: string): string {
-  return html
-    .replace(/<blockquote[^>]*>[\s\S]*?<\/blockquote>/gi, '')
-    .replace(/<div class="gmail_quote"[^>]*>[\s\S]*?<\/div>/gi, '')
-    .replace(/On .+? wrote:[\s\S]*$/i, '')
-}

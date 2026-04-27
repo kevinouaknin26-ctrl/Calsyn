@@ -36,22 +36,17 @@ export function initSentry() {
     // Pas de PII automatique. On taggue manuellement avec setUser().
     sendDefaultPii: false,
 
-    // Sample rate : 100% des erreurs en prod, 0.1 (10%) des transactions perf
-    tracesSampleRate: ENV === 'production' ? 0.1 : 1.0,
-
-    // Replay session : 0% par défaut (lourd), 100% sur erreur
-    replaysSessionSampleRate: 0,
-    replaysOnErrorSampleRate: 1.0,
+    // Replay + sessions désactivés (consomme trop de quota free, et causaient
+    // des 403 sur sendSession quand le quota était saturé). Réactivable en V1.1
+    // si on passe en plan payant.
+    autoSessionTracking: false,
+    tracesSampleRate: 0,
 
     integrations: [
-      Sentry.browserTracingIntegration(),
-      // RGPD : on masque tout texte/inputs dans les replays. Le replay sert à
-      // visualiser la séquence UI, pas à exfiltrer des données prospects.
-      Sentry.replayIntegration({
-        maskAllText: true,
-        maskAllInputs: true,
-        blockAllMedia: true,
-      }),
+      // Pas de browserTracingIntegration (perf samples = quota lourd)
+      // Pas de replayIntegration (sessions complètes = quota énorme, causaient
+      // des 403 sur sendSession). Réactivable en V1.1 si plan Sentry payant.
+      // PII scrubbing actif via beforeSend/beforeBreadcrumb plus bas.
       // Capture console.error / console.warn comme breadcrumbs
       Sentry.captureConsoleIntegration({ levels: ['error', 'warn'] }),
     ],

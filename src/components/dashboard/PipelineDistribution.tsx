@@ -43,11 +43,11 @@ export default function PipelineDistribution({ prospects }: { prospects: Prospec
   }
 
   return (
-    <div className="bg-white dark:bg-[#f0eaf5] rounded-xl border border-gray-200 dark:border-[#d4cade] overflow-hidden">
-      <div className="px-4 py-2.5 border-b border-gray-100">
+    <div className="bg-white dark:bg-[#f0eaf5] rounded-xl border border-gray-200 dark:border-[#d4cade] overflow-hidden h-full flex flex-col">
+      <div className="px-4 py-2.5 border-b border-gray-100 flex-shrink-0">
         <h3 className="text-[12px] font-bold text-gray-700">Pipeline — répartition contacts</h3>
       </div>
-      <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-4 items-center">
+      <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-4 items-center flex-1">
         <div className="flex justify-center">
           <Donut entries={segments.entries} total={segments.total} />
         </div>

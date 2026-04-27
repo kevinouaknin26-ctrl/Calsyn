@@ -1,5 +1,15 @@
 import { supabase } from '@/config/supabase'
+import { stripPlainTextQuote } from '@/lib/emailQuote'
 import type { MessagingChannel } from './types'
+
+/** Nettoie le sujet : enlève les RE:/Re:/Fwd: répétés, tronque. */
+function cleanSubject(subject: string | null | undefined): string {
+  if (!subject) return ''
+  return subject
+    .replace(/^((re|fwd|tr|fw|réf)\s*:\s*)+/i, '')
+    .trim()
+    .slice(0, 60)
+}
 
 export const emailChannel: MessagingChannel = {
   id: 'email',
@@ -11,9 +21,11 @@ export const emailChannel: MessagingChannel = {
   isAvailableForProspect: (p) => !!p.email,
 
   formatPreview: (m) => {
-    const subject = m.subject ? `${m.subject} — ` : ''
-    const preview = (m.body || '').replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').slice(0, 80)
-    return subject + preview
+    const subject = cleanSubject(m.subject)
+    // Strip le quote (Outlook From:/Sent:, Gmail "Le ... a écrit:", etc.) avant la preview
+    const cleanBody = stripPlainTextQuote(m.body || '')
+    const preview = cleanBody.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim().slice(0, 80)
+    return subject ? `${subject} — ${preview}` : preview
   },
 
   send: async ({ prospectId, body, subject, replyTo, toAddress, attachments }) => {
