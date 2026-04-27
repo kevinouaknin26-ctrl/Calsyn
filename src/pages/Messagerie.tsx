@@ -17,7 +17,8 @@ import { useChatDock } from '@/contexts/ChatDockContext'
 import { useIsMobile } from '@/hooks/useIsMobile'
 import MessagerieMobile from '@/components/messagerie/MessagerieMobile'
 import NewDiscussionModal from '@/components/messagerie/NewDiscussionModal'
-import { stripGmailQuote, stripPlainTextQuote } from '@/lib/emailQuote'
+import EmailHtmlContent from '@/components/messagerie/EmailHtmlContent'
+import { stripPlainTextQuote } from '@/lib/emailQuote'
 import { CHANNELS, ENABLED_CHANNELS, getChannel, type ChannelId, type UnifiedMessage } from '@/services/channels'
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '@/config/supabase'
@@ -316,7 +317,7 @@ function ConversationView({ prospectId }: { prospectId: string }) {
                     <div className={`text-[11px] font-bold mb-1 ${isOut ? 'text-violet-700' : 'text-gray-700'} truncate`}>{m.subject}</div>
                   )}
                   {m.body_html && m.channel === 'email' ? (
-                    <div className="text-[12px] leading-relaxed prose-sm max-w-none break-words overflow-hidden [&_a]:underline [&_a]:break-all [&_*]:max-w-full [&_img]:max-w-full [&_img]:h-auto [&_table]:!w-full [&_table]:!table-fixed [&_td]:break-words [&_pre]:whitespace-pre-wrap [&_pre]:break-words [&_p]:break-words" dangerouslySetInnerHTML={{ __html: stripGmailQuote(m.body_html) }} />
+                    <EmailHtmlContent html={m.body_html} className="text-[12px] leading-relaxed prose-sm max-w-none" />
                   ) : (
                     <div className="text-[12px] leading-relaxed whitespace-pre-wrap break-words">
                       {(m.channel === 'email' ? stripPlainTextQuote(m.body || '') : (m.body || '')) || '(message vide)'}
