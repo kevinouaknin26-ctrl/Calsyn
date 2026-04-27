@@ -290,11 +290,11 @@ export default function Dashboard() {
                   </Reveal>
                 </div>
 
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                  <Reveal direction="left">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-stretch">
+                  <Reveal direction="left" className="h-full">
                     <PipelineDistribution prospects={prospects} />
                   </Reveal>
-                  <Reveal direction="right" delay={150}>
+                  <Reveal direction="right" delay={150} className="h-full">
                     <ActivityFeed calls={calls} messages={messages as any} />
                   </Reveal>
                 </div>
