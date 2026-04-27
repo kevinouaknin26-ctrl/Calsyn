@@ -13,6 +13,7 @@
  */
 
 import { useEffect, useMemo, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useAuth } from '@/hooks/useAuth'
 import {
   useSharedResources,
@@ -317,9 +318,14 @@ function UploadModal({ onClose, initialFile }: { onClose: () => void; initialFil
   const createLink = useCreateLinkResource()
   const { isManager } = useAuth()
 
-  const [mode, setMode] = useState<'file' | 'link'>(initialFile ? 'file' : 'file')
+  // Pré-rempli depuis le drop : titre = nom du fichier sans extension
+  const initialTitle = initialFile
+    ? initialFile.name.replace(/\.[^.]+$/, '').replace(/[_-]+/g, ' ').slice(0, 80)
+    : ''
+
+  const [mode, setMode] = useState<'file' | 'link'>('file')
   const [file, setFile] = useState<File | null>(initialFile || null)
-  const [title, setTitle] = useState('')
+  const [title, setTitle] = useState(initialTitle)
   const [description, setDescription] = useState('')
   const [tagsInput, setTagsInput] = useState('')
   const [url, setUrl] = useState('')
@@ -356,9 +362,10 @@ function UploadModal({ onClose, initialFile }: { onClose: () => void; initialFil
     }
   }
 
-  return (
-    <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4 animate-fade-in overflow-y-auto" onClick={onClose}>
-      <div className="bg-white rounded-xl w-full max-w-lg shadow-xl animate-fade-in-scale my-8 max-h-[calc(100vh-4rem)] flex flex-col" onClick={e => e.stopPropagation()}>
+  // Portal au body pour sortir du card SharedResources (qui a overflow-hidden)
+  return createPortal(
+    <div className="fixed inset-0 bg-black/40 z-[60] flex items-center justify-center p-4 animate-fade-in overflow-y-auto" onClick={onClose}>
+      <div className="bg-white rounded-xl w-full max-w-md shadow-xl animate-fade-in-scale my-8 max-h-[calc(100vh-4rem)] flex flex-col" onClick={e => e.stopPropagation()}>
         <div className="p-5 border-b border-gray-100 flex items-center justify-between flex-shrink-0">
           <h2 className="text-[15px] font-bold text-gray-800">Partager une ressource</h2>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600">✕</button>
@@ -481,6 +488,7 @@ function UploadModal({ onClose, initialFile }: { onClose: () => void; initialFil
           </div>
         </form>
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }
