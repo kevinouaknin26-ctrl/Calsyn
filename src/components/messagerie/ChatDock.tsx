@@ -116,7 +116,7 @@ function ChatBubble({ prospectId, minimized }: { prospectId: string; minimized: 
     return (
       <div className="relative flex items-stretch h-[44px] bg-gradient-to-r from-indigo-500 to-violet-500 rounded-t-xl shadow-lg overflow-hidden border border-violet-300 border-b-0">
         <button
-          onClick={(e) => { e.stopPropagation(); navigate(`/app/contacts?prospect=${prospectId}`) }}
+          onClick={(e) => { e.stopPropagation(); navigate('/app/contacts', { state: { openProspectId: prospectId } }) }}
           title="Voir la fiche du prospect"
           className="flex items-center justify-center pl-2.5 pr-1 hover:bg-white/10 transition-colors flex-shrink-0"
         >
@@ -149,7 +149,7 @@ function ChatBubble({ prospectId, minimized }: { prospectId: string; minimized: 
       {/* Header — avatar = ouvre fiche prospect, reste = réduire (style LinkedIn) */}
       <div className="bg-gradient-to-r from-indigo-500 to-violet-500 flex items-center">
         <button
-          onClick={(e) => { e.stopPropagation(); navigate(`/app/contacts?prospect=${prospectId}`) }}
+          onClick={(e) => { e.stopPropagation(); navigate('/app/contacts', { state: { openProspectId: prospectId } }) }}
           title="Voir la fiche du prospect"
           className="w-7 h-7 ml-2.5 my-2 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center text-white font-bold text-[12px] flex-shrink-0 transition-colors cursor-pointer"
         >

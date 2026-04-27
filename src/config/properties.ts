@@ -70,7 +70,7 @@ export const SYSTEM_PROPERTIES: PropertyDefinition[] = [
 
   // CRM
   { id: 'system:crm_status', key: 'crm_status', name: 'Statut CRM', type: 'system', fieldType: 'enum', group: 'crm', groupLabel: 'CRM',
-    options: ['new', 'attempted_to_contact', 'connected', 'in_progress', 'callback', 'not_interested', 'mail_sent', 'rdv_pris', 'rdv_fait', 'en_attente_signature', 'signe', 'en_attente_paiement', 'paye', 'internal'] },
+    options: ['new', 'attempted_to_contact', 'connected', 'in_progress', 'callback', 'not_interested', 'mail_sent', 'rdv_pris', 'rdv_fait', 'en_attente_signature', 'signe', 'en_attente_paiement', 'paye', 'hors_pipeline', 'internal'] },
   { id: 'system:meeting_booked', key: 'meeting_booked', name: 'RDV pris', type: 'system', fieldType: 'boolean', group: 'crm', groupLabel: 'CRM' },
   { id: 'system:do_not_call', key: 'do_not_call', name: 'Ne pas appeler', type: 'system', fieldType: 'boolean', group: 'crm', groupLabel: 'CRM' },
 
@@ -94,12 +94,13 @@ export const CRM_STATUS_LABELS: Record<string, string> = {
   en_attente_signature: 'En attente signature', signe: 'Signé',
   en_attente_paiement: 'En attente paiement', paye: 'Payé',
   mail_sent: 'Mail envoyé', unqualified: 'Non qualifié', bad_timing: 'Mauvais timing',
+  hors_pipeline: 'Hors pipeline',
   internal: 'Hors pipeline (interne)',
 }
 
 /** Statuts CRM qui ne doivent pas apparaître dans le board kanban (colonnes).
  *  Visibles uniquement en mode table avec le toggle "Afficher hors pipeline". */
-export const OUT_OF_PIPELINE_STATUSES = new Set(['internal'])
+export const OUT_OF_PIPELINE_STATUSES = new Set(['internal', 'hors_pipeline'])
 
 /** Lit la valeur d'une propriété depuis le prospect (system) ou les custom values */
 export function getPropertyValue(

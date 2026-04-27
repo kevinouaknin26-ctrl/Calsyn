@@ -644,13 +644,16 @@ function CRMDesktop() {
   // on ouvre automatiquement la fiche du prospect identifie.
   const location = useLocation()
   const navigate = useNavigate()
-  const autoOpenId = (location.state as { openProspectId?: string } | null)?.openProspectId
+  // Auto-open via location.state OU via query param ?prospect=X (cohérent avec CRMMobile)
+  const stateOpenId = (location.state as { openProspectId?: string } | null)?.openProspectId
+  const queryOpenId = new URLSearchParams(location.search).get('prospect')
+  const autoOpenId = stateOpenId || queryOpenId
   useEffect(() => {
     if (!autoOpenId) return
     const target = mergedProspects.find(p => p.id === autoOpenId)
     if (target) {
       setSelectedProspect(target)
-      // Nettoie le state pour eviter de rouvrir au prochain refresh/back
+      // Nettoie state + query pour éviter de rouvrir au refresh/back
       navigate(location.pathname, { replace: true, state: {} })
     }
   }, [autoOpenId, mergedProspects, navigate, location.pathname])
