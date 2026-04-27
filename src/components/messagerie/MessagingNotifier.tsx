@@ -156,10 +156,8 @@ export default function MessagingNotifier() {
           // Son (default ON)
           if (soundEnabled) playNotifSound()
 
-          // Auto-dismiss 5s
-          setTimeout(() => {
-            setToasts(prev => prev.filter(t => t.id !== msg.id))
-          }, 5000)
+          // Pas d'auto-dismiss : la notif reste affichée jusqu'à clic sur la croix
+          // (évite que l'user rate une info en s'absentant 10 secondes).
         }
       )
       .subscribe()
@@ -196,10 +194,7 @@ export default function MessagingNotifier() {
           }])
 
           if (soundEnabled) playNotifSound()
-
-          setTimeout(() => {
-            setToasts(prev => prev.filter(t => t.id !== `call:${c.id}`))
-          }, 6000)
+          // Permanent : reste affiché jusqu'au clic croix
         }
       )
       .subscribe()

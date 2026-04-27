@@ -95,14 +95,14 @@ export default function MobileBottomNav() {
 
   return (
     <nav
-      className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-white dark:bg-[#f0eaf5] border-t border-gray-200"
+      className="md:hidden fixed left-3 right-3 z-50 bg-white dark:bg-[#f0eaf5] border border-gray-200 dark:border-[#d4cade] rounded-2xl"
       style={{
-        paddingBottom: 'env(safe-area-inset-bottom, 0px)',
-        boxShadow: '0 -2px 12px -4px rgba(0,0,0,0.08)',
+        bottom: 'calc(env(safe-area-inset-bottom, 0px) + 12px)',
+        boxShadow: '0 8px 24px -8px rgba(0,0,0,0.18), 0 2px 6px -2px rgba(0,0,0,0.08)',
       }}
     >
       <div
-        className="flex items-stretch overflow-x-auto scrollbar-hide"
+        className="flex items-stretch overflow-x-auto scrollbar-hide rounded-2xl"
         style={{
           scrollSnapType: 'x mandatory',
           WebkitOverflowScrolling: 'touch',

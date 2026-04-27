@@ -6,6 +6,7 @@
  */
 
 import { useEffect, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useAuth } from '@/hooks/useAuth'
 import {
   useAnnouncements,
@@ -84,41 +85,122 @@ export default function Announcements() {
         )}
       </div>
 
-      {/* Compose (admin/manager) */}
-      {showCompose && (
-        <form onSubmit={handleSubmit} className="px-3 py-2 border-b border-gray-50 bg-violet-50/30 space-y-2 flex-shrink-0">
-          <textarea
-            value={body}
-            onChange={e => setBody(e.target.value)}
-            autoFocus
-            placeholder="Annonce à toute l'équipe..."
-            rows={3}
-            className="w-full px-2 py-1.5 text-[12px] border border-gray-200 rounded-md outline-none focus:border-violet-400 resize-none"
-          />
-          {error && <div className="text-[10px] text-red-600">{error}</div>}
-          <div className="flex items-center justify-between gap-2">
-            <label className="flex items-center gap-1.5 text-[10px] text-gray-600 cursor-pointer">
-              <input type="checkbox" checked={pinned} onChange={e => setPinned(e.target.checked)} className="w-3 h-3" />
-              Épingler en haut
-            </label>
-            <div className="flex gap-1.5">
+      {/* Compose modal (admin/manager) */}
+      {showCompose && createPortal(
+        <div className="fixed inset-0 bg-black/40 z-[60] flex items-center justify-center p-4 animate-fade-in overflow-y-auto" onClick={() => setShowCompose(false)}>
+          <form
+            onSubmit={handleSubmit}
+            onClick={e => e.stopPropagation()}
+            className="bg-white rounded-2xl w-full max-w-2xl shadow-2xl animate-fade-in-scale my-8 max-h-[calc(100vh-4rem)] flex flex-col"
+          >
+            {/* Header */}
+            <div className="bg-gradient-to-r from-violet-500 to-indigo-500 px-6 py-4 rounded-t-2xl flex items-center justify-between flex-shrink-0">
+              <div className="flex items-center gap-2.5">
+                <span className="text-2xl">📣</span>
+                <div>
+                  <h2 className="text-[15px] font-bold text-white">Nouvelle annonce</h2>
+                  <p className="text-[11px] text-white/80">Visible immédiatement par toute l'équipe</p>
+                </div>
+              </div>
               <button
                 type="button"
-                onClick={() => { setShowCompose(false); setBody(''); setPinned(false); setError(null) }}
-                className="px-2 py-1 text-[11px] text-gray-500 hover:text-gray-700"
+                onClick={() => setShowCompose(false)}
+                className="text-white/70 hover:text-white text-xl w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white/10"
               >
-                Annuler
-              </button>
-              <button
-                type="submit"
-                disabled={busy || !body.trim()}
-                className="px-3 py-1 text-[11px] font-bold rounded-md bg-violet-600 text-white hover:bg-violet-700 disabled:opacity-50"
-              >
-                {busy ? '...' : 'Publier'}
+                ✕
               </button>
             </div>
-          </div>
-        </form>
+
+            {/* Body */}
+            <div className="p-6 space-y-4 overflow-y-auto flex-1">
+              <div>
+                <label className="text-[11px] font-bold text-gray-600 uppercase tracking-wider block mb-2">Message</label>
+                <textarea
+                  value={body}
+                  onChange={e => setBody(e.target.value)}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey) && body.trim() && !busy) {
+                      e.preventDefault()
+                      handleSubmit(e as any)
+                    }
+                    if (e.key === 'Escape') {
+                      e.preventDefault()
+                      setShowCompose(false)
+                    }
+                  }}
+                  autoFocus
+                  placeholder="Écris ton annonce ici…&#10;&#10;Tu peux faire des sauts de ligne, mettre des listes (- item), ajouter des emojis 🚀"
+                  rows={10}
+                  className="w-full px-4 py-3 text-[13px] leading-relaxed border border-gray-200 rounded-xl outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-100 resize-y min-h-[200px] font-[inherit]"
+                />
+                <div className="flex items-center justify-between mt-1.5 text-[10px] text-gray-400">
+                  <span>{body.length} caractères</span>
+                  <span>Markdown léger supporté (sauts de ligne préservés)</span>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-amber-50 border border-amber-200 cursor-pointer hover:bg-amber-100 transition-colors" onClick={() => setPinned(!pinned)}>
+                <input
+                  type="checkbox"
+                  checked={pinned}
+                  onChange={e => setPinned(e.target.checked)}
+                  className="w-4 h-4 rounded accent-amber-600"
+                  onClick={e => e.stopPropagation()}
+                />
+                <div className="flex-1">
+                  <div className="text-[12px] font-bold text-amber-900 flex items-center gap-1.5">
+                    📌 Épingler en haut du fil
+                  </div>
+                  <p className="text-[10px] text-amber-700 mt-0.5">L'annonce reste visible en permanence en tête de liste, idéal pour les infos importantes durables.</p>
+                </div>
+              </div>
+
+              {/* Aperçu */}
+              {body.trim() && (
+                <div>
+                  <label className="text-[11px] font-bold text-gray-600 uppercase tracking-wider block mb-2">Aperçu</label>
+                  <div className={`px-4 py-3 rounded-xl border ${pinned ? 'bg-amber-50/50 border-amber-200' : 'bg-gray-50 border-gray-200'}`}>
+                    <div className="flex items-start gap-2">
+                      {pinned && <span className="text-[12px] flex-shrink-0 mt-0.5">📌</span>}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[12px] text-gray-800 whitespace-pre-wrap leading-snug">{body}</p>
+                        <div className="text-[10px] text-gray-400 mt-2 flex items-center gap-1.5">
+                          <span>{(profile?.full_name || profile?.email || 'toi').split('@')[0]}</span>
+                          <span>·</span>
+                          <span>à l'instant</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {error && <div className="text-[12px] text-red-600 bg-red-50 border border-red-200 px-3 py-2 rounded-lg">{error}</div>}
+            </div>
+
+            {/* Footer */}
+            <div className="px-6 py-4 border-t border-gray-100 flex items-center justify-between gap-2 flex-shrink-0 bg-gray-50/50 rounded-b-2xl">
+              <p className="text-[10px] text-gray-400">⏎ Enter = saut de ligne · Cmd+Enter = publier</p>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => { setShowCompose(false); setBody(''); setPinned(false); setError(null) }}
+                  className="px-4 py-2 text-[12px] font-semibold text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors"
+                >
+                  Annuler
+                </button>
+                <button
+                  type="submit"
+                  disabled={busy || !body.trim()}
+                  className="px-5 py-2 text-[12px] font-bold rounded-lg bg-gradient-to-r from-violet-600 to-indigo-600 text-white hover:from-violet-700 hover:to-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed shadow-md"
+                >
+                  {busy ? 'Publication…' : '📣 Publier'}
+                </button>
+              </div>
+            </div>
+          </form>
+        </div>,
+        document.body,
       )}
 
       {/* Fil */}
