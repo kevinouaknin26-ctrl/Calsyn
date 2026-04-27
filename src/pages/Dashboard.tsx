@@ -194,7 +194,7 @@ export default function Dashboard() {
         <div className="flex flex-wrap items-baseline justify-between gap-3 animate-dash-up">
           <div>
             <h1 className="text-2xl font-extrabold text-gray-800 flex items-center gap-2.5">
-              Dashboard & analyse
+              Dashboard
               <span className="live-dot" title="Live" />
             </h1>
             <p className="text-[12px] text-gray-500 mt-0.5 flex items-center gap-1.5">
