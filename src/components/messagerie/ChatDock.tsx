@@ -115,12 +115,18 @@ function ChatBubble({ prospectId, minimized }: { prospectId: string; minimized: 
   if (minimized) {
     return (
       <div className="relative flex items-stretch h-[44px] bg-gradient-to-r from-indigo-500 to-violet-500 rounded-t-xl shadow-lg overflow-hidden border border-violet-300 border-b-0">
-        <button onClick={() => toggleMinimize(prospectId)}
-          title={prospect?.name || 'Conversation'}
-          className="flex items-center gap-2 pl-2.5 pr-2 hover:bg-white/10 transition-colors min-w-[140px] max-w-[200px]">
-          <div className="w-7 h-7 rounded-full bg-white/20 flex items-center justify-center text-white font-bold text-[12px] flex-shrink-0">
+        <button
+          onClick={(e) => { e.stopPropagation(); navigate(`/app/contacts?prospect=${prospectId}`) }}
+          title="Voir la fiche du prospect"
+          className="flex items-center justify-center pl-2.5 pr-1 hover:bg-white/10 transition-colors flex-shrink-0"
+        >
+          <div className="w-7 h-7 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center text-white font-bold text-[12px] flex-shrink-0 transition-colors">
             {initial}
           </div>
+        </button>
+        <button onClick={() => toggleMinimize(prospectId)}
+          title={prospect?.name || 'Conversation'}
+          className="flex items-center gap-2 pl-1 pr-2 hover:bg-white/10 transition-colors min-w-[120px] max-w-[200px]">
           <div className="text-[12px] font-bold text-white truncate flex-1 text-left">
             {prospect?.name || 'Inconnu'}
           </div>
@@ -140,14 +146,20 @@ function ChatBubble({ prospectId, minimized }: { prospectId: string; minimized: 
 
   return (
     <div className="w-[360px] h-[calc(100vh-200px)] max-h-[600px] min-h-[440px] bg-white dark:bg-[#f0eaf5] rounded-t-2xl shadow-2xl border border-gray-200 flex flex-col overflow-hidden mb-0">
-      {/* Header — toute la zone gauche est cliquable pour réduire (style LinkedIn) */}
+      {/* Header — avatar = ouvre fiche prospect, reste = réduire (style LinkedIn) */}
       <div className="bg-gradient-to-r from-indigo-500 to-violet-500 flex items-center">
+        <button
+          onClick={(e) => { e.stopPropagation(); navigate(`/app/contacts?prospect=${prospectId}`) }}
+          title="Voir la fiche du prospect"
+          className="w-7 h-7 ml-2.5 my-2 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center text-white font-bold text-[12px] flex-shrink-0 transition-colors cursor-pointer"
+        >
+          {initial}
+        </button>
         <button
           onClick={() => toggleMinimize(prospectId)}
           title="Réduire"
-          className="flex-1 min-w-0 flex items-center gap-2 px-3 py-2 hover:bg-white/10 transition-colors text-left"
+          className="flex-1 min-w-0 flex items-center gap-2 px-2 py-2 hover:bg-white/10 transition-colors text-left"
         >
-          <div className="w-7 h-7 rounded-full bg-white/20 flex items-center justify-center text-white font-bold text-[12px] flex-shrink-0">{initial}</div>
           <div className="flex-1 min-w-0">
             <div className="text-[12px] font-bold text-white truncate">{prospect?.name || 'Inconnu'}</div>
             <div className="text-[10px] text-white/80 truncate">{prospect?.phone || prospect?.email}</div>
