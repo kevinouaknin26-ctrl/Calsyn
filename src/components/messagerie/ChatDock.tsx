@@ -13,6 +13,7 @@ import { useChatDock } from '@/contexts/ChatDockContext'
 import { useConversation } from '@/hooks/useMessaging'
 import { useAuth } from '@/hooks/useAuth'
 import { CHANNELS, ENABLED_CHANNELS, getChannel, type ChannelId, type UnifiedMessage } from '@/services/channels'
+import { stripGmailQuote, stripPlainTextQuote } from '@/lib/emailQuote'
 
 export default function ChatDock() {
   const { chats } = useChatDock()
@@ -173,7 +174,13 @@ function ChatBubble({ prospectId, minimized }: { prospectId: string; minimized: 
             <div key={m.id} className={`flex ${isOut ? 'justify-end' : 'justify-start'}`}>
               <div className={`max-w-[85%] ${isOut ? 'bg-indigo-500 text-white' : 'bg-gray-100 text-gray-800'} rounded-xl px-2.5 py-1.5`}>
                 {m.subject && <div className={`text-[10px] font-bold mb-0.5 ${isOut ? 'text-white/80' : 'text-gray-700'}`}>{m.subject}</div>}
-                <div className="text-[11px] leading-snug whitespace-pre-wrap break-words">{m.body || '(vide)'}</div>
+                {(m as any).body_html && m.channel === 'email' ? (
+                  <div className="text-[11px] leading-snug prose-sm max-w-none [&_a]:underline" dangerouslySetInnerHTML={{ __html: stripGmailQuote((m as any).body_html) }} />
+                ) : (
+                  <div className="text-[11px] leading-snug whitespace-pre-wrap break-words">
+                    {(m.channel === 'email' ? stripPlainTextQuote(m.body || '') : (m.body || '')) || '(vide)'}
+                  </div>
+                )}
                 <div className={`text-[8px] mt-0.5 ${isOut ? 'text-white/70' : 'text-gray-400'}`}>{c.icon} {new Date(m.sent_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</div>
               </div>
             </div>

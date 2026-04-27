@@ -17,6 +17,7 @@ import { useChatDock } from '@/contexts/ChatDockContext'
 import { useIsMobile } from '@/hooks/useIsMobile'
 import MessagerieMobile from '@/components/messagerie/MessagerieMobile'
 import NewDiscussionModal from '@/components/messagerie/NewDiscussionModal'
+import { stripGmailQuote, stripPlainTextQuote } from '@/lib/emailQuote'
 import { CHANNELS, ENABLED_CHANNELS, getChannel, type ChannelId, type UnifiedMessage } from '@/services/channels'
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '@/config/supabase'
@@ -317,7 +318,9 @@ function ConversationView({ prospectId }: { prospectId: string }) {
                   {m.body_html && m.channel === 'email' ? (
                     <div className="text-[12px] leading-relaxed prose-sm max-w-none [&_a]:underline" dangerouslySetInnerHTML={{ __html: stripGmailQuote(m.body_html) }} />
                   ) : (
-                    <div className="text-[12px] leading-relaxed whitespace-pre-wrap break-words">{m.body || '(message vide)'}</div>
+                    <div className="text-[12px] leading-relaxed whitespace-pre-wrap break-words">
+                      {(m.channel === 'email' ? stripPlainTextQuote(m.body || '') : (m.body || '')) || '(message vide)'}
+                    </div>
                   )}
                   <div className={`flex items-center gap-1.5 mt-1 ${isOut ? 'text-white/70' : 'text-gray-400'}`}>
                     <span className="text-[9px]">{c.icon}</span>
@@ -395,9 +398,3 @@ function ConversationView({ prospectId }: { prospectId: string }) {
 }
 
 // Strip les quotes Gmail (>>) d'un HTML pour ne garder que le contenu utile
-function stripGmailQuote(html: string): string {
-  return html
-    .replace(/<blockquote[^>]*>[\s\S]*?<\/blockquote>/gi, '')
-    .replace(/<div class="gmail_quote"[^>]*>[\s\S]*?<\/div>/gi, '')
-    .replace(/On .+? wrote:[\s\S]*$/i, '')
-}

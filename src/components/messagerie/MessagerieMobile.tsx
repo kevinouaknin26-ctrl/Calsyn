@@ -14,6 +14,7 @@ import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '@/config/supabase'
 import { useAuth } from '@/hooks/useAuth'
+import { stripGmailQuote, stripPlainTextQuote } from '@/lib/emailQuote'
 import { useConversations, useConversation } from '@/hooks/useMessaging'
 import { CHANNELS, ENABLED_CHANNELS, getChannel, type ChannelId, type UnifiedMessage } from '@/services/channels'
 
@@ -276,7 +277,13 @@ function MobileThreadView({ prospectId, onBack }: { prospectId: string; onBack: 
             <div key={m.id} className={`flex ${isOut ? 'justify-end' : 'justify-start'}`}>
               <div className={`max-w-[80%] ${isOut ? 'bg-indigo-500 text-white' : 'bg-white text-gray-800 border border-gray-200'} rounded-2xl px-3 py-2 shadow-sm`}>
                 {m.subject && <div className={`text-[11px] font-bold mb-1 ${isOut ? 'text-white/90' : 'text-gray-700'}`}>{m.subject}</div>}
-                <div className="text-[13px] leading-relaxed whitespace-pre-wrap break-words">{m.body || '(vide)'}</div>
+                {(m as any).body_html && m.channel === 'email' ? (
+                  <div className="text-[13px] leading-relaxed prose-sm max-w-none [&_a]:underline" dangerouslySetInnerHTML={{ __html: stripGmailQuote((m as any).body_html) }} />
+                ) : (
+                  <div className="text-[13px] leading-relaxed whitespace-pre-wrap break-words">
+                    {(m.channel === 'email' ? stripPlainTextQuote(m.body || '') : (m.body || '')) || '(vide)'}
+                  </div>
+                )}
                 <div className={`text-[9px] mt-1 ${isOut ? 'text-white/70' : 'text-gray-400'}`}>{c.icon} {new Date(m.sent_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</div>
               </div>
             </div>
