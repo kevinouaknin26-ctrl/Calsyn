@@ -172,10 +172,10 @@ function ChatBubble({ prospectId, minimized }: { prospectId: string; minimized: 
           const isOut = m.direction === 'out'
           return (
             <div key={m.id} className={`flex ${isOut ? 'justify-end' : 'justify-start'}`}>
-              <div className={`max-w-[85%] ${isOut ? 'bg-violet-100 text-violet-900 border border-violet-200' : 'bg-gray-100 text-gray-800'} rounded-xl px-2.5 py-1.5`}>
-                {m.subject && <div className={`text-[10px] font-bold mb-0.5 ${isOut ? 'text-violet-700' : 'text-gray-700'}`}>{m.subject}</div>}
+              <div className={`max-w-[85%] min-w-0 ${isOut ? 'bg-violet-100 text-violet-900 border border-violet-200' : 'bg-gray-100 text-gray-800'} rounded-xl px-2.5 py-1.5 overflow-hidden`}>
+                {m.subject && <div className={`text-[10px] font-bold mb-0.5 ${isOut ? 'text-violet-700' : 'text-gray-700'} truncate`}>{m.subject}</div>}
                 {(m as any).body_html && m.channel === 'email' ? (
-                  <div className="text-[11px] leading-snug prose-sm max-w-none [&_a]:underline" dangerouslySetInnerHTML={{ __html: stripGmailQuote((m as any).body_html) }} />
+                  <div className="text-[11px] leading-snug prose-sm max-w-none break-words overflow-hidden [&_a]:underline [&_a]:break-all [&_*]:max-w-full [&_img]:max-w-full [&_img]:h-auto [&_table]:!w-full [&_table]:!table-fixed [&_td]:break-words [&_pre]:whitespace-pre-wrap [&_pre]:break-words [&_p]:break-words" dangerouslySetInnerHTML={{ __html: stripGmailQuote((m as any).body_html) }} />
                 ) : (
                   <div className="text-[11px] leading-snug whitespace-pre-wrap break-words">
                     {(m.channel === 'email' ? stripPlainTextQuote(m.body || '') : (m.body || '')) || '(vide)'}

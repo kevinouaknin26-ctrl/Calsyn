@@ -311,12 +311,12 @@ function ConversationView({ prospectId }: { prospectId: string }) {
                 </div>
               )}
               <div className={`flex ${isOut ? 'justify-end' : 'justify-start'}`}>
-                <div className={`max-w-[70%] ${isOut ? 'bg-violet-100 text-violet-900 border border-violet-200' : 'bg-white border border-gray-200 text-gray-800'} rounded-2xl px-3.5 py-2 shadow-sm`}>
+                <div className={`max-w-[70%] min-w-0 ${isOut ? 'bg-violet-100 text-violet-900 border border-violet-200' : 'bg-white border border-gray-200 text-gray-800'} rounded-2xl px-3.5 py-2 shadow-sm overflow-hidden`}>
                   {m.subject && (
-                    <div className={`text-[11px] font-bold mb-1 ${isOut ? 'text-violet-700' : 'text-gray-700'}`}>{m.subject}</div>
+                    <div className={`text-[11px] font-bold mb-1 ${isOut ? 'text-violet-700' : 'text-gray-700'} truncate`}>{m.subject}</div>
                   )}
                   {m.body_html && m.channel === 'email' ? (
-                    <div className="text-[12px] leading-relaxed prose-sm max-w-none [&_a]:underline" dangerouslySetInnerHTML={{ __html: stripGmailQuote(m.body_html) }} />
+                    <div className="text-[12px] leading-relaxed prose-sm max-w-none break-words overflow-hidden [&_a]:underline [&_a]:break-all [&_*]:max-w-full [&_img]:max-w-full [&_img]:h-auto [&_table]:!w-full [&_table]:!table-fixed [&_td]:break-words [&_pre]:whitespace-pre-wrap [&_pre]:break-words [&_p]:break-words" dangerouslySetInnerHTML={{ __html: stripGmailQuote(m.body_html) }} />
                   ) : (
                     <div className="text-[12px] leading-relaxed whitespace-pre-wrap break-words">
                       {(m.channel === 'email' ? stripPlainTextQuote(m.body || '') : (m.body || '')) || '(message vide)'}
