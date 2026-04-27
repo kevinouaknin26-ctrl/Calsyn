@@ -138,7 +138,7 @@ function ChatBubble({ prospectId, minimized }: { prospectId: string; minimized: 
   }
 
   return (
-    <div className="w-[320px] h-[440px] bg-white dark:bg-[#f0eaf5] rounded-t-2xl shadow-2xl border border-gray-200 flex flex-col overflow-hidden mb-0">
+    <div className="w-[360px] h-[calc(100vh-80px)] max-h-[760px] min-h-[440px] bg-white dark:bg-[#f0eaf5] rounded-t-2xl shadow-2xl border border-gray-200 flex flex-col overflow-hidden mb-0">
       {/* Header — toute la zone gauche est cliquable pour réduire (style LinkedIn) */}
       <div className="bg-gradient-to-r from-indigo-500 to-violet-500 flex items-center">
         <button

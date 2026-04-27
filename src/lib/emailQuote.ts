@@ -6,13 +6,39 @@
  * thread historique (qui est déjà visible message par message dans la conv).
  */
 
-/** Strip HTML quotes (Gmail web, blockquotes). */
+/** Strip HTML quotes (Gmail web blockquote, Outlook divRplyFwdMsg, etc.). */
 export function stripGmailQuote(html: string): string {
-  return html
+  let out = html
+
+  // Outlook : tout le bloc reply commence par <div id="divRplyFwdMsg"> ou
+  // <div id="appendonsend"></div><hr> ou un <hr> isolé qui sépare la réponse.
+  // On coupe à partir du premier de ces marqueurs.
+  const outlookMarkers = [
+    /<div\s+id=["']appendonsend["'][^>]*>/i,
+    /<div\s+id=["']divRplyFwdMsg["'][^>]*>/i,
+    /<hr\s+[^>]*style=["'][^"']*(display:\s*inline-block|width:\s*\d+%)[^"']*["'][^>]*>/i,
+    /<div\s+class=["'][^"']*OutlookMessageHeader[^"']*["'][^>]*>/i,
+  ]
+  for (const re of outlookMarkers) {
+    const m = out.match(re)
+    if (m && m.index !== undefined) {
+      out = out.slice(0, m.index) + '</body></html>'
+      break
+    }
+  }
+
+  // Gmail / Apple Mail / Yahoo / autres
+  out = out
     .replace(/<blockquote[^>]*>[\s\S]*?<\/blockquote>/gi, '')
-    .replace(/<div class="gmail_quote"[^>]*>[\s\S]*?<\/div>/gi, '')
-    .replace(/<div[^>]*class="[^"]*WordSection1[^"]*"[^>]*>[\s\S]*?<\/div>/gi, '')
-    .replace(/On .+? wrote:[\s\S]*$/i, '')
+    .replace(/<div\s+class=["']gmail_quote["'][^>]*>[\s\S]*?<\/div>/gi, '')
+    .replace(/<div\s+class=["']gmail_attr["'][^>]*>[\s\S]*?<\/div>/gi, '')
+    .replace(/<div[^>]*class=["'][^"']*WordSection1[^"']*["'][^>]*>[\s\S]*?<\/div>/gi, '')
+    // "On [date], [name] wrote:" en HTML brut
+    .replace(/<[^>]*>\s*On\s+.+?\s+wrote:\s*<\/[^>]+>[\s\S]*$/i, '')
+    // "Le [date], [name] a écrit :" FR
+    .replace(/<[^>]*>\s*Le\s+.+?\s+a\s+écrit\s*:\s*<\/[^>]+>[\s\S]*$/i, '')
+
+  return out
 }
 
 /** Strip plain-text quotes (Outlook, Apple Mail, Gmail mobile, FR+EN). */
